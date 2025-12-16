@@ -1,0 +1,2899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MV Solutions - Quotation & Invoice System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #1E3A8A;
+            --primary-light: #3B82F6;
+            --primary-lighter: #DBEAFE;
+            --secondary: #0EA5E9;
+            --accent: #F59E0B;
+            --success: #10B981;
+            --danger: #EF4444;
+            --warning: #F59E0B;
+            --bg: #F1F5F9;
+            --card: #FFFFFF;
+            --text: #1E293B;
+            --text-muted: #64748B;
+            --border: #E2E8F0;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .app { display: flex; min-height: 100vh; }
+        
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(180deg, var(--primary) 0%, #0F172A 100%);
+            padding: 20px 12px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            margin-bottom: 24px;
+        }
+
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            background: var(--secondary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: white;
+            font-size: 18px;
+        }
+
+        .logo-text {
+            color: white;
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .logo-text small {
+            font-size: 11px;
+            font-weight: 400;
+            opacity: 0.7;
+            display: block;
+        }
+
+        .nav { display: flex; flex-direction: column; gap: 4px; }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            color: rgba(255,255,255,0.7);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .nav-item:hover { background: rgba(255,255,255,0.1); color: white; }
+        .nav-item.active { background: var(--secondary); color: white; }
+        .nav-item svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+        .nav-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+            margin: 16px 0;
+        }
+
+        .nav-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.4);
+            padding: 8px 14px;
+            font-weight: 600;
+        }
+
+        .main {
+            flex: 1;
+            margin-left: 250px;
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .page-subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-light); transform: translateY(-1px); }
+        .btn-secondary { background: white; color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--bg); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { opacity: 0.9; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-warning { background: var(--warning); color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 13px; }
+        .btn-icon { padding: 8px; }
+        .btn-group { display: flex; gap: 8px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title { font-size: 16px; font-weight: 600; }
+        .card-body { padding: 20px; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+            font-size: 20px;
+        }
+
+        .stat-icon.blue { background: var(--primary-lighter); color: var(--primary); }
+        .stat-icon.green { background: #D1FAE5; color: var(--success); }
+        .stat-icon.orange { background: #FEF3C7; color: var(--warning); }
+        .stat-icon.red { background: #FEE2E2; color: var(--danger); }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .table-container { overflow-x: auto; }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--bg);
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tr:hover { background: #F8FAFC; }
+
+        .code-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            background: var(--primary-lighter);
+            color: var(--primary);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .price { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+        .price.green { color: var(--success); }
+        .price.red { color: var(--danger); }
+        .price.muted { color: var(--text-muted); }
+
+        .category-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .cat-senseflow { background: #DBEAFE; color: #1E40AF; }
+        .cat-thermoamp { background: #FEE2E2; color: #991B1B; }
+        .cat-controllers { background: #EDE9FE; color: #5B21B6; }
+        .cat-sensors { background: #D1FAE5; color: #065F46; }
+        .cat-accessories { background: #F3F4F6; color: #374151; }
+
+        /* Item category badges */
+        .category-badge.blue { background: #DBEAFE; color: #1E40AF; }
+        .category-badge.green { background: #D1FAE5; color: #065F46; }
+        .category-badge.orange { background: #FEF3C7; color: #92400E; }
+        .category-badge.purple { background: #EDE9FE; color: #5B21B6; }
+        .category-badge.teal { background: #CCFBF1; color: #0F766E; }
+        .category-badge.red { background: #FEE2E2; color: #991B1B; }
+        .category-badge.yellow { background: #FEF9C3; color: #854D0E; }
+        .category-badge.gray { background: #F3F4F6; color: #374151; }
+        .category-badge.default { background: #F3F4F6; color: #6B7280; }
+
+        .actions { display: flex; gap: 4px; }
+
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: var(--text); }
+        .form-label span { color: var(--danger); }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px var(--primary-lighter);
+        }
+
+        .form-input.small {
+            padding: 6px 10px;
+            font-size: 13px;
+        }
+
+        .form-input:disabled {
+            background: var(--bg);
+            color: var(--text-muted);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+            padding: 20px;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal.large { max-width: 900px; }
+        .modal.xlarge { max-width: 1100px; }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .modal-title { font-size: 18px; font-weight: 700; }
+
+        .modal-close {
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: var(--bg);
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover { background: var(--border); }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .search-box {
+            position: relative;
+            width: 300px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 14px 10px 40px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .bom-section {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .bom-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .bom-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .bom-item {
+            display: grid;
+            grid-template-columns: 1fr 80px 100px 100px 40px;
+            gap: 8px;
+            align-items: center;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+
+        .bom-item-name {
+            font-size: 13px;
+        }
+
+        .bom-total {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--primary-lighter);
+            border-radius: 6px;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+
+        .price-summary {
+            background: linear-gradient(135deg, var(--primary-lighter) 0%, #E0E7FF 100%);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 14px;
+        }
+
+        .price-row.highlight {
+            background: white;
+            margin: 8px -16px;
+            padding: 12px 16px;
+            font-weight: 600;
+        }
+
+        .price-row .label { color: var(--text-muted); }
+        .price-row .value { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+
+        .quote-builder {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+        }
+
+        .quote-summary {
+            position: sticky;
+            top: 24px;
+            height: fit-content;
+        }
+
+        .product-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .product-selector select { flex: 1; }
+
+        .quote-item {
+            display: grid;
+            grid-template-columns: 1fr 60px 90px 70px 90px 90px 40px;
+            gap: 10px;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .quote-item-header {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .quote-item-name {
+            font-weight: 600;
+        }
+
+        .quote-item-name small {
+            display: block;
+            font-weight: 400;
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            font-size: 14px;
+        }
+
+        .summary-row.total {
+            border-top: 2px solid var(--border);
+            margin-top: 8px;
+            padding-top: 16px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .summary-row .label { color: var(--text-muted); }
+        .summary-row .value { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .alert-success { background: #D1FAE5; color: #065F46; }
+        .alert-error { background: #FEE2E2; color: #991B1B; }
+        .alert-warning { background: #FEF3C7; color: #92400E; }
+        .alert-info { background: #DBEAFE; color: #1E40AF; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state h3 {
+            font-size: 16px;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-draft { background: #F3F4F6; color: #6B7280; }
+        .status-sent { background: #DBEAFE; color: #1E40AF; }
+        .status-paid { background: #D1FAE5; color: #065F46; }
+        .status-accepted { background: #D1FAE5; color: #065F46; }
+        .status-rejected { background: #FEE2E2; color: #991B1B; }
+        .status-invoiced { background: #FEF3C7; color: #92400E; }
+
+        .profit-indicator {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+        }
+
+        .profit-indicator.good { background: #D1FAE5; color: #065F46; }
+        .profit-indicator.warning { background: #FEF3C7; color: #92400E; }
+        .profit-indicator.bad { background: #FEE2E2; color: #991B1B; }
+
+        @media (max-width: 1024px) {
+            .quote-builder { grid-template-columns: 1fr; }
+            .quote-summary { position: static; }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; }
+            .page-header { flex-direction: column; gap: 16px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media print {
+            .sidebar, .btn, .no-print { display: none !important; }
+            .main { margin-left: 0; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // ============ CONFIGURATION ============
+        const CONFIG = {
+            API_URL: 'https://script.google.com/macros/s/AKfycbyJX8Z1NuGsh6knwGJ-Xg7IqhSnMNTSSrmIZfJ1zy1goRwfjBlz8L-px519lArdlJK6_Q/exec',
+            COMPANY: {
+                name: 'MV SOLUTIONS',
+                tagline: 'Parent Company of Senseflow.in & ThermoAmp.com',
+                address: 'MVS Lab, Shri Bungalow Road No 37, Gorai 2, Borivali',
+                city: 'Mumbai, Maharashtra 400091',
+                email: 'solutionsmv11@gmail.com',
+                phone: '+91 8097412355',
+                gst: '27ALDPJ5310J1ZA'
+            },
+            GST_RATE: 18,
+            DEFAULT_SELLING_MARGIN: 100, // 100% profit = 2x making cost
+            DEFAULT_MRP_MARGIN: 150,     // 150% profit = 2.5x making cost
+            ITEM_CATEGORIES: ['Electronics', 'Mechanical', 'Sensors', 'Cables & Wires', 'Enclosure', 'PCB', 'Packaging', 'Hardware', 'Other'],
+            // Password hash (SHA-256 of actual password) - Change this hash by running: 
+            // crypto.subtle.digest('SHA-256', new TextEncoder().encode('YOUR_PASSWORD')).then(h => console.log(Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('')))
+            ADMIN_HASH: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f' // Default: "password123"
+        };
+
+        // ============ NO HARDCODED DATA - Loads from Google Sheets ============
+        const INITIAL_ITEMS = [];
+        const INITIAL_PRODUCTS = [];
+        const INITIAL_BOM = [];
+        const INITIAL_SUB_PRODUCTS = [];
+
+        // ============ HELPER FUNCTIONS ============
+        const formatCurrency = (num) => '₹' + Number(num || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        
+        // PDF-safe currency format (jsPDF doesn't support ₹ symbol)
+        const formatCurrencyPDF = (num) => 'Rs. ' + Number(num || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+        // ============ PASSWORD UTILITIES ============
+        // Hash password using SHA-256 (async)
+        const hashPassword = async (password) => {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        };
+
+        // Check if admin is authenticated (uses sessionStorage)
+        const isAdminAuthenticated = () => {
+            return sessionStorage.getItem('mvs_admin_auth') === 'true';
+        };
+
+        // Set admin authentication
+        const setAdminAuth = (value) => {
+            if (value) {
+                sessionStorage.setItem('mvs_admin_auth', 'true');
+            } else {
+                sessionStorage.removeItem('mvs_admin_auth');
+            }
+        };
+
+        // Check for circular dependency
+        const hasCircularDependency = (productSku, subProductSku, subProducts, visited = new Set()) => {
+            if (productSku === subProductSku) return true;
+            if (visited.has(subProductSku)) return false;
+            
+            visited.add(subProductSku);
+            
+            // Get sub-products of the sub-product
+            const childSubProducts = subProducts.filter(sp => sp.productSku === subProductSku);
+            for (const child of childSubProducts) {
+                if (hasCircularDependency(productSku, child.subProductSku, subProducts, visited)) {
+                    return true;
+                }
+            }
+            
+            return false;
+        };
+
+        // Get all dependencies for a product (for circular check)
+        const getAllDependencies = (productSku, subProducts, deps = new Set()) => {
+            const directSubs = subProducts.filter(sp => sp.productSku === productSku);
+            for (const sub of directSubs) {
+                if (!deps.has(sub.subProductSku)) {
+                    deps.add(sub.subProductSku);
+                    getAllDependencies(sub.subProductSku, subProducts, deps);
+                }
+            }
+            return deps;
+        };
+        
+        // Calculate making cost using relational data (with circular dependency protection)
+        const calculateMakingCost = (product, items, allProducts, bom, subProducts, visited = new Set()) => {
+            // Circular dependency protection
+            if (visited.has(product.sku)) {
+                console.warn(`Circular dependency detected for ${product.sku}`);
+                return 0;
+            }
+            visited.add(product.sku);
+            
+            let total = 0;
+            
+            // Get BOM entries for this product (components)
+            const productBom = bom.filter(b => b.productSku === product.sku);
+            productBom.forEach(bomItem => {
+                const item = items.find(i => i.code === bomItem.componentCode);
+                if (item) {
+                    total += item.price * bomItem.qty;
+                }
+            });
+            
+            // Get sub-products for this product (with qty support)
+            const productSubProducts = subProducts.filter(sp => sp.productSku === product.sku);
+            productSubProducts.forEach(sp => {
+                const subProduct = allProducts.find(p => p.sku === sp.subProductSku);
+                if (subProduct) {
+                    const subCost = calculateMakingCost(subProduct, items, allProducts, bom, subProducts, new Set(visited));
+                    total += subCost * (sp.qty || 1);
+                }
+            });
+            
+            return total;
+        };
+
+        // Get BOM as array for a product (for display in UI)
+        const getProductBom = (productSku, bom) => {
+            return bom.filter(b => b.productSku === productSku).map(b => ({
+                code: b.componentCode,
+                qty: b.qty
+            }));
+        };
+
+        // Get sub-products for a product (with qty)
+        const getProductSubProducts = (productSku, subProducts) => {
+            return subProducts.filter(sp => sp.productSku === productSku).map(sp => ({
+                sku: sp.subProductSku,
+                qty: sp.qty || 1
+            }));
+        };
+
+        const getSellingPrice = (product, makingCost) => {
+            if (product.sellingPrice !== null && product.sellingPrice !== undefined) {
+                return product.sellingPrice;
+            }
+            return Math.round(makingCost * (1 + CONFIG.DEFAULT_SELLING_MARGIN / 100));
+        };
+
+        const getMRP = (product, makingCost) => {
+            if (product.mrp !== null && product.mrp !== undefined) {
+                return product.mrp;
+            }
+            return Math.round(makingCost * (1 + CONFIG.DEFAULT_MRP_MARGIN / 100));
+        };
+
+        const calculateGST = (amount) => Math.round(amount * CONFIG.GST_RATE / 100);
+
+        const generateDocNumber = (prefix, count) => {
+            const date = new Date();
+            const year = date.getFullYear().toString().slice(-2);
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            return `${prefix}-${year}${month}-${String(count + 1).padStart(3, '0')}`;
+        };
+
+        const getCategoryClass = (category) => {
+            const map = {
+                'SenseFlow': 'cat-senseflow',
+                'ThermoAmp': 'cat-thermoamp',
+                'Controllers': 'cat-controllers',
+                'Sensors': 'cat-sensors',
+                'Accessories': 'cat-accessories'
+            };
+            return map[category] || 'cat-accessories';
+        };
+
+        const getProfitClass = (makingCost, sellingPrice) => {
+            const profit = ((sellingPrice - makingCost) / makingCost) * 100;
+            if (profit >= 80) return 'good';
+            if (profit >= 50) return 'warning';
+            return 'bad';
+        };
+
+        // ============ ICONS ============
+        const Icons = {
+            Dashboard: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+            Items: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>,
+            Products: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>,
+            Quote: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+            History: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            Plus: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+            Edit: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+            Trash: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+            Search: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+            Download: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+            X: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            Eye: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+            Box: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        };
+
+        // ============ MODAL COMPONENT ============
+        const Modal = ({ isOpen, onClose, title, children, size = '', footer }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className={`modal ${size}`} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">{title}</h3>
+                            <button className="modal-close" onClick={onClose}>×</button>
+                        </div>
+                        <div className="modal-body">{children}</div>
+                        {footer && <div className="modal-footer">{footer}</div>}
+                    </div>
+                </div>
+            );
+        };
+
+        // ============ PASSWORD GATE COMPONENT ============
+        const PasswordGate = ({ children, title }) => {
+            const [isAuthenticated, setIsAuthenticated] = useState(isAdminAuthenticated());
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setIsLoading(true);
+                setError('');
+                
+                try {
+                    const inputHash = await hashPassword(password);
+                    if (inputHash === CONFIG.ADMIN_HASH) {
+                        setAdminAuth(true);
+                        setIsAuthenticated(true);
+                    } else {
+                        setError('Incorrect password');
+                        setPassword('');
+                    }
+                } catch (err) {
+                    setError('Authentication error');
+                }
+                setIsLoading(false);
+            };
+
+            if (isAuthenticated) {
+                return children;
+            }
+
+            return (
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: '60vh',
+                    padding: '40px'
+                }}>
+                    <div style={{
+                        background: 'white',
+                        borderRadius: '16px',
+                        padding: '40px',
+                        boxShadow: 'var(--shadow-lg)',
+                        maxWidth: '400px',
+                        width: '100%',
+                        textAlign: 'center'
+                    }}>
+                        <div style={{
+                            width: '60px',
+                            height: '60px',
+                            background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
+                            borderRadius: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '0 auto 20px',
+                            color: 'white'
+                        }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="28" height="28">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </div>
+                        
+                        <h2 style={{ marginBottom: '8px', color: 'var(--text)' }}>Admin Access Required</h2>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '14px' }}>
+                            Enter password to access {title}
+                        </p>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <input
+                                type="password"
+                                className="form-input"
+                                placeholder="Enter admin password"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                style={{ marginBottom: '16px', textAlign: 'center' }}
+                                autoFocus
+                            />
+                            
+                            {error && (
+                                <div style={{
+                                    background: '#FEE2E2',
+                                    color: '#991B1B',
+                                    padding: '10px',
+                                    borderRadius: '8px',
+                                    marginBottom: '16px',
+                                    fontSize: '14px'
+                                }}>
+                                    {error}
+                                </div>
+                            )}
+                            
+                            <button 
+                                type="submit" 
+                                className="btn btn-primary" 
+                                style={{ width: '100%' }}
+                                disabled={isLoading || !password}
+                            >
+                                {isLoading ? 'Verifying...' : 'Unlock'}
+                            </button>
+                        </form>
+                        
+                        <p style={{ marginTop: '20px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                            🔒 This section contains sensitive pricing data
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============ SEARCHABLE SELECT COMPONENT ============
+        const SearchableSelect = ({ options, value, onChange, placeholder, renderOption, disabled = false }) => {
+            const [search, setSearch] = useState('');
+            const [isOpen, setIsOpen] = useState(false);
+            const wrapperRef = useRef(null);
+
+            // Close dropdown when clicking outside
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+                        setIsOpen(false);
+                    }
+                };
+                document.addEventListener('mousedown', handleClickOutside);
+                return () => document.removeEventListener('mousedown', handleClickOutside);
+            }, []);
+
+            const filteredOptions = options.filter(opt => {
+                const searchLower = search.toLowerCase();
+                const label = renderOption ? renderOption(opt) : opt.label || opt.name || opt.code || opt.sku || '';
+                return label.toLowerCase().includes(searchLower);
+            });
+
+            const selectedOption = options.find(opt => {
+                const optValue = opt.value || opt.code || opt.sku;
+                return optValue === value;
+            });
+
+            const getLabel = (opt) => {
+                if (renderOption) return renderOption(opt);
+                return opt.label || opt.name || opt.code || opt.sku || '';
+            };
+
+            return (
+                <div ref={wrapperRef} style={{ position: 'relative', flex: 1 }}>
+                    <div 
+                        className="form-input"
+                        onClick={() => !disabled && setIsOpen(!isOpen)}
+                        style={{ 
+                            cursor: disabled ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            opacity: disabled ? 0.6 : 1
+                        }}
+                    >
+                        <span style={{ color: selectedOption ? 'var(--text)' : 'var(--text-muted)' }}>
+                            {selectedOption ? getLabel(selectedOption) : placeholder}
+                        </span>
+                        <span style={{ fontSize: '10px' }}>▼</span>
+                    </div>
+                    
+                    {isOpen && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            background: 'white',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            boxShadow: 'var(--shadow-lg)',
+                            zIndex: 1000,
+                            maxHeight: '250px',
+                            overflow: 'hidden'
+                        }}>
+                            <div style={{ padding: '8px', borderBottom: '1px solid var(--border)' }}>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    placeholder="Search..."
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    onClick={e => e.stopPropagation()}
+                                    autoFocus
+                                    style={{ marginBottom: 0 }}
+                                />
+                            </div>
+                            <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                {filteredOptions.length === 0 ? (
+                                    <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                        No results found
+                                    </div>
+                                ) : (
+                                    filteredOptions.map((opt, idx) => {
+                                        const optValue = opt.value || opt.code || opt.sku;
+                                        return (
+                                            <div
+                                                key={optValue || idx}
+                                                onClick={() => {
+                                                    onChange(optValue);
+                                                    setIsOpen(false);
+                                                    setSearch('');
+                                                }}
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    cursor: 'pointer',
+                                                    background: optValue === value ? 'var(--primary-lighter)' : 'white',
+                                                    borderBottom: '1px solid var(--border)',
+                                                    fontSize: '13px',
+                                                    transition: 'background 0.15s'
+                                                }}
+                                                onMouseEnter={e => e.target.style.background = 'var(--bg)'}
+                                                onMouseLeave={e => e.target.style.background = optValue === value ? 'var(--primary-lighter)' : 'white'}
+                                            >
+                                                {getLabel(opt)}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ============ DASHBOARD ============
+        const Dashboard = ({ items, products, quotations, bom, subProducts }) => {
+            const totalProducts = products.length;
+            const totalItems = items.length;
+
+            return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <h1 className="page-title">Dashboard</h1>
+                            <p className="page-subtitle">Welcome back! Here's your business overview.</p>
+                        </div>
+                    </div>
+
+                    <div className="stats-grid">
+                        <div className="stat-card">
+                            <div className="stat-icon blue"><Icons.Items /></div>
+                            <div className="stat-value">{totalItems}</div>
+                            <div className="stat-label">Components</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon green"><Icons.Products /></div>
+                            <div className="stat-value">{totalProducts}</div>
+                            <div className="stat-label">Products</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon orange"><Icons.Quote /></div>
+                            <div className="stat-value">{quotations.length}</div>
+                            <div className="stat-label">Quotations</div>
+                        </div>
+                    </div>
+
+                    <div className="card">
+                        <div className="card-header">
+                            <h3 className="card-title">Recent Products</h3>
+                        </div>
+                        <div className="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>SKU</th>
+                                        <th>Product</th>
+                                        <th>Category</th>
+                                        <th>Making Cost</th>
+                                        <th>Selling Price</th>
+                                        <th>MRP</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {products.slice(0, 5).map(p => {
+                                        const makingCost = calculateMakingCost(p, items, products, bom, subProducts);
+                                        const sellingPrice = getSellingPrice(p, makingCost);
+                                        const mrp = getMRP(p, makingCost);
+                                        return (
+                                            <tr key={p.sku}>
+                                                <td><span className="code-badge">{p.sku}</span></td>
+                                                <td>{p.name}</td>
+                                                <td><span className={`category-badge ${getCategoryClass(p.category)}`}>{p.category}</span></td>
+                                                <td className="price">{formatCurrency(makingCost)}</td>
+                                                <td className="price green">{formatCurrency(sellingPrice)}</td>
+                                                <td className="price">{formatCurrency(mrp)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============ ITEMS MASTER ============
+        const ItemsMaster = ({ items, setItems }) => {
+            const [search, setSearch] = useState('');
+            const [categoryFilter, setCategoryFilter] = useState('');
+            const [showModal, setShowModal] = useState(false);
+            const [editItem, setEditItem] = useState(null);
+            const [formData, setFormData] = useState({ 
+                code: '', 
+                name: '', 
+                price: '', 
+                category: 'Electronics',
+                vendor: '',
+                vendorAddress: ''
+            });
+
+            const filteredItems = items.filter(item => {
+                const matchesSearch = 
+                    item.code.toLowerCase().includes(search.toLowerCase()) ||
+                    item.name.toLowerCase().includes(search.toLowerCase()) ||
+                    (item.vendor || '').toLowerCase().includes(search.toLowerCase());
+                const matchesCategory = !categoryFilter || item.category === categoryFilter;
+                return matchesSearch && matchesCategory;
+            });
+
+            const resetForm = () => {
+                setFormData({ 
+                    code: '', 
+                    name: '', 
+                    price: '', 
+                    category: 'Electronics',
+                    vendor: '',
+                    vendorAddress: ''
+                });
+                setEditItem(null);
+            };
+
+            const handleSubmit = () => {
+                if (!formData.code || !formData.name || !formData.price) {
+                    alert('Please fill all required fields: Code, Name, and Price');
+                    return;
+                }
+
+                // Check for duplicate code (only when adding new item)
+                if (!editItem && items.some(item => item.code.toUpperCase() === formData.code.toUpperCase())) {
+                    alert(`Item code "${formData.code}" already exists! Please use a different code.`);
+                    return;
+                }
+
+                const itemData = {
+                    ...formData,
+                    price: Number(formData.price)
+                };
+
+                if (editItem) {
+                    setItems(items.map(item => item.code === editItem.code ? itemData : item));
+                } else {
+                    setItems([...items, itemData]);
+                }
+                setShowModal(false);
+                resetForm();
+            };
+
+            const handleEdit = (item) => {
+                setEditItem(item);
+                setFormData({ 
+                    ...item, 
+                    price: item.price.toString(),
+                    category: item.category || 'Electronics',
+                    vendor: item.vendor || '',
+                    vendorAddress: item.vendorAddress || ''
+                });
+                setShowModal(true);
+            };
+
+            const handleDelete = (code) => {
+                if (confirm('Delete this item? Products using it will be affected.')) {
+                    setItems(items.filter(item => item.code !== code));
+                }
+            };
+
+            const getItemCategoryClass = (cat) => {
+                const map = {
+                    'Electronics': 'blue',
+                    'Mechanical': 'orange',
+                    'Sensors': 'green',
+                    'Cables & Wires': 'purple',
+                    'Enclosure': 'teal',
+                    'PCB': 'red',
+                    'Packaging': 'yellow',
+                    'Hardware': 'gray',
+                    'Other': 'default'
+                };
+                return map[cat] || 'default';
+            };
+
+            return (
+                <PasswordGate title="Items Master">
+                    <div>
+                        <div className="page-header">
+                            <div>
+                                <h1 className="page-title">Items Master</h1>
+                                <p className="page-subtitle">Manage components with vendor details - changes auto-update product costs</p>
+                            </div>
+                            <button className="btn btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
+                                <Icons.Plus /> Add Item
+                            </button>
+                        </div>
+
+                        <div className="card">
+                            <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
+                                <div className="search-box">
+                                    <Icons.Search />
+                                    <input type="text" placeholder="Search items, vendors..." value={search} onChange={e => setSearch(e.target.value)} />
+                                </div>
+                                <select 
+                                    className="form-select" 
+                                    value={categoryFilter} 
+                                    onChange={e => setCategoryFilter(e.target.value)}
+                                    style={{ width: 'auto', minWidth: '150px' }}
+                                >
+                                    <option value="">All Categories</option>
+                                    {CONFIG.ITEM_CATEGORIES.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{filteredItems.length} items</span>
+                            </div>
+                            <div className="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>Item Name</th>
+                                            <th>Category</th>
+                                            <th>Unit Price</th>
+                                            <th>Vendor</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredItems.map(item => (
+                                            <tr key={item.code}>
+                                                <td><span className="code-badge">{item.code}</span></td>
+                                                <td>{item.name}</td>
+                                                <td>
+                                                    <span className={`category-badge ${getItemCategoryClass(item.category)}`}>
+                                                        {item.category || 'Other'}
+                                                    </span>
+                                                </td>
+                                                <td className="price">{formatCurrency(item.price)}</td>
+                                                <td>
+                                                    {item.vendor ? (
+                                                        <div style={{ fontSize: '13px' }}>
+                                                            <div style={{ fontWeight: '500' }}>{item.vendor}</div>
+                                                            {item.vendorAddress && (
+                                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                                    {item.vendorAddress}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>
+                                                    )}
+                                                </td>
+                                                <td className="actions">
+                                                    <button className="btn btn-secondary btn-sm btn-icon" onClick={() => handleEdit(item)}><Icons.Edit /></button>
+                                                    <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(item.code)}><Icons.Trash /></button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <Modal
+                            isOpen={showModal}
+                            onClose={() => { setShowModal(false); resetForm(); }}
+                            title={editItem ? 'Edit Item' : 'Add New Item'}
+                            size="large"
+                            footer={
+                                <>
+                                    <button className="btn btn-secondary" onClick={() => { setShowModal(false); resetForm(); }}>Cancel</button>
+                                    <button className="btn btn-primary" onClick={handleSubmit}>{editItem ? 'Update' : 'Add'} Item</button>
+                                </>
+                            }
+                        >
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label className="form-label">Item Code <span>*</span></label>
+                                    <input 
+                                        type="text" 
+                                        className="form-input" 
+                                        placeholder="e.g., C50" 
+                                        value={formData.code} 
+                                        onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })} 
+                                        disabled={!!editItem} 
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Category</label>
+                                    <select 
+                                        className="form-select" 
+                                        value={formData.category} 
+                                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                    >
+                                        {CONFIG.ITEM_CATEGORIES.map(cat => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Item Name <span>*</span></label>
+                                <input 
+                                    type="text" 
+                                    className="form-input" 
+                                    placeholder="e.g., ESP32 WROOM Module" 
+                                    value={formData.name} 
+                                    onChange={e => setFormData({ ...formData, name: e.target.value })} 
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Unit Price (₹) <span>*</span></label>
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    placeholder="e.g., 150" 
+                                    value={formData.price} 
+                                    onChange={e => setFormData({ ...formData, price: e.target.value })} 
+                                />
+                            </div>
+                            
+                            <div style={{ borderTop: '1px solid var(--border)', margin: '20px 0', paddingTop: '20px' }}>
+                                <h4 style={{ marginBottom: '16px', color: 'var(--text)', fontSize: '14px', fontWeight: '600' }}>
+                                    📦 Vendor / Procurement Details
+                                </h4>
+                                <div className="form-group">
+                                    <label className="form-label">Vendor / Supplier Name</label>
+                                    <input 
+                                        type="text" 
+                                        className="form-input" 
+                                        placeholder="e.g., Robu.in, PCBWay, Local Supplier" 
+                                        value={formData.vendor} 
+                                        onChange={e => setFormData({ ...formData, vendor: e.target.value })} 
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Vendor Address / Contact</label>
+                                    <textarea 
+                                        className="form-textarea" 
+                                        rows="2"
+                                        placeholder="e.g., Lamington Road, Mumbai or www.robu.in" 
+                                        value={formData.vendorAddress} 
+                                        onChange={e => setFormData({ ...formData, vendorAddress: e.target.value })} 
+                                    />
+                                </div>
+                            </div>
+                        </Modal>
+                    </div>
+                </PasswordGate>
+            );
+        };
+
+        // ============ PRODUCTS PAGE ============
+        const ProductsPage = ({ products, setProducts, items, bom, setBom, subProducts, setSubProducts }) => {
+            const [search, setSearch] = useState('');
+            const [showModal, setShowModal] = useState(false);
+            const [editProduct, setEditProduct] = useState(null);
+            const [formData, setFormData] = useState({
+                sku: '', name: '', category: 'SenseFlow',
+                formBom: [], // Components from Items
+                formSubProducts: [], // Sub-products from Products
+                sellingPrice: '',
+                mrp: ''
+            });
+            const [selectedItem, setSelectedItem] = useState('');
+            const [itemQty, setItemQty] = useState(1);
+            const [selectedSubProduct, setSelectedSubProduct] = useState('');
+            const [subProductQty, setSubProductQty] = useState(1);
+            const [circularError, setCircularError] = useState('');
+
+            const categories = ['SenseFlow', 'ThermoAmp', 'Controllers', 'Sensors', 'Accessories'];
+
+            const filteredProducts = products.filter(p =>
+                p.sku.toLowerCase().includes(search.toLowerCase()) ||
+                p.name.toLowerCase().includes(search.toLowerCase()) ||
+                p.category.toLowerCase().includes(search.toLowerCase())
+            );
+
+            // Calculate form making cost including sub-products
+            const calculateFormMakingCost = () => {
+                // Cost from components
+                let total = formData.formBom.reduce((sum, bomItem) => {
+                    const item = items.find(i => i.code === bomItem.code);
+                    return sum + (item ? item.price * bomItem.qty : 0);
+                }, 0);
+
+                // Cost from sub-products
+                formData.formSubProducts.forEach(sp => {
+                    const subProduct = products.find(p => p.sku === sp.sku);
+                    if (subProduct) {
+                        const subCost = calculateMakingCost(subProduct, items, products, bom, subProducts);
+                        total += subCost * sp.qty;
+                    }
+                });
+
+                return total;
+            };
+
+            const formMakingCost = calculateFormMakingCost();
+            const defaultSellingPrice = Math.round(formMakingCost * (1 + CONFIG.DEFAULT_SELLING_MARGIN / 100));
+            const defaultMRP = Math.round(formMakingCost * (1 + CONFIG.DEFAULT_MRP_MARGIN / 100));
+
+            // Add component to BOM
+            const addBomItem = () => {
+                if (!selectedItem || itemQty < 1) return;
+                const existing = formData.formBom.find(b => b.code === selectedItem);
+                if (existing) {
+                    setFormData({
+                        ...formData,
+                        formBom: formData.formBom.map(b => b.code === selectedItem ? { ...b, qty: b.qty + itemQty } : b)
+                    });
+                } else {
+                    setFormData({
+                        ...formData,
+                        formBom: [...formData.formBom, { code: selectedItem, qty: itemQty }]
+                    });
+                }
+                setSelectedItem('');
+                setItemQty(1);
+            };
+
+            // Add sub-product with circular dependency check
+            const addSubProduct = () => {
+                if (!selectedSubProduct || subProductQty < 1) return;
+                setCircularError('');
+
+                // Can't add self
+                if (selectedSubProduct === formData.sku) {
+                    setCircularError('Cannot add a product to itself!');
+                    return;
+                }
+
+                // Check for circular dependency
+                // Build temporary subProducts list to check
+                const tempSubProducts = [
+                    ...subProducts.filter(sp => sp.productSku !== formData.sku),
+                    ...formData.formSubProducts.map(sp => ({ productSku: formData.sku, subProductSku: sp.sku, qty: sp.qty })),
+                    { productSku: formData.sku, subProductSku: selectedSubProduct, qty: subProductQty }
+                ];
+
+                if (hasCircularDependency(formData.sku, selectedSubProduct, tempSubProducts)) {
+                    setCircularError(`Circular dependency detected! ${selectedSubProduct} already contains ${formData.sku} directly or indirectly.`);
+                    return;
+                }
+
+                const existing = formData.formSubProducts.find(sp => sp.sku === selectedSubProduct);
+                if (existing) {
+                    setFormData({
+                        ...formData,
+                        formSubProducts: formData.formSubProducts.map(sp => 
+                            sp.sku === selectedSubProduct ? { ...sp, qty: sp.qty + subProductQty } : sp
+                        )
+                    });
+                } else {
+                    setFormData({
+                        ...formData,
+                        formSubProducts: [...formData.formSubProducts, { sku: selectedSubProduct, qty: subProductQty }]
+                    });
+                }
+                setSelectedSubProduct('');
+                setSubProductQty(1);
+            };
+
+            const removeBomItem = (code) => {
+                setFormData({
+                    ...formData,
+                    formBom: formData.formBom.filter(b => b.code !== code)
+                });
+            };
+
+            const removeSubProduct = (sku) => {
+                setFormData({
+                    ...formData,
+                    formSubProducts: formData.formSubProducts.filter(sp => sp.sku !== sku)
+                });
+            };
+
+            const handleSubmit = () => {
+                if (!formData.sku || !formData.name || (formData.formBom.length === 0 && formData.formSubProducts.length === 0)) {
+                    alert('Please fill SKU, Name and add at least one component or sub-product');
+                    return;
+                }
+
+                // Check for duplicate SKU (only when adding new product)
+                if (!editProduct && products.some(p => p.sku.toUpperCase() === formData.sku.toUpperCase())) {
+                    alert(`Product SKU "${formData.sku}" already exists! Please use a different SKU.`);
+                    return;
+                }
+
+                const productData = {
+                    sku: formData.sku,
+                    name: formData.name,
+                    category: formData.category,
+                    sellingPrice: formData.sellingPrice ? Number(formData.sellingPrice) : null,
+                    mrp: formData.mrp ? Number(formData.mrp) : null
+                };
+
+                // Update/Add product
+                if (editProduct) {
+                    setProducts(products.map(p => p.sku === editProduct.sku ? productData : p));
+                } else {
+                    setProducts([...products, productData]);
+                }
+
+                // Update BOM (remove old entries for this product, add new ones)
+                const otherBomEntries = bom.filter(b => b.productSku !== formData.sku);
+                const newBomEntries = formData.formBom.map(b => ({
+                    productSku: formData.sku,
+                    componentCode: b.code,
+                    qty: b.qty
+                }));
+                setBom([...otherBomEntries, ...newBomEntries]);
+
+                // Update Sub-Products (remove old entries for this product, add new ones)
+                const otherSubProductEntries = subProducts.filter(sp => sp.productSku !== formData.sku);
+                const newSubProductEntries = formData.formSubProducts.map(sp => ({
+                    productSku: formData.sku,
+                    subProductSku: sp.sku,
+                    qty: sp.qty
+                }));
+                setSubProducts([...otherSubProductEntries, ...newSubProductEntries]);
+
+                setShowModal(false);
+                resetForm();
+            };
+
+            const resetForm = () => {
+                setFormData({ sku: '', name: '', category: 'SenseFlow', formBom: [], formSubProducts: [], sellingPrice: '', mrp: '' });
+                setEditProduct(null);
+                setCircularError('');
+            };
+
+            const handleEdit = (product) => {
+                setEditProduct(product);
+                // Load BOM from the bom array
+                const productBom = bom.filter(b => b.productSku === product.sku).map(b => ({
+                    code: b.componentCode,
+                    qty: b.qty
+                }));
+                // Load Sub-Products from the subProducts array
+                const productSubs = subProducts.filter(sp => sp.productSku === product.sku).map(sp => ({
+                    sku: sp.subProductSku,
+                    qty: sp.qty
+                }));
+                setFormData({
+                    sku: product.sku,
+                    name: product.name,
+                    category: product.category,
+                    formBom: productBom,
+                    formSubProducts: productSubs,
+                    sellingPrice: product.sellingPrice || '',
+                    mrp: product.mrp || ''
+                });
+                setCircularError('');
+                setShowModal(true);
+            };
+
+            const handleDelete = (sku) => {
+                if (confirm('Delete this product?')) {
+                    setProducts(products.filter(p => p.sku !== sku));
+                    // Also remove BOM entries for this product
+                    setBom(bom.filter(b => b.productSku !== sku));
+                    // Remove from sub products if referenced (as parent or child)
+                    setSubProducts(subProducts.filter(sp => sp.productSku !== sku && sp.subProductSku !== sku));
+                }
+            };
+
+            return (
+                <PasswordGate title="Products">
+                    <div>
+                        <div className="page-header">
+                            <div>
+                                <h1 className="page-title">Products</h1>
+                                <p className="page-subtitle">Products with BOM - costs auto-update when component prices change</p>
+                        </div>
+                        <button className="btn btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
+                            <Icons.Plus /> Add Product
+                        </button>
+                    </div>
+
+                    <div className="card">
+                        <div className="card-header">
+                            <div className="search-box">
+                                <Icons.Search />
+                                <input type="text" placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} />
+                            </div>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{filteredProducts.length} products</span>
+                        </div>
+                        <div className="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>SKU</th>
+                                        <th>Product Name</th>
+                                        <th>Category</th>
+                                        <th>Making Cost</th>
+                                        <th>Selling Price</th>
+                                        <th>MRP</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredProducts.map(p => {
+                                        const makingCost = calculateMakingCost(p, items, products, bom, subProducts);
+                                        const sellingPrice = getSellingPrice(p, makingCost);
+                                        const mrp = getMRP(p, makingCost);
+                                        const profitPercent = makingCost > 0 ? Math.round(((sellingPrice - makingCost) / makingCost) * 100) : 0;
+                                        return (
+                                            <tr key={p.sku}>
+                                                <td><span className="code-badge">{p.sku}</span></td>
+                                                <td>{p.name}</td>
+                                                <td><span className={`category-badge ${getCategoryClass(p.category)}`}>{p.category}</span></td>
+                                                <td className="price">{formatCurrency(makingCost)}</td>
+                                                <td>
+                                                    <span className="price green">{formatCurrency(sellingPrice)}</span>
+                                                    {makingCost > 0 && <span className={`profit-indicator ${getProfitClass(makingCost, sellingPrice)}`}>{profitPercent}%</span>}
+                                                </td>
+                                                <td className="price">{formatCurrency(mrp)}</td>
+                                                <td className="actions">
+                                                    <button className="btn btn-secondary btn-sm btn-icon" onClick={() => handleEdit(p)}><Icons.Edit /></button>
+                                                    <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(p.sku)}><Icons.Trash /></button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <Modal
+                        isOpen={showModal}
+                        onClose={() => { setShowModal(false); resetForm(); }}
+                        title={editProduct ? 'Edit Product' : 'Add New Product'}
+                        size="large"
+                        footer={
+                            <>
+                                <button className="btn btn-secondary" onClick={() => { setShowModal(false); resetForm(); }}>Cancel</button>
+                                <button className="btn btn-primary" onClick={handleSubmit}>{editProduct ? 'Update' : 'Add'} Product</button>
+                            </>
+                        }
+                    >
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label">SKU Code <span>*</span></label>
+                                <input type="text" className="form-input" placeholder="e.g., SF16" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value.toUpperCase() })} disabled={!!editProduct} />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Category <span>*</span></label>
+                                <select className="form-select" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Product Name <span>*</span></label>
+                            <input type="text" className="form-input" placeholder="e.g., New Product Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                        </div>
+
+                        {/* BOM Section - Components */}
+                        <div className="bom-section">
+                            <div className="bom-header">
+                                <span className="bom-title">📦 Components (from Items)</span>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'flex-end' }}>
+                                <div style={{ flex: 1 }}>
+                                    <SearchableSelect
+                                        options={items}
+                                        value={selectedItem}
+                                        onChange={setSelectedItem}
+                                        placeholder="Search components..."
+                                        renderOption={(item) => `${item.code} - ${item.name} (${formatCurrency(item.price)})`}
+                                    />
+                                </div>
+                                <input type="number" className="form-input" style={{ width: '70px' }} placeholder="Qty" value={itemQty} min="1" onChange={e => setItemQty(Number(e.target.value))} />
+                                <button className="btn btn-primary btn-sm" onClick={addBomItem}><Icons.Plus /></button>
+                            </div>
+
+                            {formData.formBom.length === 0 ? (
+                                <div className="empty-state" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                    No components added yet
+                                </div>
+                            ) : (
+                                <>
+                                    {formData.formBom.map(bomItem => {
+                                        const item = items.find(i => i.code === bomItem.code);
+                                        return (
+                                            <div className="bom-item" key={bomItem.code}>
+                                                <span className="bom-item-name"><span className="code-badge">{bomItem.code}</span> {item?.name || 'Unknown'}</span>
+                                                <span style={{ textAlign: 'center' }}>{bomItem.qty}</span>
+                                                <span className="price">{formatCurrency(item?.price || 0)}</span>
+                                                <span className="price green">{formatCurrency((item?.price || 0) * bomItem.qty)}</span>
+                                                <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeBomItem(bomItem.code)}><Icons.X /></button>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
+                        </div>
+
+                        {/* Sub-Products Section */}
+                        <div className="bom-section" style={{ marginTop: '16px' }}>
+                            <div className="bom-header">
+                                <span className="bom-title">🔗 Sub-Products (from Products)</span>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'flex-end' }}>
+                                <div style={{ flex: 1 }}>
+                                    <SearchableSelect
+                                        options={products.filter(p => p.sku !== formData.sku)} // Exclude self
+                                        value={selectedSubProduct}
+                                        onChange={setSelectedSubProduct}
+                                        placeholder="Search products..."
+                                        renderOption={(p) => {
+                                            const cost = calculateMakingCost(p, items, products, bom, subProducts);
+                                            return `${p.sku} - ${p.name} (${formatCurrency(cost)})`;
+                                        }}
+                                    />
+                                </div>
+                                <input type="number" className="form-input" style={{ width: '70px' }} placeholder="Qty" value={subProductQty} min="1" onChange={e => setSubProductQty(Number(e.target.value))} />
+                                <button className="btn btn-primary btn-sm" onClick={addSubProduct}><Icons.Plus /></button>
+                            </div>
+
+                            {circularError && (
+                                <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '10px 12px', borderRadius: '6px', marginBottom: '12px', fontSize: '13px' }}>
+                                    ⚠️ {circularError}
+                                </div>
+                            )}
+
+                            {formData.formSubProducts.length === 0 ? (
+                                <div className="empty-state" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                    No sub-products added yet
+                                </div>
+                            ) : (
+                                <>
+                                    {formData.formSubProducts.map(sp => {
+                                        const product = products.find(p => p.sku === sp.sku);
+                                        const cost = product ? calculateMakingCost(product, items, products, bom, subProducts) : 0;
+                                        return (
+                                            <div className="bom-item" key={sp.sku}>
+                                                <span className="bom-item-name"><span className="code-badge">{sp.sku}</span> {product?.name || 'Unknown'}</span>
+                                                <span style={{ textAlign: 'center' }}>{sp.qty}</span>
+                                                <span className="price">{formatCurrency(cost)}</span>
+                                                <span className="price green">{formatCurrency(cost * sp.qty)}</span>
+                                                <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeSubProduct(sp.sku)}><Icons.X /></button>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
+                        </div>
+
+                        {/* Total Making Cost */}
+                        <div className="bom-total" style={{ marginTop: '16px' }}>
+                            <span>Total Making Cost (Components + Sub-Products)</span>
+                            <span className="price" style={{ fontSize: '16px' }}>{formatCurrency(formMakingCost)}</span>
+                        </div>
+
+                        {/* Pricing Section */}
+                        <div className="price-summary">
+                            <div className="price-row">
+                                <span className="label">Making Cost</span>
+                                <span className="value">{formatCurrency(formMakingCost)}</span>
+                            </div>
+                            <div className="form-row" style={{ marginTop: '12px' }}>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label className="form-label">Selling Price (Default: {formatCurrency(defaultSellingPrice)} = 100%)</label>
+                                    <input type="number" className="form-input" placeholder={defaultSellingPrice} value={formData.sellingPrice} onChange={e => setFormData({ ...formData, sellingPrice: e.target.value })} />
+                                </div>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label className="form-label">MRP (Default: {formatCurrency(defaultMRP)} = 150%)</label>
+                                    <input type="number" className="form-input" placeholder={defaultMRP} value={formData.mrp} onChange={e => setFormData({ ...formData, mrp: e.target.value })} />
+                                </div>
+                            </div>
+                            {formData.sellingPrice && formMakingCost > 0 && (
+                                <div className="price-row highlight" style={{ marginTop: '12px' }}>
+                                    <span>Your Profit</span>
+                                    <span className="value green">{Math.round(((Number(formData.sellingPrice) - formMakingCost) / formMakingCost) * 100)}%</span>
+                                </div>
+                            )}
+                        </div>
+                    </Modal>
+                </div>
+            </PasswordGate>
+            );
+        };
+
+        // ============ QUOTATION BUILDER ============
+        const QuotationBuilder = ({ products, items, quotations, setQuotations, bom, subProducts }) => {
+            const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
+            const [quoteItems, setQuoteItems] = useState([]);
+            const [notes, setNotes] = useState('');
+            const [selectedProduct, setSelectedProduct] = useState('');
+
+            const addItem = () => {
+                if (!selectedProduct) return;
+                const product = products.find(p => p.sku === selectedProduct);
+                if (!product) return;
+
+                const makingCost = calculateMakingCost(product, items, products, bom, subProducts);
+                const mrp = getMRP(product, makingCost);
+                const sellingPrice = getSellingPrice(product, makingCost);
+
+                const existingIndex = quoteItems.findIndex(i => i.sku === product.sku);
+                if (existingIndex >= 0) {
+                    const updated = [...quoteItems];
+                    updated[existingIndex].qty += 1;
+                    setQuoteItems(updated);
+                } else {
+                    setQuoteItems([...quoteItems, {
+                        sku: product.sku,
+                        name: product.name,
+                        mrp: mrp,
+                        minPrice: sellingPrice,
+                        qty: 1,
+                        discount: 0
+                    }]);
+                }
+                setSelectedProduct('');
+            };
+
+            const updateItem = (index, field, value) => {
+                const updated = [...quoteItems];
+                updated[index][field] = Number(value);
+                setQuoteItems(updated);
+            };
+
+            const removeItem = (index) => {
+                setQuoteItems(quoteItems.filter((_, i) => i !== index));
+            };
+
+            const calculateNetPrice = (item) => {
+                return Math.round(item.mrp * (1 - item.discount / 100));
+            };
+
+            const subtotal = quoteItems.reduce((sum, item) => {
+                return sum + (calculateNetPrice(item) * item.qty);
+            }, 0);
+
+            const gst = calculateGST(subtotal);
+            const grandTotal = subtotal + gst;
+
+            // Check if any item is below selling price
+            const hasWarning = quoteItems.some(item => calculateNetPrice(item) < item.minPrice);
+
+            const generatePDF = (type = 'quotation') => {
+                if (!customer.name || quoteItems.length === 0) {
+                    alert('Please add customer name and at least one product');
+                    return;
+                }
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
+                // Header
+                doc.setFillColor(30, 58, 138);
+                doc.rect(0, 0, 210, 45, 'F');
+
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(22);
+                doc.setFont('helvetica', 'bold');
+                doc.text(CONFIG.COMPANY.name, 15, 18);
+
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'italic');
+                doc.text(CONFIG.COMPANY.tagline, 15, 26);
+
+                doc.setFont('helvetica', 'normal');
+                doc.text(`${CONFIG.COMPANY.address} | ${CONFIG.COMPANY.city}`, 15, 34);
+                doc.text(`Email: ${CONFIG.COMPANY.email} | Phone: ${CONFIG.COMPANY.phone} | GSTIN: ${CONFIG.COMPANY.gst}`, 15, 41);
+
+                // Document Info
+                const docNumber = generateDocNumber(type === 'quotation' ? 'QT' : 'INV', quotations.length);
+                const today = new Date().toLocaleDateString('en-IN');
+
+                doc.setTextColor(30, 58, 138);
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text(type === 'quotation' ? 'QUOTATION' : 'TAX INVOICE', 15, 58);
+
+                doc.setTextColor(100);
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`No: ${docNumber}`, 160, 52);
+                doc.text(`Date: ${today}`, 160, 58);
+
+                // Customer
+                doc.setFillColor(241, 245, 249);
+                doc.rect(15, 65, 180, 22, 'F');
+
+                doc.setTextColor(100);
+                doc.setFontSize(9);
+                doc.text('BILL TO:', 20, 73);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.setTextColor(30);
+                doc.text(customer.name, 20, 80);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.setTextColor(100);
+                if (customer.phone) doc.text(`Ph: ${customer.phone}`, 100, 73);
+                if (customer.address) doc.text(customer.address, 100, 80);
+
+                // Table
+                const tableData = quoteItems.map(item => {
+                    const netPrice = calculateNetPrice(item);
+                    return [
+                        item.name,
+                        item.qty.toString(),
+                        formatCurrencyPDF(item.mrp),
+                        item.discount > 0 ? `${item.discount}%` : '-',
+                        formatCurrencyPDF(netPrice),
+                        formatCurrencyPDF(netPrice * item.qty)
+                    ];
+                });
+
+                doc.autoTable({
+                    startY: 95,
+                    head: [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']],
+                    body: tableData,
+                    theme: 'striped',
+                    headStyles: { fillColor: [30, 58, 138], fontSize: 9, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 9 },
+                    columnStyles: {
+                        0: { cellWidth: 55 },
+                        1: { halign: 'center', cellWidth: 15 },
+                        2: { halign: 'right', cellWidth: 25 },
+                        3: { halign: 'center', cellWidth: 20 },
+                        4: { halign: 'right', cellWidth: 28 },
+                        5: { halign: 'right', cellWidth: 30 }
+                    }
+                });
+
+                // Summary
+                const finalY = doc.lastAutoTable.finalY + 10;
+
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                doc.text('Subtotal:', 140, finalY);
+                doc.setTextColor(30);
+                doc.text(formatCurrencyPDF(subtotal), 185, finalY, { align: 'right' });
+
+                doc.setTextColor(100);
+                doc.text(`GST (${CONFIG.GST_RATE}%):`, 140, finalY + 7);
+                doc.setTextColor(30);
+                doc.text(formatCurrencyPDF(gst), 185, finalY + 7, { align: 'right' });
+
+                doc.setDrawColor(30, 58, 138);
+                doc.setLineWidth(0.5);
+                doc.line(140, finalY + 11, 190, finalY + 11);
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(12);
+                doc.setTextColor(30, 58, 138);
+                doc.text('Grand Total:', 140, finalY + 19);
+                doc.setTextColor(16, 185, 129);
+                doc.text(formatCurrencyPDF(grandTotal), 185, finalY + 19, { align: 'right' });
+
+                // Notes
+                if (notes) {
+                    doc.setTextColor(100);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(9);
+                    doc.text('Terms & Conditions:', 15, finalY + 5);
+                    doc.text(notes, 15, finalY + 11);
+                }
+
+                // Footer
+                doc.setTextColor(150);
+                doc.setFontSize(8);
+                doc.text('Thank you for your business!', 105, 285, { align: 'center' });
+
+                doc.save(`${type}-${docNumber}.pdf`);
+
+                // Save quotation
+                const quotation = {
+                    id: Date.now(),
+                    number: docNumber,
+                    date: new Date().toISOString(),
+                    customer,
+                    items: quoteItems,
+                    subtotal,
+                    gst,
+                    grandTotal,
+                    notes,
+                    status: 'sent'
+                };
+                setQuotations([quotation, ...quotations]);
+
+                alert(`${type === 'quotation' ? 'Quotation' : 'Invoice'} ${docNumber} saved!`);
+            };
+
+            return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <h1 className="page-title">Create Quotation / Invoice</h1>
+                            <p className="page-subtitle">Build quotation with MRP, Discount & generate PDF</p>
+                        </div>
+                    </div>
+
+                    <div className="quote-builder">
+                        <div>
+                            {/* Customer */}
+                            <div className="card" style={{ marginBottom: '20px' }}>
+                                <div className="card-header">
+                                    <h3 className="card-title">Customer Details</h3>
+                                </div>
+                                <div className="card-body">
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label className="form-label">Customer Name <span>*</span></label>
+                                            <input type="text" className="form-input" placeholder="Enter customer name" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="form-label">Phone</label>
+                                            <input type="text" className="form-input" placeholder="Enter phone" value={customer.phone} onChange={e => setCustomer({ ...customer, phone: e.target.value })} />
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Address</label>
+                                        <textarea className="form-textarea" rows="2" placeholder="Enter address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Products */}
+                            <div className="card" style={{ marginBottom: '20px' }}>
+                                <div className="card-header">
+                                    <h3 className="card-title">Products</h3>
+                                </div>
+                                <div className="card-body">
+                                    <div className="product-selector">
+                                        <select className="form-select" value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}>
+                                            <option value="">Select a product...</option>
+                                            {products.map(p => {
+                                                const makingCost = calculateMakingCost(p, items, products, bom, subProducts);
+                                                const mrp = getMRP(p, makingCost);
+                                                return (
+                                                    <option key={p.sku} value={p.sku}>
+                                                        {p.sku} - {p.name} (MRP: {formatCurrency(mrp)})
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                        <button className="btn btn-primary" onClick={addItem}><Icons.Plus /> Add</button>
+                                    </div>
+
+                                    {hasWarning && (
+                                        <div className="alert alert-warning">
+                                            ⚠️ Warning: Some items are priced below minimum selling price!
+                                        </div>
+                                    )}
+
+                                    {quoteItems.length === 0 ? (
+                                        <div className="empty-state">
+                                            <Icons.Box />
+                                            <h3>No products added</h3>
+                                            <p>Select products from dropdown above</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="quote-item quote-item-header">
+                                                <div>Product</div>
+                                                <div>Qty</div>
+                                                <div>MRP</div>
+                                                <div>Disc %</div>
+                                                <div>Net Price</div>
+                                                <div>Total</div>
+                                                <div></div>
+                                            </div>
+                                            {quoteItems.map((item, index) => {
+                                                const netPrice = calculateNetPrice(item);
+                                                const isBelowMin = netPrice < item.minPrice;
+                                                return (
+                                                    <div className="quote-item" key={index} style={isBelowMin ? { background: '#FEE2E2' } : {}}>
+                                                        <div className="quote-item-name">
+                                                            {item.name}
+                                                            <small>{item.sku} | Min: {formatCurrency(item.minPrice)}</small>
+                                                        </div>
+                                                        <input type="number" className="form-input small" value={item.qty} min="1" onChange={e => updateItem(index, 'qty', e.target.value)} style={{ textAlign: 'center' }} />
+                                                        <div className="price">{formatCurrency(item.mrp)}</div>
+                                                        <input type="number" className="form-input small" value={item.discount} min="0" max="50" onChange={e => updateItem(index, 'discount', e.target.value)} style={{ textAlign: 'center' }} />
+                                                        <div className={`price ${isBelowMin ? 'red' : 'green'}`}>{formatCurrency(netPrice)}</div>
+                                                        <div className="price green">{formatCurrency(netPrice * item.qty)}</div>
+                                                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeItem(index)}><Icons.X /></button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </>
+                                    )}
+
+                                    <div className="form-group" style={{ marginTop: '16px' }}>
+                                        <label className="form-label">Terms & Conditions</label>
+                                        <textarea className="form-textarea" rows="2" placeholder="e.g., Warranty 1 year, Delivery within 7 days..." value={notes} onChange={e => setNotes(e.target.value)} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Summary */}
+                        <div className="quote-summary">
+                            <div className="card">
+                                <div className="card-header">
+                                    <h3 className="card-title">Summary</h3>
+                                </div>
+                                <div className="card-body">
+                                    <div className="summary-row">
+                                        <span className="label">Items</span>
+                                        <span className="value">{quoteItems.length}</span>
+                                    </div>
+                                    <div className="summary-row">
+                                        <span className="label">Subtotal</span>
+                                        <span className="value">{formatCurrency(subtotal)}</span>
+                                    </div>
+                                    <div className="summary-row">
+                                        <span className="label">GST ({CONFIG.GST_RATE}%)</span>
+                                        <span className="value">{formatCurrency(gst)}</span>
+                                    </div>
+                                    <div className="summary-row total">
+                                        <span className="label">Grand Total</span>
+                                        <span className="value" style={{ color: 'var(--success)' }}>{formatCurrency(grandTotal)}</span>
+                                    </div>
+
+                                    <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        <button className="btn btn-primary" onClick={() => generatePDF('quotation')} style={{ width: '100%', justifyContent: 'center' }}>
+                                            <Icons.Download /> Save Quotation
+                                        </button>
+                                        <button className="btn btn-success" onClick={() => generatePDF('invoice')} style={{ width: '100%', justifyContent: 'center' }}>
+                                            <Icons.Download /> Generate Invoice
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============ SAVED DOCUMENTS ============
+        const SavedDocuments = ({ quotations, setQuotations, products, items, bom, subProducts }) => {
+            const [selectedDoc, setSelectedDoc] = useState(null);
+            const [showModal, setShowModal] = useState(false);
+
+            const viewDocument = (doc) => {
+                setSelectedDoc(doc);
+                setShowModal(true);
+            };
+
+            const deleteDocument = (id) => {
+                if (confirm('Delete this document permanently?')) {
+                    setQuotations(quotations.filter(q => q.id !== id));
+                }
+            };
+
+            const updateStatus = (id, newStatus) => {
+                setQuotations(quotations.map(q => 
+                    q.id === id ? { ...q, status: newStatus } : q
+                ));
+            };
+
+            // Generate PDF for saved document
+            const generatePDFFromDoc = (doc, type = 'quotation') => {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF();
+
+                // Header
+                pdf.setFillColor(30, 58, 138);
+                pdf.rect(0, 0, 210, 45, 'F');
+                
+                pdf.setTextColor(255, 255, 255);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(24);
+                pdf.text('MV SOLUTIONS', 15, 20);
+                
+                pdf.setFont('helvetica', 'italic');
+                pdf.setFontSize(10);
+                pdf.text('Parent Company of Senseflow.in & ThermoAmp.com', 15, 28);
+                
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(9);
+                pdf.text('MVS Lab, Shri Bungalow Road No 37, Gorai 2, Borivali | Mumbai, Maharashtra 400091', 15, 35);
+                pdf.text('Email: solutionsmv11@gmail.com | Phone: +91 8097412355 | GSTIN: 27ALDPJ5310J1ZA', 15, 41);
+
+                // Document Type & Number
+                pdf.setTextColor(30, 58, 138);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(20);
+                pdf.text(type === 'invoice' ? 'INVOICE' : 'QUOTATION', 15, 58);
+
+                pdf.setTextColor(100);
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(10);
+                pdf.text(`No: ${doc.number}`, 160, 52);
+                pdf.text(`Date: ${new Date(doc.date).toLocaleDateString('en-IN')}`, 160, 59);
+
+                // Customer Info
+                pdf.setDrawColor(200);
+                pdf.setLineWidth(0.5);
+                pdf.roundedRect(15, 65, 180, 22, 2, 2);
+
+                pdf.setTextColor(100);
+                pdf.setFontSize(9);
+                pdf.text('BILL TO:', 20, 72);
+                pdf.setTextColor(30);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(doc.customer.name || 'N/A', 20, 79);
+                
+                pdf.setFont('helvetica', 'normal');
+                pdf.setTextColor(100);
+                if (doc.customer.phone) pdf.text(`Ph: ${doc.customer.phone}`, 100, 72);
+                if (doc.customer.address) pdf.text(doc.customer.address, 100, 79);
+
+                // Table
+                const tableData = doc.items.map(item => {
+                    const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
+                    return [
+                        item.name,
+                        item.qty.toString(),
+                        formatCurrencyPDF(item.mrp),
+                        item.discount > 0 ? `${item.discount}%` : '-',
+                        formatCurrencyPDF(netPrice),
+                        formatCurrencyPDF(netPrice * item.qty)
+                    ];
+                });
+
+                pdf.autoTable({
+                    startY: 95,
+                    head: [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']],
+                    body: tableData,
+                    theme: 'striped',
+                    headStyles: { fillColor: [30, 58, 138], fontSize: 9, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 9 },
+                    columnStyles: {
+                        0: { cellWidth: 55 },
+                        1: { halign: 'center', cellWidth: 15 },
+                        2: { halign: 'right', cellWidth: 25 },
+                        3: { halign: 'center', cellWidth: 20 },
+                        4: { halign: 'right', cellWidth: 28 },
+                        5: { halign: 'right', cellWidth: 30 }
+                    }
+                });
+
+                // Summary
+                const finalY = pdf.lastAutoTable.finalY + 10;
+
+                pdf.setFontSize(10);
+                pdf.setTextColor(100);
+                pdf.text('Subtotal:', 140, finalY);
+                pdf.setTextColor(30);
+                pdf.text(formatCurrencyPDF(doc.subtotal), 185, finalY, { align: 'right' });
+
+                pdf.setTextColor(100);
+                pdf.text(`GST (${CONFIG.GST_RATE}%):`, 140, finalY + 7);
+                pdf.setTextColor(30);
+                pdf.text(formatCurrencyPDF(doc.gst), 185, finalY + 7, { align: 'right' });
+
+                pdf.setDrawColor(30, 58, 138);
+                pdf.setLineWidth(0.5);
+                pdf.line(140, finalY + 11, 190, finalY + 11);
+
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(12);
+                pdf.setTextColor(30, 58, 138);
+                pdf.text('Grand Total:', 140, finalY + 19);
+                pdf.setTextColor(16, 185, 129);
+                pdf.text(formatCurrencyPDF(doc.grandTotal), 185, finalY + 19, { align: 'right' });
+
+                // Notes
+                if (doc.notes) {
+                    pdf.setTextColor(100);
+                    pdf.setFont('helvetica', 'normal');
+                    pdf.setFontSize(9);
+                    pdf.text('Terms & Conditions:', 15, finalY + 5);
+                    pdf.text(doc.notes, 15, finalY + 11);
+                }
+
+                // Footer
+                pdf.setTextColor(150);
+                pdf.setFontSize(8);
+                pdf.text('Thank you for your business!', 105, 285, { align: 'center' });
+
+                // Save
+                const filename = `${type === 'invoice' ? 'INV' : 'QT'}-${doc.number.split('-').slice(1).join('-')}.pdf`;
+                pdf.save(filename);
+            };
+
+            return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <h1 className="page-title">Saved Documents</h1>
+                            <p className="page-subtitle">All quotations and invoices - click to view details</p>
+                        </div>
+                    </div>
+
+                    <div className="card">
+                        <div className="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Document #</th>
+                                        <th>Date</th>
+                                        <th>Customer</th>
+                                        <th>Items</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {quotations.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                                                No documents yet. Create a quotation to get started.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        quotations.map(doc => (
+                                            <tr key={doc.id}>
+                                                <td><span className="code-badge">{doc.number}</span></td>
+                                                <td>{new Date(doc.date).toLocaleDateString('en-IN')}</td>
+                                                <td>
+                                                    <strong>{doc.customer.name}</strong>
+                                                    {doc.customer.phone && <small style={{ display: 'block', color: 'var(--text-muted)' }}>{doc.customer.phone}</small>}
+                                                </td>
+                                                <td>{doc.items.length} items</td>
+                                                <td className="price green">{formatCurrency(doc.grandTotal)}</td>
+                                                <td>
+                                                    <select 
+                                                        className="form-select" 
+                                                        style={{ padding: '4px 8px', fontSize: '12px', width: 'auto' }}
+                                                        value={doc.status} 
+                                                        onChange={e => updateStatus(doc.id, e.target.value)}
+                                                    >
+                                                        <option value="draft">Draft</option>
+                                                        <option value="sent">Sent</option>
+                                                        <option value="accepted">Accepted</option>
+                                                        <option value="rejected">Rejected</option>
+                                                        <option value="invoiced">Invoiced</option>
+                                                    </select>
+                                                </td>
+                                                <td className="actions">
+                                                    <button className="btn btn-secondary btn-sm btn-icon" onClick={() => viewDocument(doc)} title="View Details">
+                                                        <Icons.Eye />
+                                                    </button>
+                                                    <button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteDocument(doc.id)} title="Delete">
+                                                        <Icons.Trash />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* View Document Modal */}
+                    <Modal
+                        isOpen={showModal}
+                        onClose={() => { setShowModal(false); setSelectedDoc(null); }}
+                        title={`Document: ${selectedDoc?.number || ''}`}
+                        size="large"
+                        footer={
+                            <>
+                                <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Close</button>
+                                <button className="btn btn-primary" onClick={() => generatePDFFromDoc(selectedDoc, 'quotation')}>
+                                    <Icons.Download /> Quotation PDF
+                                </button>
+                                <button className="btn btn-success" onClick={() => generatePDFFromDoc(selectedDoc, 'invoice')}>
+                                    <Icons.Download /> Invoice PDF
+                                </button>
+                            </>
+                        }
+                    >
+                        {selectedDoc && (
+                            <div>
+                                {/* Customer Info */}
+                                <div style={{ background: 'var(--bg)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+                                    <h4 style={{ marginBottom: '12px', color: 'var(--primary)' }}>Customer Details</h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Name</label>
+                                            <div style={{ fontWeight: '600' }}>{selectedDoc.customer.name || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Phone</label>
+                                            <div>{selectedDoc.customer.phone || 'N/A'}</div>
+                                        </div>
+                                        <div style={{ gridColumn: 'span 2' }}>
+                                            <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Address</label>
+                                            <div>{selectedDoc.customer.address || 'N/A'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Items Table */}
+                                <div style={{ marginBottom: '16px' }}>
+                                    <h4 style={{ marginBottom: '12px', color: 'var(--primary)' }}>Items</h4>
+                                    <table style={{ width: '100%', fontSize: '13px' }}>
+                                        <thead>
+                                            <tr style={{ background: 'var(--primary)', color: 'white' }}>
+                                                <th style={{ padding: '10px', textAlign: 'left' }}>Product</th>
+                                                <th style={{ padding: '10px', textAlign: 'center' }}>Qty</th>
+                                                <th style={{ padding: '10px', textAlign: 'right' }}>MRP</th>
+                                                <th style={{ padding: '10px', textAlign: 'center' }}>Disc %</th>
+                                                <th style={{ padding: '10px', textAlign: 'right' }}>Net Price</th>
+                                                <th style={{ padding: '10px', textAlign: 'right' }}>Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {selectedDoc.items.map((item, idx) => {
+                                                const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
+                                                return (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={{ padding: '10px' }}>
+                                                            <strong>{item.name}</strong>
+                                                            <small style={{ display: 'block', color: 'var(--text-muted)' }}>{item.sku}</small>
+                                                        </td>
+                                                        <td style={{ padding: '10px', textAlign: 'center' }}>{item.qty}</td>
+                                                        <td style={{ padding: '10px', textAlign: 'right' }}>{formatCurrency(item.mrp)}</td>
+                                                        <td style={{ padding: '10px', textAlign: 'center' }}>{item.discount > 0 ? `${item.discount}%` : '-'}</td>
+                                                        <td style={{ padding: '10px', textAlign: 'right' }}>{formatCurrency(netPrice)}</td>
+                                                        <td style={{ padding: '10px', textAlign: 'right', fontWeight: '600', color: 'var(--success)' }}>{formatCurrency(netPrice * item.qty)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Totals */}
+                                <div style={{ background: 'linear-gradient(135deg, var(--primary-lighter) 0%, #E0E7FF 100%)', padding: '16px', borderRadius: '8px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                        <span style={{ color: 'var(--text-muted)' }}>Subtotal</span>
+                                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: '600' }}>{formatCurrency(selectedDoc.subtotal)}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                        <span style={{ color: 'var(--text-muted)' }}>GST ({CONFIG.GST_RATE}%)</span>
+                                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: '600' }}>{formatCurrency(selectedDoc.gst)}</span>
+                                    </div>
+                                    <div style={{ borderTop: '2px solid var(--primary)', paddingTop: '12px', marginTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ fontSize: '16px', fontWeight: '700', color: 'var(--primary)' }}>Grand Total</span>
+                                        <span style={{ fontSize: '18px', fontWeight: '700', color: 'var(--success)', fontFamily: 'JetBrains Mono, monospace' }}>{formatCurrency(selectedDoc.grandTotal)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Notes */}
+                                {selectedDoc.notes && (
+                                    <div style={{ marginTop: '16px', padding: '12px', background: 'var(--bg)', borderRadius: '8px' }}>
+                                        <label style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Notes / Terms</label>
+                                        <div style={{ fontSize: '13px' }}>{selectedDoc.notes}</div>
+                                    </div>
+                                )}
+
+                                {/* Document Info */}
+                                <div style={{ marginTop: '16px', display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                    <span>Created: {new Date(selectedDoc.date).toLocaleString('en-IN')}</span>
+                                    <span>Status: <strong style={{ color: 'var(--text)' }}>{selectedDoc.status}</strong></span>
+                                </div>
+                            </div>
+                        )}
+                    </Modal>
+                </div>
+            );
+        };
+
+        // ============ SYNC ICONS ============
+        const SyncIcons = {
+            Cloud: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>,
+            Upload: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+            Download: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+            Refresh: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
+            Check: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>,
+            Alert: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        };
+
+        // ============ LOADING COMPONENT ============
+        const LoadingScreen = ({ message }) => (
+            <div style={{
+                position: 'fixed',
+                top: 0, left: 0, right: 0, bottom: 0,
+                background: 'linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                zIndex: 9999
+            }}>
+                <div style={{
+                    width: '60px',
+                    height: '60px',
+                    border: '4px solid rgba(255,255,255,0.2)',
+                    borderTopColor: '#0EA5E9',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    marginBottom: '20px'
+                }}></div>
+                <div style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>MV Solutions</div>
+                <div style={{ fontSize: '14px', opacity: 0.8 }}>{message || 'Loading...'}</div>
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+
+        // ============ MAIN APP ============
+        const App = () => {
+            const [page, setPage] = useState('dashboard');
+            const [items, setItems] = useState([]);
+            const [products, setProducts] = useState([]);
+            const [bom, setBom] = useState([]);
+            const [subProducts, setSubProducts] = useState([]);
+            const [quotations, setQuotations] = useState([]);
+            
+            // Loading & Sync states
+            const [isLoading, setIsLoading] = useState(true);
+            const [loadingMessage, setLoadingMessage] = useState('Connecting to Google Sheets...');
+            const [syncStatus, setSyncStatus] = useState('idle');
+            const [lastSync, setLastSync] = useState(null);
+            const [syncMessage, setSyncMessage] = useState('');
+
+            // ============ AUTO-LOAD ON STARTUP ============
+            useEffect(() => {
+                const loadData = async () => {
+                    setIsLoading(true);
+                    setLoadingMessage('Connecting to Google Sheets...');
+                    
+                    try {
+                        // Try to load from Google Sheets first
+                        const response = await fetch(`${CONFIG.API_URL}?action=getAllData`);
+                        const result = await response.json();
+                        
+                        if (result.success && result.data) {
+                            setLoadingMessage('Loading data...');
+                            
+                            if (result.data.items) setItems(result.data.items);
+                            if (result.data.products) setProducts(result.data.products);
+                            if (result.data.bom) setBom(result.data.bom);
+                            if (result.data.subProducts) setSubProducts(result.data.subProducts);
+                            if (result.data.quotations) setQuotations(result.data.quotations);
+                            
+                            setLastSync(new Date().toISOString());
+                            setLoadingMessage('Ready!');
+                            
+                            // Save to localStorage as backup
+                            localStorage.setItem('mvs_data_v4', JSON.stringify({
+                                items: result.data.items || [],
+                                products: result.data.products || [],
+                                bom: result.data.bom || [],
+                                subProducts: result.data.subProducts || [],
+                                quotations: result.data.quotations || [],
+                                lastSync: new Date().toISOString()
+                            }));
+                        } else {
+                            // If Google Sheets is empty, try localStorage
+                            loadFromLocalStorage();
+                        }
+                    } catch (error) {
+                        console.error('Failed to load from Google Sheets:', error);
+                        setLoadingMessage('Offline mode - Loading local data...');
+                        loadFromLocalStorage();
+                    }
+                    
+                    setTimeout(() => setIsLoading(false), 500);
+                };
+
+                const loadFromLocalStorage = () => {
+                    const saved = localStorage.getItem('mvs_data_v4');
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        if (data.items) setItems(data.items);
+                        if (data.products) setProducts(data.products);
+                        if (data.bom) setBom(data.bom);
+                        if (data.subProducts) setSubProducts(data.subProducts);
+                        if (data.quotations) setQuotations(data.quotations);
+                        if (data.lastSync) setLastSync(data.lastSync);
+                    }
+                };
+
+                loadData();
+            }, []);
+
+            // Save to localStorage on every change (backup)
+            useEffect(() => {
+                if (!isLoading && (items.length > 0 || products.length > 0)) {
+                    localStorage.setItem('mvs_data_v4', JSON.stringify({ 
+                        items, products, bom, subProducts, quotations, lastSync 
+                    }));
+                }
+            }, [items, products, bom, subProducts, quotations, lastSync, isLoading]);
+
+            // ============ GOOGLE SHEETS API FUNCTIONS ============
+            
+            // Push data TO Google Sheets
+            const syncToGoogleSheets = async () => {
+                setSyncStatus('syncing');
+                setSyncMessage('Uploading to Google Sheets...');
+                
+                try {
+                    // Sync Items
+                    await fetch(CONFIG.API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'syncItems', items })
+                    });
+
+                    // Sync Products
+                    await fetch(CONFIG.API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'syncProducts', products })
+                    });
+
+                    // Sync BOM
+                    await fetch(CONFIG.API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'syncBOM', bom })
+                    });
+
+                    // Sync Sub Products
+                    await fetch(CONFIG.API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'syncSubProducts', subProducts })
+                    });
+
+                    // Sync Quotations
+                    await fetch(CONFIG.API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'syncQuotations', quotations })
+                    });
+
+                    const now = new Date().toISOString();
+                    setLastSync(now);
+                    setSyncStatus('success');
+                    setSyncMessage('All data synced to Google Sheets!');
+                    
+                    setTimeout(() => {
+                        setSyncStatus('idle');
+                        setSyncMessage('');
+                    }, 3000);
+
+                } catch (error) {
+                    console.error('Sync error:', error);
+                    setSyncStatus('error');
+                    setSyncMessage('Sync failed. Check internet connection.');
+                    
+                    setTimeout(() => {
+                        setSyncStatus('idle');
+                        setSyncMessage('');
+                    }, 5000);
+                }
+            };
+
+            // Pull data FROM Google Sheets
+            const loadFromGoogleSheets = async () => {
+                setSyncStatus('syncing');
+                setSyncMessage('Loading from Google Sheets...');
+                
+                try {
+                    const response = await fetch(`${CONFIG.API_URL}?action=getAllData`);
+                    const result = await response.json();
+                    
+                    if (result.success && result.data) {
+                        if (result.data.items) setItems(result.data.items);
+                        if (result.data.products) setProducts(result.data.products);
+                        if (result.data.bom) setBom(result.data.bom);
+                        if (result.data.subProducts) setSubProducts(result.data.subProducts);
+                        if (result.data.quotations) setQuotations(result.data.quotations);
+                        
+                        const now = new Date().toISOString();
+                        setLastSync(now);
+                        setSyncStatus('success');
+                        setSyncMessage('Data loaded from Google Sheets!');
+                    } else {
+                        setSyncStatus('success');
+                        setSyncMessage('No data in Google Sheets yet.');
+                    }
+                    
+                    setTimeout(() => {
+                        setSyncStatus('idle');
+                        setSyncMessage('');
+                    }, 3000);
+
+                } catch (error) {
+                    console.error('Load error:', error);
+                    setSyncStatus('error');
+                    setSyncMessage('Failed to load. Check internet or API URL.');
+                    
+                    setTimeout(() => {
+                        setSyncStatus('idle');
+                        setSyncMessage('');
+                    }, 5000);
+                }
+            };
+
+            const formatLastSync = () => {
+                if (!lastSync) return 'Never synced';
+                const date = new Date(lastSync);
+                return date.toLocaleString('en-IN', { 
+                    day: '2-digit', 
+                    month: 'short', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+            };
+
+            // Show loading screen while fetching data
+            if (isLoading) {
+                return <LoadingScreen message={loadingMessage} />;
+            }
+
+            const renderPage = () => {
+                switch (page) {
+                    case 'dashboard': return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
+                    case 'items': return <ItemsMaster items={items} setItems={setItems} />;
+                    case 'products': return <ProductsPage products={products} setProducts={setProducts} items={items} bom={bom} setBom={setBom} subProducts={subProducts} setSubProducts={setSubProducts} />;
+                    case 'quotation': return <QuotationBuilder products={products} items={items} quotations={quotations} setQuotations={setQuotations} bom={bom} subProducts={subProducts} />;
+                    case 'documents': return <SavedDocuments quotations={quotations} setQuotations={setQuotations} products={products} items={items} bom={bom} subProducts={subProducts} />;
+                    default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
+                }
+            };
+
+            return (
+                <div className="app">
+                    <nav className="sidebar">
+                        <div className="logo">
+                            <div className="logo-icon">MV</div>
+                            <div className="logo-text">MV Solutions<small>Quotation System</small></div>
+                        </div>
+
+                        <div className="nav">
+                            <div className={`nav-item ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')}>
+                                <Icons.Dashboard /> Dashboard
+                            </div>
+
+                            <div className="nav-divider"></div>
+                            <div className="nav-label">Master Data</div>
+
+                            <div className={`nav-item ${page === 'items' ? 'active' : ''}`} onClick={() => setPage('items')}>
+                                <Icons.Items /> Items Master
+                            </div>
+                            <div className={`nav-item ${page === 'products' ? 'active' : ''}`} onClick={() => setPage('products')}>
+                                <Icons.Products /> Products
+                            </div>
+
+                            <div className="nav-divider"></div>
+                            <div className="nav-label">Documents</div>
+
+                            <div className={`nav-item ${page === 'quotation' ? 'active' : ''}`} onClick={() => setPage('quotation')}>
+                                <Icons.Quote /> Create Quotation
+                            </div>
+                            <div className={`nav-item ${page === 'documents' ? 'active' : ''}`} onClick={() => setPage('documents')}>
+                                <Icons.History /> Saved Documents
+                            </div>
+
+                            {/* Sync Section */}
+                            <div className="nav-divider"></div>
+                            <div className="nav-label">Cloud Sync</div>
+                            
+                            <div 
+                                className="nav-item" 
+                                onClick={syncToGoogleSheets}
+                                style={{ 
+                                    background: syncStatus === 'syncing' ? 'rgba(59, 130, 246, 0.2)' : 
+                                               syncStatus === 'success' ? 'rgba(16, 185, 129, 0.2)' : 
+                                               syncStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : '',
+                                    pointerEvents: syncStatus === 'syncing' ? 'none' : 'auto'
+                                }}
+                            >
+                                {syncStatus === 'syncing' ? <SyncIcons.Refresh /> : <SyncIcons.Upload />}
+                                {syncStatus === 'syncing' ? 'Syncing...' : 'Push to Cloud'}
+                            </div>
+                            
+                            <div 
+                                className="nav-item" 
+                                onClick={loadFromGoogleSheets}
+                                style={{ pointerEvents: syncStatus === 'syncing' ? 'none' : 'auto' }}
+                            >
+                                <SyncIcons.Download /> Load from Cloud
+                            </div>
+
+                            {/* Sync Status */}
+                            <div style={{ 
+                                padding: '12px 14px', 
+                                fontSize: '11px', 
+                                color: 'rgba(255,255,255,0.5)',
+                                borderTop: '1px solid rgba(255,255,255,0.1)',
+                                marginTop: '8px'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                    <span style={{
+                                        width: '8px',
+                                        height: '8px',
+                                        borderRadius: '50%',
+                                        background: syncStatus === 'success' ? '#10B981' : 
+                                                   syncStatus === 'error' ? '#EF4444' : 
+                                                   syncStatus === 'syncing' ? '#3B82F6' : '#6B7280'
+                                    }}></span>
+                                    {syncStatus === 'syncing' ? 'Syncing...' : 
+                                     syncStatus === 'success' ? 'Synced!' : 
+                                     syncStatus === 'error' ? 'Sync Failed' : 'Ready'}
+                                </div>
+                                <div>Last: {formatLastSync()}</div>
+                            </div>
+
+                            {/* Sync Message Toast */}
+                            {syncMessage && (
+                                <div style={{
+                                    padding: '10px 14px',
+                                    margin: '8px',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                    background: syncStatus === 'success' ? 'rgba(16, 185, 129, 0.2)' : 
+                                               syncStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : 
+                                               'rgba(59, 130, 246, 0.2)',
+                                    color: 'white'
+                                }}>
+                                    {syncMessage}
+                                </div>
+                            )}
+                        </div>
+                    </nav>
+
+                    <main className="main">
+                        {renderPage()}
+                    </main>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
