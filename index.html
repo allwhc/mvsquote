@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -628,7 +629,7 @@
 
         // ============ CONFIGURATION ============
         const CONFIG = {
-            API_URL: 'https://script.google.com/macros/s/AKfycbyJX8Z1NuGsh6knwGJ-Xg7IqhSnMNTSSrmIZfJ1zy1goRwfjBlz8L-px519lArdlJK6_Q/exec',
+            API_URL: 'https://script.google.com/macros/s/AKfycbwELzpLlHpISfD85tW3aKFGqGF15iAvgYIHU2a8SbVMW9GACHRLF_EO_-lvWGbepMUUDg/exec',
             COMPANY: {
                 name: 'MV SOLUTIONS',
                 tagline: 'Parent Company of Senseflow.in & ThermoAmp.com',
@@ -817,7 +818,9 @@
             Download: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
             X: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
             Eye: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
-            Box: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            Box: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>,
+            Calculator: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/><line x1="16" y1="18" x2="16" y2="18.01"/></svg>,
+            Printer: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
         };
 
         // ============ MODAL COMPONENT ============
@@ -2560,6 +2563,321 @@
             </div>
         );
 
+        // ============ COMPONENT ESTIMATOR ============
+        const ComponentEstimator = ({ products, items, bom, subProducts }) => {
+            const [selectedProduct, setSelectedProduct] = useState('');
+            const [quantity, setQuantity] = useState(1);
+            const [productList, setProductList] = useState([]);
+            const [componentResults, setComponentResults] = useState([]);
+            const [grandTotal, setGrandTotal] = useState(0);
+
+            const addProduct = () => {
+                if (!selectedProduct || quantity < 1) return;
+                const product = products.find(p => p.sku === selectedProduct);
+                if (!product) return;
+
+                // Check if already in list
+                const existingIndex = productList.findIndex(p => p.sku === selectedProduct);
+                if (existingIndex >= 0) {
+                    const updated = [...productList];
+                    updated[existingIndex].qty += quantity;
+                    setProductList(updated);
+                } else {
+                    setProductList([...productList, { sku: product.sku, name: product.name, qty: quantity }]);
+                }
+                setSelectedProduct('');
+                setQuantity(1);
+            };
+
+            const removeProduct = (sku) => {
+                setProductList(productList.filter(p => p.sku !== sku));
+            };
+
+            // Recursive function to get all components for a product
+            const getProductComponents = (productSku, multiplier = 1, visited = new Set()) => {
+                if (visited.has(productSku)) return [];
+                visited.add(productSku);
+
+                let components = [];
+
+                // Get direct components from BOM
+                const directComponents = bom.filter(b => b.productSku === productSku);
+                directComponents.forEach(dc => {
+                    components.push({
+                        code: dc.componentCode,
+                        qty: dc.qty * multiplier
+                    });
+                });
+
+                // Get sub-products and their components recursively
+                const subs = subProducts.filter(sp => sp.productSku === productSku);
+                subs.forEach(sub => {
+                    const subComponents = getProductComponents(sub.subProductSku, sub.qty * multiplier, new Set(visited));
+                    components = [...components, ...subComponents];
+                });
+
+                return components;
+            };
+
+            const calculateComponents = () => {
+                if (productList.length === 0) return;
+
+                // Collect all components
+                let allComponents = [];
+                productList.forEach(p => {
+                    const comps = getProductComponents(p.sku, p.qty);
+                    allComponents = [...allComponents, ...comps];
+                });
+
+                // Group by component code and sum quantities
+                const grouped = {};
+                allComponents.forEach(comp => {
+                    if (grouped[comp.code]) {
+                        grouped[comp.code].qty += comp.qty;
+                    } else {
+                        grouped[comp.code] = { code: comp.code, qty: comp.qty };
+                    }
+                });
+
+                // Enrich with item details
+                const results = Object.values(grouped).map(comp => {
+                    const item = items.find(i => i.code === comp.code);
+                    return {
+                        code: comp.code,
+                        name: item?.name || 'Unknown',
+                        qty: comp.qty,
+                        price: item?.price || 0,
+                        total: comp.qty * (item?.price || 0),
+                        vendor: item?.vendor || '-',
+                        vendorAddress: item?.vendorAddress || '-',
+                        category: item?.category || '-'
+                    };
+                });
+
+                // Sort by category then name
+                results.sort((a, b) => {
+                    if (a.category !== b.category) return a.category.localeCompare(b.category);
+                    return a.name.localeCompare(b.name);
+                });
+
+                setComponentResults(results);
+                setGrandTotal(results.reduce((sum, r) => sum + r.total, 0));
+            };
+
+            const handlePrint = () => {
+                const printWindow = window.open('', '_blank');
+                const html = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Component Estimate - MV Solutions</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; padding: 20px; }
+                            h1 { color: #1E3A8A; margin-bottom: 5px; }
+                            h2 { color: #333; font-size: 16px; margin-top: 20px; }
+                            .date { color: #666; font-size: 12px; margin-bottom: 20px; }
+                            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                            th { background: #1E3A8A; color: white; }
+                            tr:nth-child(even) { background: #f9f9f9; }
+                            .right { text-align: right; }
+                            .total-row { font-weight: bold; background: #E8F4FD !important; }
+                            .products-list { margin-bottom: 20px; }
+                            .products-list li { margin: 5px 0; }
+                            @media print { body { padding: 0; } }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>MV SOLUTIONS</h1>
+                        <div class="date">Component Estimate - ${new Date().toLocaleDateString('en-IN')}</div>
+
+                        <h2>Products:</h2>
+                        <ul class="products-list">
+                            ${productList.map(p => `<li><strong>${p.name}</strong> (${p.sku}) × ${p.qty}</li>`).join('')}
+                        </ul>
+
+                        <h2>Components Required:</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Component Name</th>
+                                    <th>Category</th>
+                                    <th class="right">Qty</th>
+                                    <th class="right">Unit Price</th>
+                                    <th class="right">Total</th>
+                                    <th>Vendor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${componentResults.map(c => `
+                                    <tr>
+                                        <td>${c.code}</td>
+                                        <td>${c.name}</td>
+                                        <td>${c.category}</td>
+                                        <td class="right">${c.qty}</td>
+                                        <td class="right">₹${c.price.toLocaleString('en-IN')}</td>
+                                        <td class="right">₹${c.total.toLocaleString('en-IN')}</td>
+                                        <td>${c.vendor}${c.vendorAddress && c.vendorAddress !== '-' ? '<br><small>' + c.vendorAddress + '</small>' : ''}</td>
+                                    </tr>
+                                `).join('')}
+                                <tr class="total-row">
+                                    <td colspan="5" class="right">GRAND TOTAL:</td>
+                                    <td class="right">₹${grandTotal.toLocaleString('en-IN')}</td>
+                                    <td></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </body>
+                    </html>
+                `;
+                printWindow.document.write(html);
+                printWindow.document.close();
+                printWindow.print();
+            };
+
+            return (
+                <div className="page-container">
+                    <div className="page-header">
+                        <h1 className="page-title"><Icons.Calculator /> Component Estimator</h1>
+                        <p className="page-subtitle">Calculate total components needed for multiple products</p>
+                    </div>
+
+                    <div className="card" style={{ marginBottom: '20px' }}>
+                        <div className="card-header">
+                            <h3 className="card-title">Add Products</h3>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                            <div className="form-group" style={{ flex: 2, minWidth: '200px', marginBottom: 0 }}>
+                                <label className="form-label">Select Product</label>
+                                <select
+                                    className="form-select"
+                                    value={selectedProduct}
+                                    onChange={e => setSelectedProduct(e.target.value)}
+                                >
+                                    <option value="">-- Choose Product --</option>
+                                    {products.map(p => (
+                                        <option key={p.sku} value={p.sku}>{p.name} ({p.sku})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group" style={{ width: '100px', marginBottom: 0 }}>
+                                <label className="form-label">Quantity</label>
+                                <input
+                                    type="number"
+                                    className="form-input"
+                                    value={quantity}
+                                    onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                    min="1"
+                                />
+                            </div>
+                            <button className="btn btn-primary" onClick={addProduct} disabled={!selectedProduct}>
+                                <Icons.Plus /> Add
+                            </button>
+                        </div>
+
+                        {productList.length > 0 && (
+                            <div style={{ marginTop: '20px' }}>
+                                <div style={{ fontWeight: '600', marginBottom: '10px' }}>Products to Estimate:</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {productList.map(p => (
+                                        <div key={p.sku} style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            background: 'var(--bg-light)',
+                                            padding: '8px 12px',
+                                            borderRadius: '6px',
+                                            border: '1px solid var(--border-color)'
+                                        }}>
+                                            <span><strong>{p.name}</strong> × {p.qty}</span>
+                                            <button
+                                                className="btn btn-danger btn-sm btn-icon"
+                                                onClick={() => removeProduct(p.sku)}
+                                                style={{ padding: '4px' }}
+                                            >
+                                                <Icons.X />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    className="btn btn-success"
+                                    onClick={calculateComponents}
+                                    style={{ marginTop: '16px' }}
+                                >
+                                    <Icons.Calculator /> Calculate Components
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {componentResults.length > 0 && (
+                        <div className="card">
+                            <div className="card-header">
+                                <h3 className="card-title">Components Required ({componentResults.length} items)</h3>
+                                <button className="btn btn-secondary" onClick={handlePrint}>
+                                    <Icons.Printer /> Print
+                                </button>
+                            </div>
+                            <div className="table-container">
+                                <table className="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>Component Name</th>
+                                            <th>Category</th>
+                                            <th style={{ textAlign: 'right' }}>Qty</th>
+                                            <th style={{ textAlign: 'right' }}>Unit Price</th>
+                                            <th style={{ textAlign: 'right' }}>Total</th>
+                                            <th>Vendor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {componentResults.map((c, idx) => (
+                                            <tr key={idx}>
+                                                <td><span className="code-badge">{c.code}</span></td>
+                                                <td>{c.name}</td>
+                                                <td><span className="category-badge">{c.category}</span></td>
+                                                <td style={{ textAlign: 'right', fontWeight: '600' }}>{c.qty}</td>
+                                                <td style={{ textAlign: 'right' }}>{formatCurrency(c.price)}</td>
+                                                <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--success)' }}>{formatCurrency(c.total)}</td>
+                                                <td>
+                                                    {c.vendor !== '-' ? (
+                                                        <div style={{ fontSize: '13px' }}>
+                                                            <div style={{ fontWeight: '500' }}>{c.vendor}</div>
+                                                            {c.vendorAddress !== '-' && (
+                                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{c.vendorAddress}</div>
+                                                            )}
+                                                        </div>
+                                                    ) : '-'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style={{ background: 'var(--bg-light)', fontWeight: '700' }}>
+                                            <td colSpan="5" style={{ textAlign: 'right' }}>GRAND TOTAL:</td>
+                                            <td style={{ textAlign: 'right', color: 'var(--primary)', fontSize: '16px' }}>{formatCurrency(grandTotal)}</td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {productList.length === 0 && componentResults.length === 0 && (
+                        <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                            <Icons.Calculator />
+                            <h3 style={{ marginTop: '16px', color: 'var(--text-secondary)' }}>No Products Selected</h3>
+                            <p style={{ color: 'var(--text-muted)' }}>Add products above to calculate the components needed</p>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
         // ============ MAIN APP ============
         const App = () => {
             const [page, setPage] = useState('dashboard');
@@ -2652,53 +2970,44 @@
             const syncToGoogleSheets = async () => {
                 setSyncStatus('syncing');
                 setSyncMessage('Uploading to Google Sheets...');
-                
+
                 try {
-                    // Sync Items
-                    await fetch(CONFIG.API_URL, {
+                    const payload = {
+                        action: 'syncAll',
+                        items: items.map(item => ({
+                            code: item.code,
+                            name: item.name,
+                            price: item.price,
+                            category: item.category || 'Electronics',
+                            vendor: item.vendor || '',
+                            vendorAddress: item.vendorAddress || ''
+                        })),
+                        products,
+                        bom,
+                        subProducts,
+                        quotations
+                    };
+
+                    console.log('Syncing items:', payload.items);
+
+                    const response = await fetch(CONFIG.API_URL, {
                         method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'syncItems', items })
+                        redirect: 'follow',
+                        body: JSON.stringify(payload)
                     });
 
-                    // Sync Products
-                    await fetch(CONFIG.API_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'syncProducts', products })
-                    });
+                    const result = await response.json();
+                    console.log('Sync response:', result);
 
-                    // Sync BOM
-                    await fetch(CONFIG.API_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'syncBOM', bom })
-                    });
+                    if (result.success) {
+                        const now = new Date().toISOString();
+                        setLastSync(now);
+                        setSyncStatus('success');
+                        setSyncMessage('All data synced to Google Sheets!');
+                    } else {
+                        throw new Error(result.error || 'Sync failed');
+                    }
 
-                    // Sync Sub Products
-                    await fetch(CONFIG.API_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'syncSubProducts', subProducts })
-                    });
-
-                    // Sync Quotations
-                    await fetch(CONFIG.API_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'syncQuotations', quotations })
-                    });
-
-                    const now = new Date().toISOString();
-                    setLastSync(now);
-                    setSyncStatus('success');
-                    setSyncMessage('All data synced to Google Sheets!');
-                    
                     setTimeout(() => {
                         setSyncStatus('idle');
                         setSyncMessage('');
@@ -2707,8 +3016,8 @@
                 } catch (error) {
                     console.error('Sync error:', error);
                     setSyncStatus('error');
-                    setSyncMessage('Sync failed. Check internet connection.');
-                    
+                    setSyncMessage('Sync failed: ' + error.message);
+
                     setTimeout(() => {
                         setSyncStatus('idle');
                         setSyncMessage('');
@@ -2781,6 +3090,7 @@
                     case 'products': return <ProductsPage products={products} setProducts={setProducts} items={items} bom={bom} setBom={setBom} subProducts={subProducts} setSubProducts={setSubProducts} />;
                     case 'quotation': return <QuotationBuilder products={products} items={items} quotations={quotations} setQuotations={setQuotations} bom={bom} subProducts={subProducts} />;
                     case 'documents': return <SavedDocuments quotations={quotations} setQuotations={setQuotations} products={products} items={items} bom={bom} subProducts={subProducts} />;
+                    case 'estimator': return <ComponentEstimator products={products} items={items} bom={bom} subProducts={subProducts} />;
                     default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                 }
             };
@@ -2806,6 +3116,13 @@
                             </div>
                             <div className={`nav-item ${page === 'products' ? 'active' : ''}`} onClick={() => setPage('products')}>
                                 <Icons.Products /> Products
+                            </div>
+
+                            <div className="nav-divider"></div>
+                            <div className="nav-label">Tools</div>
+
+                            <div className={`nav-item ${page === 'estimator' ? 'active' : ''}`} onClick={() => setPage('estimator')}>
+                                <Icons.Calculator /> Estimator
                             </div>
 
                             <div className="nav-divider"></div>
