@@ -670,17 +670,17 @@
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         };
 
-        // Check if admin is authenticated (uses sessionStorage)
+        // Admin authentication
         const isAdminAuthenticated = () => {
-            return sessionStorage.getItem('mvs_admin_auth') === 'true';
+            return sessionStorage.getItem('adminAuth') === 'true';
         };
 
         // Set admin authentication
         const setAdminAuth = (value) => {
             if (value) {
-                sessionStorage.setItem('mvs_admin_auth', 'true');
+                sessionStorage.setItem('adminAuth', 'true');
             } else {
-                sessionStorage.removeItem('mvs_admin_auth');
+                sessionStorage.removeItem('adminAuth');
             }
         };
 
@@ -3118,9 +3118,9 @@
                 try {
                     const inputHash = await hashPassword(adminPassword);
                     if (inputHash === CONFIG.ADMIN_HASH) {
-                        setAdminAuth(true);
                         setAdminUnlocked(true);
                         setAdminExpanded(true);
+                        setAdminAuth(true);
                         setAdminPassword('');
                         setAdminError('');
                     } else {
@@ -3133,9 +3133,9 @@
             };
 
             const handleAdminLock = () => {
-                setAdminAuth(false);
                 setAdminUnlocked(false);
                 setAdminExpanded(false);
+                setAdminAuth(false);
                 setPage('dashboard');
             };
 
