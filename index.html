@@ -1073,64 +1073,71 @@
         // ============ DASHBOARD ============
         const Dashboard = ({ items, products, quotations, bom, subProducts }) => {
             const totalProducts = products.length;
-            const totalItems = items.length;
+            const [searchQuery, setSearchQuery] = useState('');
+
+            // Sort products: Kits category first, then alphabetically by category
+            const sortedProducts = [...products].sort((a, b) => {
+                // Kits first
+                if (a.category === 'Kits' && b.category !== 'Kits') return -1;
+                if (b.category === 'Kits' && a.category !== 'Kits') return 1;
+                // Then by category
+                if (a.category !== b.category) return a.category.localeCompare(b.category);
+                // Then by name
+                return a.name.localeCompare(b.name);
+            });
+
+            // Filter by search
+            const filteredProducts = sortedProducts.filter(p =>
+                p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.category.toLowerCase().includes(searchQuery.toLowerCase())
+            );
 
             return (
                 <div>
                     <div className="page-header">
                         <div>
-                            <h1 className="page-title">Dashboard</h1>
-                            <p className="page-subtitle">Welcome back! Here's your business overview.</p>
-                        </div>
-                    </div>
-
-                    <div className="stats-grid">
-                        <div className="stat-card">
-                            <div className="stat-icon blue"><Icons.Items /></div>
-                            <div className="stat-value">{totalItems}</div>
-                            <div className="stat-label">Components</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon green"><Icons.Products /></div>
-                            <div className="stat-value">{totalProducts}</div>
-                            <div className="stat-label">Products</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon orange"><Icons.Quote /></div>
-                            <div className="stat-value">{quotations.length}</div>
-                            <div className="stat-label">Quotations</div>
+                            <h1 className="page-title">Product Catalog</h1>
+                            <p className="page-subtitle">All products with selling prices</p>
                         </div>
                     </div>
 
                     <div className="card">
                         <div className="card-header">
-                            <h3 className="card-title">Recent Products</h3>
+                            <div className="search-box">
+                                <Icons.Search />
+                                <input
+                                    type="text"
+                                    placeholder="Search products..."
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{filteredProducts.length} products</span>
                         </div>
                         <div className="table-container">
                             <table>
                                 <thead>
                                     <tr>
                                         <th>SKU</th>
-                                        <th>Product</th>
+                                        <th>Product Name</th>
                                         <th>Category</th>
-                                        <th>Making Cost</th>
-                                        <th>Selling Price</th>
-                                        <th>MRP</th>
+                                        <th style={{ textAlign: 'right' }}>Selling Price</th>
+                                        <th style={{ textAlign: 'right' }}>MRP</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {products.slice(0, 5).map(p => {
+                                    {filteredProducts.map(p => {
                                         const makingCost = calculateMakingCost(p, items, products, bom, subProducts);
                                         const sellingPrice = getSellingPrice(p, makingCost);
                                         const mrp = getMRP(p, makingCost);
                                         return (
                                             <tr key={p.sku}>
                                                 <td><span className="code-badge">{p.sku}</span></td>
-                                                <td>{p.name}</td>
+                                                <td style={{ fontWeight: '500' }}>{p.name}</td>
                                                 <td><span className={`category-badge ${getCategoryClass(p.category)}`}>{p.category}</span></td>
-                                                <td className="price">{formatCurrency(makingCost)}</td>
-                                                <td className="price green">{formatCurrency(sellingPrice)}</td>
-                                                <td className="price">{formatCurrency(mrp)}</td>
+                                                <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--success)' }}>{formatCurrency(sellingPrice)}</td>
+                                                <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{formatCurrency(mrp)}</td>
                                             </tr>
                                         );
                                     })}
@@ -1406,6 +1413,199 @@
             );
         };
 
+        // ============ PROFIT CALCULATOR ============
+        const ProfitCalculator = ({ sellingPrice, makingCost, compact = false }) => {
+            const [fees, setFees] = useState({
+                d2c: 3,
+                amazon: 18,
+                flipkart: 15,
+                dealer: 500
+            });
+            const [showFeeEditor, setShowFeeEditor] = useState(false);
+
+            const gstRate = CONFIG.GST_RATE || 18;
+            const price = Number(sellingPrice) || 0;
+            const cost = Number(makingCost) || 0;
+
+            if (price <= 0) {
+                return (
+                    <div style={{
+                        padding: '16px',
+                        background: 'var(--bg-light)',
+                        borderRadius: '8px',
+                        textAlign: 'center',
+                        color: 'var(--text-muted)',
+                        fontSize: '13px'
+                    }}>
+                        Enter a selling price to see profit breakdown across platforms
+                    </div>
+                );
+            }
+
+            const calculatePlatform = (platformFee, isFixed = false) => {
+                const gstAmount = Math.round(price - (price / (1 + gstRate / 100)));
+                const afterGst = price - gstAmount;
+                const feeAmount = isFixed ? platformFee : Math.round(afterGst * (platformFee / 100));
+                const youReceive = afterGst - feeAmount;
+                const profit = youReceive - cost;
+                const margin = cost > 0 ? Math.round((profit / cost) * 100) : 0;
+
+                return { gstAmount, afterGst, feeAmount, youReceive, profit, margin };
+            };
+
+            const platforms = [
+                { name: 'D2C', key: 'd2c', ...calculatePlatform(fees.d2c), feePercent: fees.d2c },
+                { name: 'Amazon', key: 'amazon', ...calculatePlatform(fees.amazon), feePercent: fees.amazon },
+                { name: 'Flipkart', key: 'flipkart', ...calculatePlatform(fees.flipkart), feePercent: fees.flipkart },
+                { name: 'Dealer', key: 'dealer', ...calculatePlatform(fees.dealer, true), feeFixed: fees.dealer }
+            ];
+
+            const cellStyle = { padding: compact ? '6px 8px' : '10px 12px', textAlign: 'right', fontSize: compact ? '12px' : '13px' };
+            const headerStyle = { ...cellStyle, background: 'var(--primary)', color: 'white', fontWeight: '600' };
+            const labelStyle = { ...cellStyle, textAlign: 'left', fontWeight: '500', background: 'var(--bg-light)' };
+
+            return (
+                <div style={{
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    marginTop: compact ? '12px' : '0'
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '10px 12px',
+                        background: 'var(--primary)',
+                        color: 'white'
+                    }}>
+                        <span style={{ fontWeight: '600', fontSize: '14px' }}>Profit Calculator</span>
+                        <button
+                            onClick={() => setShowFeeEditor(!showFeeEditor)}
+                            style={{
+                                background: 'rgba(255,255,255,0.2)',
+                                border: 'none',
+                                padding: '4px 10px',
+                                borderRadius: '4px',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                            }}
+                        >
+                            {showFeeEditor ? 'Hide' : 'Edit'} Fees
+                        </button>
+                    </div>
+
+                    {showFeeEditor && (
+                        <div style={{
+                            padding: '12px',
+                            background: '#FEF3C7',
+                            display: 'flex',
+                            gap: '12px',
+                            flexWrap: 'wrap',
+                            borderBottom: '1px solid var(--border-color)'
+                        }}>
+                            <div style={{ fontSize: '12px' }}>
+                                <label style={{ fontWeight: '500' }}>D2C %</label>
+                                <input type="number" value={fees.d2c} onChange={e => setFees({...fees, d2c: Number(e.target.value)})}
+                                    style={{ width: '60px', marginLeft: '6px', padding: '4px' }} />
+                            </div>
+                            <div style={{ fontSize: '12px' }}>
+                                <label style={{ fontWeight: '500' }}>Amazon %</label>
+                                <input type="number" value={fees.amazon} onChange={e => setFees({...fees, amazon: Number(e.target.value)})}
+                                    style={{ width: '60px', marginLeft: '6px', padding: '4px' }} />
+                            </div>
+                            <div style={{ fontSize: '12px' }}>
+                                <label style={{ fontWeight: '500' }}>Flipkart %</label>
+                                <input type="number" value={fees.flipkart} onChange={e => setFees({...fees, flipkart: Number(e.target.value)})}
+                                    style={{ width: '60px', marginLeft: '6px', padding: '4px' }} />
+                            </div>
+                            <div style={{ fontSize: '12px' }}>
+                                <label style={{ fontWeight: '500' }}>Dealer ₹</label>
+                                <input type="number" value={fees.dealer} onChange={e => setFees({...fees, dealer: Number(e.target.value)})}
+                                    style={{ width: '70px', marginLeft: '6px', padding: '4px' }} />
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ ...headerStyle, textAlign: 'left' }}>Item</th>
+                                    {platforms.map(p => <th key={p.key} style={headerStyle}>{p.name}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style={labelStyle}>Selling Price</td>
+                                    {platforms.map(p => <td key={p.key} style={cellStyle}>{formatCurrency(price)}</td>)}
+                                </tr>
+                                <tr style={{ background: '#FEE2E2' }}>
+                                    <td style={labelStyle}>GST {gstRate}%</td>
+                                    {platforms.map(p => <td key={p.key} style={{ ...cellStyle, color: '#DC2626' }}>-{formatCurrency(p.gstAmount)}</td>)}
+                                </tr>
+                                <tr>
+                                    <td style={labelStyle}>After GST</td>
+                                    {platforms.map(p => <td key={p.key} style={cellStyle}>{formatCurrency(p.afterGst)}</td>)}
+                                </tr>
+                                <tr style={{ background: '#FEF3C7' }}>
+                                    <td style={labelStyle}>Platform Fee</td>
+                                    {platforms.map(p => (
+                                        <td key={p.key} style={{ ...cellStyle, color: '#D97706' }}>
+                                            -{formatCurrency(p.feeAmount)} {p.feePercent ? `(${p.feePercent}%)` : '(fixed)'}
+                                        </td>
+                                    ))}
+                                </tr>
+                                <tr style={{ background: '#DBEAFE' }}>
+                                    <td style={{ ...labelStyle, fontWeight: '600' }}>You Receive</td>
+                                    {platforms.map(p => <td key={p.key} style={{ ...cellStyle, fontWeight: '600', color: '#1D4ED8' }}>{formatCurrency(p.youReceive)}</td>)}
+                                </tr>
+                                <tr style={{ background: '#FEE2E2' }}>
+                                    <td style={labelStyle}>Making Cost</td>
+                                    {platforms.map(p => <td key={p.key} style={{ ...cellStyle, color: '#DC2626' }}>-{formatCurrency(cost)}</td>)}
+                                </tr>
+                                <tr style={{ background: cost > 0 ? '#D1FAE5' : 'var(--bg-light)' }}>
+                                    <td style={{ ...labelStyle, fontWeight: '700' }}>PROFIT</td>
+                                    {platforms.map(p => (
+                                        <td key={p.key} style={{
+                                            ...cellStyle,
+                                            fontWeight: '700',
+                                            color: p.profit >= 0 ? '#059669' : '#DC2626',
+                                            fontSize: compact ? '13px' : '14px'
+                                        }}>
+                                            {p.profit >= 0 ? '' : '-'}{formatCurrency(Math.abs(p.profit))}
+                                        </td>
+                                    ))}
+                                </tr>
+                                <tr style={{ background: 'var(--bg-light)' }}>
+                                    <td style={{ ...labelStyle, fontWeight: '600' }}>Margin %</td>
+                                    {platforms.map(p => (
+                                        <td key={p.key} style={{
+                                            ...cellStyle,
+                                            fontWeight: '600',
+                                            color: p.margin >= 30 ? '#059669' : p.margin >= 20 ? '#D97706' : '#DC2626'
+                                        }}>
+                                            {p.margin}%
+                                        </td>
+                                    ))}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style={{
+                        padding: '8px 12px',
+                        background: '#F0F9FF',
+                        fontSize: '11px',
+                        color: '#0369A1',
+                        borderTop: '1px solid var(--border-color)'
+                    }}>
+                        💡 Selling price should be inclusive of GST. Platform fees are deducted from post-GST amount.
+                    </div>
+                </div>
+            );
+        };
+
         // ============ PRODUCTS PAGE ============
         const ProductsPage = ({ products, setProducts, items, bom, setBom, subProducts, setSubProducts }) => {
             const [search, setSearch] = useState('');
@@ -1423,6 +1623,7 @@
             const [selectedSubProduct, setSelectedSubProduct] = useState('');
             const [subProductQty, setSubProductQty] = useState(1);
             const [circularError, setCircularError] = useState('');
+            const [expandedProduct, setExpandedProduct] = useState(null);
 
             const categories = ['SenseFlow', 'ThermoAmp', 'Controllers', 'Sensors', 'Accessories'];
 
@@ -1661,22 +1862,35 @@
                                         const sellingPrice = getSellingPrice(p, makingCost);
                                         const mrp = getMRP(p, makingCost);
                                         const profitPercent = makingCost > 0 ? Math.round(((sellingPrice - makingCost) / makingCost) * 100) : 0;
+                                        const isExpanded = expandedProduct === p.sku;
                                         return (
-                                            <tr key={p.sku}>
-                                                <td><span className="code-badge">{p.sku}</span></td>
-                                                <td>{p.name}</td>
-                                                <td><span className={`category-badge ${getCategoryClass(p.category)}`}>{p.category}</span></td>
-                                                <td className="price">{formatCurrency(makingCost)}</td>
-                                                <td>
-                                                    <span className="price green">{formatCurrency(sellingPrice)}</span>
-                                                    {makingCost > 0 && <span className={`profit-indicator ${getProfitClass(makingCost, sellingPrice)}`}>{profitPercent}%</span>}
-                                                </td>
-                                                <td className="price">{formatCurrency(mrp)}</td>
-                                                <td className="actions">
-                                                    <button className="btn btn-secondary btn-sm btn-icon" onClick={() => handleEdit(p)}><Icons.Edit /></button>
-                                                    <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(p.sku)}><Icons.Trash /></button>
-                                                </td>
-                                            </tr>
+                                            <React.Fragment key={p.sku}>
+                                                <tr style={{ cursor: 'pointer' }} onClick={() => setExpandedProduct(isExpanded ? null : p.sku)}>
+                                                    <td>
+                                                        <span style={{ marginRight: '8px', color: 'var(--text-muted)' }}>{isExpanded ? '▼' : '▶'}</span>
+                                                        <span className="code-badge">{p.sku}</span>
+                                                    </td>
+                                                    <td>{p.name}</td>
+                                                    <td><span className={`category-badge ${getCategoryClass(p.category)}`}>{p.category}</span></td>
+                                                    <td className="price">{formatCurrency(makingCost)}</td>
+                                                    <td>
+                                                        <span className="price green">{formatCurrency(sellingPrice)}</span>
+                                                        {makingCost > 0 && <span className={`profit-indicator ${getProfitClass(makingCost, sellingPrice)}`}>{profitPercent}%</span>}
+                                                    </td>
+                                                    <td className="price">{formatCurrency(mrp)}</td>
+                                                    <td className="actions" onClick={e => e.stopPropagation()}>
+                                                        <button className="btn btn-secondary btn-sm btn-icon" onClick={() => handleEdit(p)}><Icons.Edit /></button>
+                                                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(p.sku)}><Icons.Trash /></button>
+                                                    </td>
+                                                </tr>
+                                                {isExpanded && (
+                                                    <tr>
+                                                        <td colSpan="7" style={{ padding: '16px', background: '#F8FAFC' }}>
+                                                            <ProfitCalculator sellingPrice={sellingPrice} makingCost={makingCost} />
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
                                         );
                                     })}
                                 </tbody>
@@ -1830,12 +2044,12 @@
                                     <input type="number" className="form-input" placeholder={defaultMRP} value={formData.mrp} onChange={e => setFormData({ ...formData, mrp: e.target.value })} />
                                 </div>
                             </div>
-                            {formData.sellingPrice && formMakingCost > 0 && (
-                                <div className="price-row highlight" style={{ marginTop: '12px' }}>
-                                    <span>Your Profit</span>
-                                    <span className="value green">{Math.round(((Number(formData.sellingPrice) - formMakingCost) / formMakingCost) * 100)}%</span>
-                                </div>
-                            )}
+                            {/* Profit Calculator */}
+                            <ProfitCalculator
+                                sellingPrice={formData.sellingPrice || defaultSellingPrice}
+                                makingCost={formMakingCost}
+                                compact={true}
+                            />
                         </div>
                     </Modal>
                 </div>
@@ -2894,6 +3108,37 @@
             const [lastSync, setLastSync] = useState(null);
             const [syncMessage, setSyncMessage] = useState('');
 
+            // Admin section states
+            const [adminExpanded, setAdminExpanded] = useState(false);
+            const [adminUnlocked, setAdminUnlocked] = useState(isAdminAuthenticated());
+            const [adminPassword, setAdminPassword] = useState('');
+            const [adminError, setAdminError] = useState('');
+
+            const handleAdminUnlock = async () => {
+                try {
+                    const inputHash = await hashPassword(adminPassword);
+                    if (inputHash === CONFIG.ADMIN_HASH) {
+                        setAdminAuth(true);
+                        setAdminUnlocked(true);
+                        setAdminExpanded(true);
+                        setAdminPassword('');
+                        setAdminError('');
+                    } else {
+                        setAdminError('Incorrect password');
+                        setAdminPassword('');
+                    }
+                } catch (err) {
+                    setAdminError('Error');
+                }
+            };
+
+            const handleAdminLock = () => {
+                setAdminAuth(false);
+                setAdminUnlocked(false);
+                setAdminExpanded(false);
+                setPage('dashboard');
+            };
+
             // ============ AUTO-LOAD ON STARTUP ============
             useEffect(() => {
                 const loadData = async () => {
@@ -3104,47 +3349,102 @@
                         </div>
 
                         <div className="nav">
+                            {/* Public Section - Always visible */}
                             <div className={`nav-item ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')}>
-                                <Icons.Dashboard /> Dashboard
+                                <Icons.Dashboard /> Product Catalog
                             </div>
-
-                            <div className="nav-divider"></div>
-                            <div className="nav-label">Master Data</div>
-
-                            <div className={`nav-item ${page === 'items' ? 'active' : ''}`} onClick={() => setPage('items')}>
-                                <Icons.Items /> Items Master
-                            </div>
-                            <div className={`nav-item ${page === 'products' ? 'active' : ''}`} onClick={() => setPage('products')}>
-                                <Icons.Products /> Products
-                            </div>
-
-                            <div className="nav-divider"></div>
-                            <div className="nav-label">Tools</div>
-
-                            <div className={`nav-item ${page === 'estimator' ? 'active' : ''}`} onClick={() => setPage('estimator')}>
-                                <Icons.Calculator /> Estimator
-                            </div>
-
-                            <div className="nav-divider"></div>
-                            <div className="nav-label">Documents</div>
-
                             <div className={`nav-item ${page === 'quotation' ? 'active' : ''}`} onClick={() => setPage('quotation')}>
                                 <Icons.Quote /> Create Quotation
                             </div>
-                            <div className={`nav-item ${page === 'documents' ? 'active' : ''}`} onClick={() => setPage('documents')}>
-                                <Icons.History /> Saved Documents
+
+                            {/* Admin Section - Password Protected */}
+                            <div className="nav-divider"></div>
+                            <div
+                                className="nav-label"
+                                style={{
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    userSelect: 'none'
+                                }}
+                                onClick={() => adminUnlocked && setAdminExpanded(!adminExpanded)}
+                            >
+                                <span>Admin Panel {adminUnlocked ? (adminExpanded ? '▼' : '▶') : '🔒'}</span>
+                                {adminUnlocked && (
+                                    <span
+                                        onClick={(e) => { e.stopPropagation(); handleAdminLock(); }}
+                                        style={{ fontSize: '10px', cursor: 'pointer', opacity: 0.7 }}
+                                        title="Lock Admin"
+                                    >Lock</span>
+                                )}
                             </div>
 
-                            {/* Sync Section */}
+                            {!adminUnlocked && (
+                                <div style={{ padding: '8px 14px' }}>
+                                    <input
+                                        type="password"
+                                        placeholder="Enter password..."
+                                        value={adminPassword}
+                                        onChange={e => setAdminPassword(e.target.value)}
+                                        onKeyPress={e => e.key === 'Enter' && handleAdminUnlock()}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px 10px',
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                            borderRadius: '4px',
+                                            background: 'rgba(255,255,255,0.1)',
+                                            color: 'white',
+                                            fontSize: '12px'
+                                        }}
+                                    />
+                                    {adminError && (
+                                        <div style={{ color: '#EF4444', fontSize: '11px', marginTop: '4px' }}>{adminError}</div>
+                                    )}
+                                    <button
+                                        onClick={handleAdminUnlock}
+                                        style={{
+                                            width: '100%',
+                                            marginTop: '6px',
+                                            padding: '6px',
+                                            background: 'var(--secondary)',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            color: 'white',
+                                            fontSize: '12px',
+                                            cursor: 'pointer'
+                                        }}
+                                    >Unlock</button>
+                                </div>
+                            )}
+
+                            {adminUnlocked && adminExpanded && (
+                                <>
+                                    <div className={`nav-item ${page === 'items' ? 'active' : ''}`} onClick={() => setPage('items')}>
+                                        <Icons.Items /> Items Master
+                                    </div>
+                                    <div className={`nav-item ${page === 'products' ? 'active' : ''}`} onClick={() => setPage('products')}>
+                                        <Icons.Products /> Products
+                                    </div>
+                                    <div className={`nav-item ${page === 'estimator' ? 'active' : ''}`} onClick={() => setPage('estimator')}>
+                                        <Icons.Calculator /> Estimator
+                                    </div>
+                                    <div className={`nav-item ${page === 'documents' ? 'active' : ''}`} onClick={() => setPage('documents')}>
+                                        <Icons.History /> Saved Documents
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Cloud Sync - Visible to all */}
                             <div className="nav-divider"></div>
                             <div className="nav-label">Cloud Sync</div>
-                            
-                            <div 
-                                className="nav-item" 
+
+                            <div
+                                className="nav-item"
                                 onClick={syncToGoogleSheets}
-                                style={{ 
-                                    background: syncStatus === 'syncing' ? 'rgba(59, 130, 246, 0.2)' : 
-                                               syncStatus === 'success' ? 'rgba(16, 185, 129, 0.2)' : 
+                                style={{
+                                    background: syncStatus === 'syncing' ? 'rgba(59, 130, 246, 0.2)' :
+                                               syncStatus === 'success' ? 'rgba(16, 185, 129, 0.2)' :
                                                syncStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : '',
                                     pointerEvents: syncStatus === 'syncing' ? 'none' : 'auto'
                                 }}
@@ -3152,19 +3452,19 @@
                                 {syncStatus === 'syncing' ? <SyncIcons.Refresh /> : <SyncIcons.Upload />}
                                 {syncStatus === 'syncing' ? 'Syncing...' : 'Push to Cloud'}
                             </div>
-                            
-                            <div 
-                                className="nav-item" 
+
+                            <div
+                                className="nav-item"
                                 onClick={loadFromGoogleSheets}
                                 style={{ pointerEvents: syncStatus === 'syncing' ? 'none' : 'auto' }}
                             >
                                 <SyncIcons.Download /> Load from Cloud
                             </div>
 
-                            {/* Sync Status */}
-                            <div style={{ 
-                                padding: '12px 14px', 
-                                fontSize: '11px', 
+                            {/* Sync Status - Visible to all */}
+                            <div style={{
+                                padding: '12px 14px',
+                                fontSize: '11px',
                                 color: 'rgba(255,255,255,0.5)',
                                 borderTop: '1px solid rgba(255,255,255,0.1)',
                                 marginTop: '8px'
@@ -3174,12 +3474,12 @@
                                         width: '8px',
                                         height: '8px',
                                         borderRadius: '50%',
-                                        background: syncStatus === 'success' ? '#10B981' : 
-                                                   syncStatus === 'error' ? '#EF4444' : 
+                                        background: syncStatus === 'success' ? '#10B981' :
+                                                   syncStatus === 'error' ? '#EF4444' :
                                                    syncStatus === 'syncing' ? '#3B82F6' : '#6B7280'
                                     }}></span>
-                                    {syncStatus === 'syncing' ? 'Syncing...' : 
-                                     syncStatus === 'success' ? 'Synced!' : 
+                                    {syncStatus === 'syncing' ? 'Syncing...' :
+                                     syncStatus === 'success' ? 'Synced!' :
                                      syncStatus === 'error' ? 'Sync Failed' : 'Ready'}
                                 </div>
                                 <div>Last: {formatLastSync()}</div>
@@ -3192,8 +3492,8 @@
                                     margin: '8px',
                                     borderRadius: '8px',
                                     fontSize: '12px',
-                                    background: syncStatus === 'success' ? 'rgba(16, 185, 129, 0.2)' : 
-                                               syncStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : 
+                                    background: syncStatus === 'success' ? 'rgba(16, 185, 129, 0.2)' :
+                                               syncStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' :
                                                'rgba(59, 130, 246, 0.2)',
                                     color: 'white'
                                 }}>
