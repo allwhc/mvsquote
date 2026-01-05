@@ -670,12 +670,18 @@
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         };
 
-        // Admin authentication - NOT persisted, resets on page refresh
-        const isAdminAuthenticated = () => false; // Always start locked
+        // Check if admin is authenticated (uses sessionStorage)
+        const isAdminAuthenticated = () => {
+            return sessionStorage.getItem('mvs_admin_auth') === 'true';
+        };
 
-        // Set admin authentication - no-op, handled by React state only
+        // Set admin authentication
         const setAdminAuth = (value) => {
-            // Intentionally empty - we don't persist admin auth
+            if (value) {
+                sessionStorage.setItem('mvs_admin_auth', 'true');
+            } else {
+                sessionStorage.removeItem('mvs_admin_auth');
+            }
         };
 
         // Check for circular dependency
@@ -3104,8 +3110,7 @@
 
             // Admin section states
             const [adminExpanded, setAdminExpanded] = useState(false);
-            const [adminUnlocked, setAdminUnlocked] = useState(false);
-            const [adminLocked, setAdminLocked] = useState(false); // True after user clicks Lock
+            const [adminUnlocked, setAdminUnlocked] = useState(isAdminAuthenticated());
             const [adminPassword, setAdminPassword] = useState('');
             const [adminError, setAdminError] = useState('');
 
@@ -3113,6 +3118,7 @@
                 try {
                     const inputHash = await hashPassword(adminPassword);
                     if (inputHash === CONFIG.ADMIN_HASH) {
+                        setAdminAuth(true);
                         setAdminUnlocked(true);
                         setAdminExpanded(true);
                         setAdminPassword('');
@@ -3127,9 +3133,9 @@
             };
 
             const handleAdminLock = () => {
+                setAdminAuth(false);
                 setAdminUnlocked(false);
                 setAdminExpanded(false);
-                setAdminLocked(true); // Hide password field after locking
                 setPage('dashboard');
             };
 
@@ -3374,7 +3380,7 @@
                                 )}
                             </div>
 
-                            {!adminUnlocked && !adminLocked && (
+                            {!adminUnlocked && (
                                 <div style={{ padding: '8px 14px' }}>
                                     <input
                                         type="password"
