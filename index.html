@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1414,14 +1415,26 @@
         };
 
         // ============ PROFIT CALCULATOR ============
-        const ProfitCalculator = ({ sellingPrice, makingCost, compact = false }) => {
-            const [fees, setFees] = useState({
-                d2c: 3,
-                amazon: 18,
-                flipkart: 15,
-                dealer: 500
-            });
+        const ProfitCalculator = ({ sellingPrice, makingCost, compact = false, productRates = null, onRatesChange = null }) => {
+            // Default rates: D2C 3%, Amazon 12%, Flipkart 11%, Dealer ₹500
+            const defaultRates = { d2c: 3, amazon: 12, flipkart: 11, dealer: 500 };
+            const [fees, setFees] = useState(productRates || defaultRates);
             const [showFeeEditor, setShowFeeEditor] = useState(false);
+
+            // Update fees when productRates prop changes
+            React.useEffect(() => {
+                if (productRates) {
+                    setFees(productRates);
+                }
+            }, [productRates]);
+
+            const handleFeeChange = (key, value) => {
+                const newFees = { ...fees, [key]: Number(value) };
+                setFees(newFees);
+                if (onRatesChange) {
+                    onRatesChange(newFees);
+                }
+            };
 
             const gstRate = CONFIG.GST_RATE || 18;
             const price = Number(sellingPrice) || 0;
@@ -1507,22 +1520,22 @@
                         }}>
                             <div style={{ fontSize: '12px' }}>
                                 <label style={{ fontWeight: '500' }}>D2C %</label>
-                                <input type="number" value={fees.d2c} onChange={e => setFees({...fees, d2c: Number(e.target.value)})}
+                                <input type="number" value={fees.d2c} onChange={e => handleFeeChange('d2c', e.target.value)}
                                     style={{ width: '60px', marginLeft: '6px', padding: '4px' }} />
                             </div>
                             <div style={{ fontSize: '12px' }}>
                                 <label style={{ fontWeight: '500' }}>Amazon %</label>
-                                <input type="number" value={fees.amazon} onChange={e => setFees({...fees, amazon: Number(e.target.value)})}
+                                <input type="number" value={fees.amazon} onChange={e => handleFeeChange('amazon', e.target.value)}
                                     style={{ width: '60px', marginLeft: '6px', padding: '4px' }} />
                             </div>
                             <div style={{ fontSize: '12px' }}>
                                 <label style={{ fontWeight: '500' }}>Flipkart %</label>
-                                <input type="number" value={fees.flipkart} onChange={e => setFees({...fees, flipkart: Number(e.target.value)})}
+                                <input type="number" value={fees.flipkart} onChange={e => handleFeeChange('flipkart', e.target.value)}
                                     style={{ width: '60px', marginLeft: '6px', padding: '4px' }} />
                             </div>
                             <div style={{ fontSize: '12px' }}>
                                 <label style={{ fontWeight: '500' }}>Dealer ₹</label>
-                                <input type="number" value={fees.dealer} onChange={e => setFees({...fees, dealer: Number(e.target.value)})}
+                                <input type="number" value={fees.dealer} onChange={e => handleFeeChange('dealer', e.target.value)}
                                     style={{ width: '70px', marginLeft: '6px', padding: '4px' }} />
                             </div>
                         </div>
@@ -1616,7 +1629,11 @@
                 formBom: [], // Components from Items
                 formSubProducts: [], // Sub-products from Products
                 sellingPrice: '',
-                mrp: ''
+                mrp: '',
+                d2cRate: 3,
+                amazonRate: 12,
+                flipkartRate: 11,
+                dealerRate: 500
             });
             const [selectedItem, setSelectedItem] = useState('');
             const [itemQty, setItemQty] = useState(1);
@@ -1748,8 +1765,12 @@
                     sku: formData.sku,
                     name: formData.name,
                     category: formData.category,
-                    sellingPrice: formData.sellingPrice ? Number(formData.sellingPrice) : null,
-                    mrp: formData.mrp ? Number(formData.mrp) : null
+                    sellingPrice: formData.sellingPrice ? Number(formData.sellingPrice) : defaultSellingPrice,
+                    mrp: formData.mrp ? Number(formData.mrp) : defaultMRP,
+                    d2cRate: formData.d2cRate,
+                    amazonRate: formData.amazonRate,
+                    flipkartRate: formData.flipkartRate,
+                    dealerRate: formData.dealerRate
                 };
 
                 // Update/Add product
@@ -1782,7 +1803,7 @@
             };
 
             const resetForm = () => {
-                setFormData({ sku: '', name: '', category: 'SenseFlow', formBom: [], formSubProducts: [], sellingPrice: '', mrp: '' });
+                setFormData({ sku: '', name: '', category: 'SenseFlow', formBom: [], formSubProducts: [], sellingPrice: '', mrp: '', d2cRate: 3, amazonRate: 12, flipkartRate: 11, dealerRate: 500 });
                 setEditProduct(null);
                 setCircularError('');
             };
@@ -1806,7 +1827,11 @@
                     formBom: productBom,
                     formSubProducts: productSubs,
                     sellingPrice: product.sellingPrice || '',
-                    mrp: product.mrp || ''
+                    mrp: product.mrp || '',
+                    d2cRate: product.d2cRate !== undefined ? product.d2cRate : 3,
+                    amazonRate: product.amazonRate !== undefined ? product.amazonRate : 12,
+                    flipkartRate: product.flipkartRate !== undefined ? product.flipkartRate : 11,
+                    dealerRate: product.dealerRate !== undefined ? product.dealerRate : 500
                 });
                 setCircularError('');
                 setShowModal(true);
@@ -1886,7 +1911,26 @@
                                                 {isExpanded && (
                                                     <tr>
                                                         <td colSpan="7" style={{ padding: '16px', background: '#F8FAFC' }}>
-                                                            <ProfitCalculator sellingPrice={sellingPrice} makingCost={makingCost} />
+                                                            <ProfitCalculator
+                                                                sellingPrice={sellingPrice}
+                                                                makingCost={makingCost}
+                                                                productRates={{
+                                                                    d2c: p.d2cRate !== undefined ? p.d2cRate : 3,
+                                                                    amazon: p.amazonRate !== undefined ? p.amazonRate : 12,
+                                                                    flipkart: p.flipkartRate !== undefined ? p.flipkartRate : 11,
+                                                                    dealer: p.dealerRate !== undefined ? p.dealerRate : 500
+                                                                }}
+                                                                onRatesChange={(newRates) => {
+                                                                    const updatedProduct = {
+                                                                        ...p,
+                                                                        d2cRate: newRates.d2c,
+                                                                        amazonRate: newRates.amazon,
+                                                                        flipkartRate: newRates.flipkart,
+                                                                        dealerRate: newRates.dealer
+                                                                    };
+                                                                    setProducts(products.map(prod => prod.sku === p.sku ? updatedProduct : prod));
+                                                                }}
+                                                            />
                                                         </td>
                                                     </tr>
                                                 )}
@@ -2049,6 +2093,19 @@
                                 sellingPrice={formData.sellingPrice || defaultSellingPrice}
                                 makingCost={formMakingCost}
                                 compact={true}
+                                productRates={{
+                                    d2c: formData.d2cRate,
+                                    amazon: formData.amazonRate,
+                                    flipkart: formData.flipkartRate,
+                                    dealer: formData.dealerRate
+                                }}
+                                onRatesChange={(newRates) => setFormData({
+                                    ...formData,
+                                    d2cRate: newRates.d2c,
+                                    amazonRate: newRates.amazon,
+                                    flipkartRate: newRates.flipkart,
+                                    dealerRate: newRates.dealer
+                                })}
                             />
                         </div>
                     </Modal>
@@ -3227,7 +3284,20 @@
                             vendor: item.vendor || '',
                             vendorAddress: item.vendorAddress || ''
                         })),
-                        products,
+                        products: products.map(p => {
+                            const makingCost = calculateMakingCost(p, items, products, bom, subProducts);
+                            return {
+                                sku: p.sku,
+                                name: p.name,
+                                category: p.category,
+                                sellingPrice: p.sellingPrice || getSellingPrice(p, makingCost),
+                                mrp: p.mrp || getMRP(p, makingCost),
+                                d2cRate: p.d2cRate !== undefined ? p.d2cRate : 3,
+                                amazonRate: p.amazonRate !== undefined ? p.amazonRate : 12,
+                                flipkartRate: p.flipkartRate !== undefined ? p.flipkartRate : 11,
+                                dealerRate: p.dealerRate !== undefined ? p.dealerRate : 500
+                            };
+                        }),
                         bom,
                         subProducts,
                         quotations
