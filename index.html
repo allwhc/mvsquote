@@ -821,7 +821,8 @@
             Eye: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
             Box: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>,
             Calculator: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/><line x1="16" y1="18" x2="16" y2="18.01"/></svg>,
-            Printer: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Printer: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
+            Copy: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         };
 
         // ============ MODAL COMPONENT ============
@@ -1847,6 +1848,36 @@
                 }
             };
 
+            const handleDuplicate = (product) => {
+                // Load BOM from the bom array
+                const productBom = bom.filter(b => b.productSku === product.sku).map(b => ({
+                    code: b.componentCode,
+                    qty: b.qty
+                }));
+                // Load Sub-Products from the subProducts array
+                const productSubs = subProducts.filter(sp => sp.productSku === product.sku).map(sp => ({
+                    sku: sp.subProductSku,
+                    qty: sp.qty
+                }));
+                // Set form with copied data - SKU empty so user must enter new one
+                setEditProduct(null); // Not editing, creating new
+                setFormData({
+                    sku: '', // User must enter new SKU
+                    name: 'Copy of ' + product.name,
+                    category: product.category,
+                    formBom: productBom,
+                    formSubProducts: productSubs,
+                    sellingPrice: product.sellingPrice || '',
+                    mrp: product.mrp || '',
+                    d2cRate: product.d2cRate !== undefined ? product.d2cRate : 3,
+                    amazonRate: product.amazonRate !== undefined ? product.amazonRate : 12,
+                    flipkartRate: product.flipkartRate !== undefined ? product.flipkartRate : 11,
+                    dealerRate: product.dealerRate !== undefined ? product.dealerRate : 500
+                });
+                setCircularError('');
+                setShowModal(true);
+            };
+
             return (
                 <PasswordGate title="Products">
                     <div>
@@ -1904,8 +1935,9 @@
                                                     </td>
                                                     <td className="price">{formatCurrency(mrp)}</td>
                                                     <td className="actions" onClick={e => e.stopPropagation()}>
-                                                        <button className="btn btn-secondary btn-sm btn-icon" onClick={() => handleEdit(p)}><Icons.Edit /></button>
-                                                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(p.sku)}><Icons.Trash /></button>
+                                                        <button className="btn btn-secondary btn-sm btn-icon" onClick={() => handleDuplicate(p)} title="Duplicate"><Icons.Copy /></button>
+                                                        <button className="btn btn-secondary btn-sm btn-icon" onClick={() => handleEdit(p)} title="Edit"><Icons.Edit /></button>
+                                                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(p.sku)} title="Delete"><Icons.Trash /></button>
                                                     </td>
                                                 </tr>
                                                 {isExpanded && (
