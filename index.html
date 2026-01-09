@@ -1176,15 +1176,40 @@
             });
 
             const resetForm = () => {
-                setFormData({ 
-                    code: '', 
-                    name: '', 
-                    price: '', 
+                setFormData({
+                    code: '',
+                    name: '',
+                    price: '',
                     category: 'Electronics',
                     vendor: '',
                     vendorAddress: ''
                 });
                 setEditItem(null);
+            };
+
+            // Generate unique code based on prefix
+            const generateCode = (prefix) => {
+                // Find all codes with this prefix
+                const regex = new RegExp(`^${prefix}(\\d+)$`, 'i');
+                const numbers = items
+                    .map(item => {
+                        const match = item.code.match(regex);
+                        return match ? parseInt(match[1], 10) : 0;
+                    })
+                    .filter(n => n > 0);
+
+                const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+                return prefix.toUpperCase() + nextNum;
+            };
+
+            // Get unique prefixes from existing items
+            const getExistingPrefixes = () => {
+                const prefixes = new Set();
+                items.forEach(item => {
+                    const match = item.code.match(/^([A-Za-z]+)/);
+                    if (match) prefixes.add(match[1].toUpperCase());
+                });
+                return Array.from(prefixes).sort();
             };
 
             const handleSubmit = () => {
@@ -1195,7 +1220,7 @@
 
                 // Check for duplicate code (only when adding new item)
                 if (!editItem && items.some(item => item.code.toUpperCase() === formData.code.toUpperCase())) {
-                    alert(`Item code "${formData.code}" already exists! Please use a different code.`);
+                    alert(`Item code "${formData.code}" already exists! Delete the existing item first or use a different code.`);
                     return;
                 }
 
@@ -1341,14 +1366,96 @@
                             <div className="form-row">
                                 <div className="form-group">
                                     <label className="form-label">Item Code <span>*</span></label>
-                                    <input 
-                                        type="text" 
-                                        className="form-input" 
-                                        placeholder="e.g., C50" 
-                                        value={formData.code} 
-                                        onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })} 
-                                        disabled={!!editItem} 
-                                    />
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="e.g., C50"
+                                            value={formData.code}
+                                            onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                                            disabled={!!editItem}
+                                            style={{ flex: 1 }}
+                                        />
+                                        {!editItem && (
+                                            <div style={{ position: 'relative', display: 'inline-block' }} className="generate-dropdown">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={(e) => {
+                                                        const dropdown = e.currentTarget.nextElementSibling;
+                                                        dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+                                                    }}
+                                                    style={{ whiteSpace: 'nowrap' }}
+                                                >
+                                                    Generate
+                                                </button>
+                                                <div style={{
+                                                    display: 'none',
+                                                    position: 'absolute',
+                                                    top: '100%',
+                                                    right: 0,
+                                                    background: 'white',
+                                                    border: '1px solid var(--border)',
+                                                    borderRadius: '8px',
+                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                                    zIndex: 1000,
+                                                    minWidth: '120px',
+                                                    marginTop: '4px'
+                                                }}>
+                                                    {getExistingPrefixes().map(prefix => (
+                                                        <button
+                                                            key={prefix}
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                setFormData({ ...formData, code: generateCode(prefix) });
+                                                                e.currentTarget.parentElement.style.display = 'none';
+                                                            }}
+                                                            style={{
+                                                                display: 'block',
+                                                                width: '100%',
+                                                                padding: '8px 12px',
+                                                                border: 'none',
+                                                                background: 'none',
+                                                                textAlign: 'left',
+                                                                cursor: 'pointer',
+                                                                fontSize: '14px'
+                                                            }}
+                                                            onMouseOver={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                                                            onMouseOut={e => e.currentTarget.style.background = 'none'}
+                                                        >
+                                                            {prefix} → {generateCode(prefix)}
+                                                        </button>
+                                                    ))}
+                                                    <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }}></div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            const prefix = prompt('Enter custom prefix (e.g., C, E, M):');
+                                                            if (prefix && /^[A-Za-z]+$/.test(prefix)) {
+                                                                setFormData({ ...formData, code: generateCode(prefix) });
+                                                            }
+                                                            e.currentTarget.parentElement.style.display = 'none';
+                                                        }}
+                                                        style={{
+                                                            display: 'block',
+                                                            width: '100%',
+                                                            padding: '8px 12px',
+                                                            border: 'none',
+                                                            background: 'none',
+                                                            textAlign: 'left',
+                                                            cursor: 'pointer',
+                                                            fontSize: '14px',
+                                                            color: 'var(--primary)'
+                                                        }}
+                                                        onMouseOver={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                                                        onMouseOut={e => e.currentTarget.style.background = 'none'}
+                                                    >
+                                                        + Custom prefix
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">Category</label>
@@ -1758,7 +1865,7 @@
 
                 // Check for duplicate SKU (only when adding new product)
                 if (!editProduct && products.some(p => p.sku.toUpperCase() === formData.sku.toUpperCase())) {
-                    alert(`Product SKU "${formData.sku}" already exists! Please use a different SKU.`);
+                    alert(`Product SKU "${formData.sku}" already exists! Delete the existing product first or use a different SKU.`);
                     return;
                 }
 
@@ -1807,6 +1914,34 @@
                 setFormData({ sku: '', name: '', category: 'SenseFlow', formBom: [], formSubProducts: [], sellingPrice: '', mrp: '', d2cRate: 3, amazonRate: 12, flipkartRate: 11, dealerRate: 500 });
                 setEditProduct(null);
                 setCircularError('');
+            };
+
+            // Category to prefix mapping
+            const getCategoryPrefix = (category) => {
+                const prefixMap = {
+                    'SenseFlow': 'SF',
+                    'Ambience': 'AMB',
+                    'ThermoAmp': 'TA',
+                    'Controllers': 'CTL',
+                    'Sensors': 'SEN',
+                    'Accessories': 'ACC'
+                };
+                return prefixMap[category] || category.substring(0, 3).toUpperCase();
+            };
+
+            // Generate unique SKU based on category
+            const generateSKU = (category) => {
+                const prefix = getCategoryPrefix(category);
+                const regex = new RegExp(`^${prefix}(\\d+)$`, 'i');
+                const numbers = products
+                    .map(p => {
+                        const match = p.sku.match(regex);
+                        return match ? parseInt(match[1], 10) : 0;
+                    })
+                    .filter(n => n > 0);
+
+                const nextNum = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+                return prefix + nextNum;
             };
 
             const handleEdit = (product) => {
@@ -1989,7 +2124,19 @@
                         <div className="form-row">
                             <div className="form-group">
                                 <label className="form-label">SKU Code <span>*</span></label>
-                                <input type="text" className="form-input" placeholder="e.g., SF16" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value.toUpperCase() })} disabled={!!editProduct} />
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <input type="text" className="form-input" placeholder="e.g., SF16" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value.toUpperCase() })} disabled={!!editProduct} style={{ flex: 1 }} />
+                                    {!editProduct && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => setFormData({ ...formData, sku: generateSKU(formData.category) })}
+                                            style={{ whiteSpace: 'nowrap' }}
+                                        >
+                                            Generate
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Category <span>*</span></label>
