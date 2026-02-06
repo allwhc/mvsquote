@@ -3356,112 +3356,122 @@
             };
 
             // Download PDF with clickable links
-            const handleDownloadPDF = () => {
+            const handleDownloadHTML = () => {
                 if (componentResults.length === 0) return;
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF('landscape');
-
-                // Header
-                doc.setFillColor(30, 58, 138);
-                doc.rect(0, 0, 297, 30, 'F');
-                doc.setTextColor(255, 255, 255);
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(18);
-                doc.text('MV SOLUTIONS', 15, 14);
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(10);
-                doc.text('Component Estimate - ' + new Date().toLocaleDateString('en-IN'), 15, 23);
-
-                // Products list
-                doc.setTextColor(30, 58, 138);
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(12);
-                doc.text('Products:', 15, 40);
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(10);
-                doc.setTextColor(50);
-                productList.forEach(function(p, i) {
-                    doc.text(p.name + ' (' + p.sku + ') x ' + p.qty, 20, 47 + i * 6);
-                });
-
-                var tableStartY = 47 + productList.length * 6 + 5;
-
-                // Build table columns based on toggle
-                var headRow = ['Code', 'Component', 'Category', 'Qty', 'Unit Price', 'Total', 'Vendor'];
-                var colStyles = {
-                    0: { cellWidth: 22 },
-                    1: { cellWidth: 50 },
-                    2: { cellWidth: 28 },
-                    3: { halign: 'right', cellWidth: 15 },
-                    4: { halign: 'right', cellWidth: 28 },
-                    5: { halign: 'right', cellWidth: 28 },
-                    6: { cellWidth: 40 }
-                };
-
-                if (showVendorContact) {
-                    headRow.push('Contact');
-                    colStyles[7] = { cellWidth: 55 };
-                }
-
-                var bodyData = componentResults.map(function(c) {
-                    var row = [
-                        c.code,
-                        c.name,
-                        c.category,
-                        c.qty.toString(),
-                        formatCurrencyPDF(c.price),
-                        formatCurrencyPDF(c.total),
-                        c.vendor !== '-' ? c.vendor : '-'
-                    ];
-                    if (showVendorContact) {
-                        var parts = [];
-                        if (c.vendorPhone) parts.push(c.vendorPhone);
-                        if (c.vendorEmail) parts.push(c.vendorEmail);
-                        row.push(parts.length > 0 ? parts.join('\n') : '-');
-                    }
-                    return row;
-                });
-
-                doc.autoTable({
-                    startY: tableStartY,
-                    head: [headRow],
-                    body: bodyData,
-                    theme: 'striped',
-                    headStyles: { fillColor: [30, 58, 138], fontSize: 8, fontStyle: 'bold' },
-                    bodyStyles: { fontSize: 8 },
-                    columnStyles: colStyles,
-                    didDrawCell: function(data) {
-                        // Add clickable links to Contact column
-                        if (!showVendorContact) return;
-                        var contactColIdx = 7;
-                        if (data.section === 'body' && data.column.index === contactColIdx) {
-                            var c = componentResults[data.row.index];
-                            if (c) {
-                                var cellX = data.cell.x + 1;
-                                var cellY = data.cell.y + 1;
-                                var lineH = data.cell.styles.fontSize * 0.5;
-                                if (c.vendorPhone) {
-                                    doc.link(cellX, cellY, data.cell.width - 2, lineH + 2, { url: 'tel:' + c.vendorPhone });
-                                    cellY += lineH + 3;
-                                }
-                                if (c.vendorEmail) {
-                                    doc.link(cellX, cellY, data.cell.width - 2, lineH + 2, { url: 'mailto:' + c.vendorEmail });
-                                }
-                            }
-                        }
-                    }
-                });
-
-                // Grand Total row
-                var finalY = doc.lastAutoTable.finalY + 8;
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(12);
-                doc.setTextColor(30, 58, 138);
-                doc.text('GRAND TOTAL:', 180, finalY, { align: 'right' });
-                doc.setTextColor(16, 185, 129);
-                doc.text(formatCurrencyPDF(grandTotal), 220, finalY, { align: 'right' });
-
-                doc.save('component-estimate-' + new Date().toISOString().slice(0, 10) + '.pdf');
+                const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Component Estimate - MV Solutions</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; padding: 20px; background: #f8f9fa; color: #1e293b; }
+.header { background: #1E3A8A; color: white; padding: 20px 24px; border-radius: 12px 12px 0 0; margin-bottom: 0; }
+.header h1 { font-size: 22px; margin-bottom: 4px; }
+.header .date { font-size: 13px; opacity: 0.8; }
+.container { max-width: 960px; margin: 0 auto; }
+.card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 20px; }
+.products-section { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
+.products-section h3 { font-size: 14px; color: #1E3A8A; margin-bottom: 8px; }
+.products-section li { margin: 4px 0; font-size: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #1E3A8A; color: white; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+tr:nth-child(even) { background: #f8fafc; }
+.right { text-align: right; }
+.code { font-family: monospace; font-size: 12px; background: #dbeafe; color: #1E3A8A; padding: 3px 7px; border-radius: 4px; }
+.total-row { background: #dbeafe !important; font-weight: 700; }
+.total-row td { border-bottom: none; }
+.contact-cell { font-size: 12px; }
+.contact-cell a { color: #1E3A8A; text-decoration: none; }
+.contact-cell a:hover { text-decoration: underline; }
+.call-btn { display: inline-flex; align-items: center; gap: 4px; background: #10b981; color: white; padding: 4px 10px; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.call-btn:hover { background: #059669; }
+.email-link { color: #1E3A8A; }
+.vendor-name { font-weight: 500; font-size: 13px; }
+@media (max-width: 600px) {
+    body { padding: 8px; }
+    th, td { padding: 8px 6px; font-size: 12px; }
+    .call-btn { padding: 6px 12px; font-size: 13px; }
+}
+@media print {
+    body { padding: 0; background: white; }
+    .card { box-shadow: none; }
+    .call-btn { background: none; color: #1E3A8A; padding: 0; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="card">
+<div class="header">
+    <h1>MV SOLUTIONS</h1>
+    <div class="date">Component Estimate &mdash; ${new Date().toLocaleDateString('en-IN')}</div>
+</div>
+<div class="products-section">
+    <h3>Products:</h3>
+    <ul>
+        ${productList.map(p => `<li><strong>${p.name}</strong> (${p.sku}) &times; ${p.qty}</li>`).join('')}
+    </ul>
+</div>
+<div style="overflow-x:auto">
+<table>
+<thead>
+<tr>
+    <th>Code</th>
+    <th>Component</th>
+    <th>Category</th>
+    <th class="right">Qty</th>
+    <th class="right">Unit Price</th>
+    <th class="right">Total</th>
+    <th>Vendor</th>
+    ${showVendorContact ? '<th>Contact</th>' : ''}
+</tr>
+</thead>
+<tbody>
+${componentResults.map(c => {
+    var contactHtml = '';
+    if (showVendorContact) {
+        var parts = [];
+        if (c.vendorPhone) {
+            parts.push('<a href="tel:' + c.vendorPhone + '" class="call-btn">&#128222; Call ' + c.vendorPhone + '</a>');
+        }
+        if (c.vendorEmail) {
+            parts.push('<a href="mailto:' + c.vendorEmail + '" class="email-link">' + c.vendorEmail + '</a>');
+        }
+        contactHtml = '<td class="contact-cell">' + (parts.length > 0 ? parts.join('<br style="margin:4px 0">') : '-') + '</td>';
+    }
+    return '<tr>' +
+        '<td><span class="code">' + c.code + '</span></td>' +
+        '<td>' + c.name + '</td>' +
+        '<td>' + c.category + '</td>' +
+        '<td class="right">' + c.qty + '</td>' +
+        '<td class="right">\u20B9' + c.price.toLocaleString('en-IN') + '</td>' +
+        '<td class="right" style="font-weight:600;color:#059669">\u20B9' + c.total.toLocaleString('en-IN') + '</td>' +
+        '<td class="vendor-name">' + (c.vendor !== '-' ? c.vendor : '-') + '</td>' +
+        contactHtml +
+        '</tr>';
+}).join('')}
+<tr class="total-row">
+    <td colspan="5" class="right">GRAND TOTAL:</td>
+    <td class="right" style="font-size:15px;color:#1E3A8A">\u20B9${grandTotal.toLocaleString('en-IN')}</td>
+    <td colspan="${showVendorContact ? 2 : 1}"></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</body>
+</html>`;
+                const blob = new Blob([html], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'component-estimate-' + new Date().toISOString().slice(0, 10) + '.html';
+                a.click();
+                URL.revokeObjectURL(url);
             };
 
             return (
@@ -3557,8 +3567,8 @@
                                     <button className="btn btn-secondary" onClick={handlePrint}>
                                         <Icons.Printer /> Print
                                     </button>
-                                    <button className="btn btn-primary" onClick={handleDownloadPDF}>
-                                        <Icons.Download /> Download PDF
+                                    <button className="btn btn-primary" onClick={handleDownloadHTML}>
+                                        <Icons.Download /> Download HTML
                                     </button>
                                 </div>
                             </div>
