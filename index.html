@@ -1222,15 +1222,24 @@
                     return;
                 }
 
-                // Validate phone numbers
-                for (const v of formData.vendors) {
-                    if (v.phone) {
-                        const cleanPhone = v.phone.replace(/[\s\-\(\)]/g, '');
-                        if (!/^(\+?\d{10,13})$/.test(cleanPhone)) {
-                            alert(`Invalid phone number "${v.phone}" for vendor "${v.name}"! Please enter a valid 10-digit number (with or without +91 country code).`);
-                            return;
-                        }
-                    }
+                // Validate phone numbers and emails
+                const invalidPhone = formData.vendors.find(v => {
+                    if (!v.phone) return false;
+                    const clean = v.phone.replace(/[\s\-\(\)]/g, '');
+                    return !/^\+?\d{10,13}$/.test(clean);
+                });
+                if (invalidPhone) {
+                    alert('Invalid phone number "' + invalidPhone.phone + '" for vendor "' + invalidPhone.name + '"!\n\nPlease enter a valid 10-digit number (with or without +91 country code).');
+                    return;
+                }
+
+                const invalidEmail = formData.vendors.find(v => {
+                    if (!v.email) return false;
+                    return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email);
+                });
+                if (invalidEmail) {
+                    alert('Invalid email "' + invalidEmail.email + '" for vendor "' + invalidEmail.name + '"!\n\nPlease enter a valid email address.');
+                    return;
                 }
 
                 // Filter out empty vendor rows
