@@ -1210,6 +1210,23 @@
                 return Array.from(prefixes).sort();
             };
 
+            // Real-time validation helpers
+            const isPhoneValid = (phone) => {
+                if (!phone || phone.trim() === '') return true; // empty is ok
+                var clean = phone.replace(/[\s\-\(\)]/g, '');
+                return /^(\+91)?\d{10}$/.test(clean);
+            };
+
+            const isEmailValid = (email) => {
+                if (!email || email.trim() === '') return true; // empty is ok
+                return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+            };
+
+            // Check if entire form has valid vendor contacts
+            const hasVendorErrors = formData.vendors.some(function(v) {
+                return (v.phone && !isPhoneValid(v.phone)) || (v.email && !isEmailValid(v.email));
+            });
+
             const handleSubmit = () => {
                 if (!formData.code || !formData.name || !formData.price) {
                     alert('Please fill all required fields: Code, Name, and Price');
@@ -1222,23 +1239,9 @@
                     return;
                 }
 
-                // Validate phone numbers and emails
-                const invalidPhone = formData.vendors.find(v => {
-                    if (!v.phone) return false;
-                    const clean = v.phone.replace(/[\s\-\(\)]/g, '');
-                    return !/^\+?\d{10,13}$/.test(clean);
-                });
-                if (invalidPhone) {
-                    alert('Invalid phone number "' + invalidPhone.phone + '" for vendor "' + invalidPhone.name + '"!\n\nPlease enter a valid 10-digit number (with or without +91 country code).');
-                    return;
-                }
-
-                const invalidEmail = formData.vendors.find(v => {
-                    if (!v.email) return false;
-                    return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email);
-                });
-                if (invalidEmail) {
-                    alert('Invalid email "' + invalidEmail.email + '" for vendor "' + invalidEmail.name + '"!\n\nPlease enter a valid email address.');
+                // Block submit if vendor contacts are invalid
+                if (hasVendorErrors) {
+                    alert('Please fix the invalid phone numbers or email addresses (highlighted in red) before saving.');
                     return;
                 }
 
@@ -1418,7 +1421,7 @@
                             footer={
                                 <>
                                     <button className="btn btn-secondary" onClick={() => { setShowModal(false); resetForm(); }}>Cancel</button>
-                                    <button className="btn btn-primary" onClick={handleSubmit}>{editItem ? 'Update' : 'Add'} Item</button>
+                                    <button className="btn btn-primary" onClick={handleSubmit} disabled={hasVendorErrors}>{editItem ? 'Update' : 'Add'} Item</button>
                                 </>
                             }
                         >
@@ -1638,7 +1641,13 @@
                                                         arr[idx] = { ...arr[idx], phone: e.target.value };
                                                         setFormData({ ...formData, vendors: arr });
                                                     }}
+                                                    style={v.phone && !isPhoneValid(v.phone) ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.15)' } : {}}
                                                 />
+                                                {v.phone && !isPhoneValid(v.phone) && (
+                                                    <div style={{ color: '#EF4444', fontSize: '11px', marginTop: '4px' }}>
+                                                        Enter exactly 10 digits (optional +91 prefix)
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="form-group" style={{ marginBottom: 0 }}>
                                                 <input
@@ -1651,7 +1660,13 @@
                                                         arr[idx] = { ...arr[idx], email: e.target.value };
                                                         setFormData({ ...formData, vendors: arr });
                                                     }}
+                                                    style={v.email && !isEmailValid(v.email) ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.15)' } : {}}
                                                 />
+                                                {v.email && !isEmailValid(v.email) && (
+                                                    <div style={{ color: '#EF4444', fontSize: '11px', marginTop: '4px' }}>
+                                                        Enter a valid email address
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
