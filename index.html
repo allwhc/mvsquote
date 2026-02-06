@@ -1157,13 +1157,12 @@
             const [categoryFilter, setCategoryFilter] = useState('');
             const [showModal, setShowModal] = useState(false);
             const [editItem, setEditItem] = useState(null);
-            const [formData, setFormData] = useState({ 
-                code: '', 
-                name: '', 
-                price: '', 
+            const [formData, setFormData] = useState({
+                code: '',
+                name: '',
+                price: '',
                 category: 'Electronics',
-                vendor: '',
-                vendorAddress: ''
+                vendors: [{ name: '', phone: '', email: '' }]
             });
 
             const filteredItems = items.filter(item => {
@@ -1181,8 +1180,7 @@
                     name: '',
                     price: '',
                     category: 'Electronics',
-                    vendor: '',
-                    vendorAddress: ''
+                    vendors: [{ name: '', phone: '', email: '' }]
                 });
                 setEditItem(null);
             };
@@ -1224,9 +1222,32 @@
                     return;
                 }
 
+                // Validate phone numbers
+                for (const v of formData.vendors) {
+                    if (v.phone) {
+                        const cleanPhone = v.phone.replace(/[\s\-\(\)]/g, '');
+                        if (!/^(\+?\d{10,13})$/.test(cleanPhone)) {
+                            alert(`Invalid phone number "${v.phone}" for vendor "${v.name}"! Please enter a valid 10-digit number (with or without +91 country code).`);
+                            return;
+                        }
+                    }
+                }
+
+                // Filter out empty vendor rows
+                const activeVendors = formData.vendors.filter(v => v.name || v.phone || v.email);
+
+                // Build ;; separated strings for Google Sheet storage
+                const vendorStr = activeVendors.map(v => v.name).join(' ;; ');
+                const vendorAddressStr = activeVendors.map(v => `${v.phone}|${v.email}`).join(' ;; ');
+
                 const itemData = {
-                    ...formData,
-                    price: Number(formData.price)
+                    code: formData.code,
+                    name: formData.name,
+                    price: Number(formData.price),
+                    category: formData.category,
+                    vendor: vendorStr,
+                    vendorAddress: vendorAddressStr,
+                    vendors: activeVendors
                 };
 
                 if (editItem) {
@@ -1238,14 +1259,36 @@
                 resetForm();
             };
 
+            // Parse vendor + vendorAddress into vendors array
+            const parseVendors = (vendor, vendorAddress, vendorsArr) => {
+                // If already has vendors array, use it
+                if (vendorsArr && vendorsArr.length > 0) return vendorsArr;
+
+                if (!vendor) return [{ name: '', phone: '', email: '' }];
+
+                const names = vendor.split(' ;; ').map(s => s.trim());
+                const contacts = (vendorAddress || '').split(' ;; ').map(s => s.trim());
+
+                return names.map((name, i) => {
+                    const contact = contacts[i] || '';
+                    if (contact.includes('|')) {
+                        const parts = contact.split('|');
+                        return { name, phone: parts[0] || '', email: parts[1] || '' };
+                    }
+                    if (contact.includes('@')) return { name, phone: '', email: contact };
+                    // Legacy data - put old address into name
+                    return { name: contact ? `${name} (${contact})` : name, phone: '', email: '' };
+                });
+            };
+
             const handleEdit = (item) => {
                 setEditItem(item);
-                setFormData({ 
-                    ...item, 
+                const vendors = parseVendors(item.vendor, item.vendorAddress, item.vendors);
+                setFormData({
+                    ...item,
                     price: item.price.toString(),
                     category: item.category || 'Electronics',
-                    vendor: item.vendor || '',
-                    vendorAddress: item.vendorAddress || ''
+                    vendors: vendors.length > 0 ? vendors : [{ name: '', phone: '', email: '' }]
                 });
                 setShowModal(true);
             };
@@ -1327,16 +1370,23 @@
                                                 </td>
                                                 <td className="price">{formatCurrency(item.price)}</td>
                                                 <td>
-                                                    {item.vendor ? (
-                                                        <div style={{ fontSize: '13px' }}>
-                                                            <div style={{ fontWeight: '500' }}>{item.vendor}</div>
-                                                            {item.vendorAddress && (
-                                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                                    {item.vendorAddress}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ) : (
+                                                    {item.vendor ? (() => {
+                                                        const vendors = parseVendors(item.vendor, item.vendorAddress, item.vendors);
+                                                        return (
+                                                            <div style={{ fontSize: '13px' }}>
+                                                                {vendors.map((v, vi) => (
+                                                                    <div key={vi} style={{ marginBottom: vi < vendors.length - 1 ? '4px' : 0, paddingBottom: vi < vendors.length - 1 ? '4px' : 0, borderBottom: vi < vendors.length - 1 ? '1px dashed var(--border)' : 'none' }}>
+                                                                        <div style={{ fontWeight: '500' }}>
+                                                                            {vi === 0 && vendors.length > 1 && <span style={{ fontSize: '9px', color: 'var(--primary)', marginRight: '4px' }}>★</span>}
+                                                                            {v.name}
+                                                                        </div>
+                                                                        {v.phone && <div style={{ fontSize: '11px' }}><a href={`tel:${v.phone}`} style={{ color: 'var(--primary)' }}>{v.phone}</a></div>}
+                                                                        {v.email && <div style={{ fontSize: '11px' }}><a href={`mailto:${v.email}`} style={{ color: 'var(--primary)' }}>{v.email}</a></div>}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        );
+                                                    })() : (
                                                         <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>
                                                     )}
                                                 </td>
@@ -1492,29 +1542,111 @@
                             </div>
                             
                             <div style={{ borderTop: '1px solid var(--border)', margin: '20px 0', paddingTop: '20px' }}>
-                                <h4 style={{ marginBottom: '16px', color: 'var(--text)', fontSize: '14px', fontWeight: '600' }}>
-                                    📦 Vendor / Procurement Details
-                                </h4>
-                                <div className="form-group">
-                                    <label className="form-label">Vendor / Supplier Name</label>
-                                    <input 
-                                        type="text" 
-                                        className="form-input" 
-                                        placeholder="e.g., Robu.in, PCBWay, Local Supplier" 
-                                        value={formData.vendor} 
-                                        onChange={e => setFormData({ ...formData, vendor: e.target.value })} 
-                                    />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <h4 style={{ color: 'var(--text)', fontSize: '14px', fontWeight: '600', margin: 0 }}>
+                                        📦 Vendors ({formData.vendors.filter(v => v.name).length})
+                                    </h4>
+                                    {formData.vendors.length < 4 && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => setFormData({ ...formData, vendors: [...formData.vendors, { name: '', phone: '', email: '' }] })}
+                                        >
+                                            + Add Vendor
+                                        </button>
+                                    )}
                                 </div>
-                                <div className="form-group">
-                                    <label className="form-label">Vendor Address / Contact</label>
-                                    <textarea 
-                                        className="form-textarea" 
-                                        rows="2"
-                                        placeholder="e.g., Lamington Road, Mumbai or www.robu.in" 
-                                        value={formData.vendorAddress} 
-                                        onChange={e => setFormData({ ...formData, vendorAddress: e.target.value })} 
-                                    />
-                                </div>
+                                {formData.vendors.map((v, idx) => (
+                                    <div key={idx} style={{
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '8px',
+                                        padding: '12px',
+                                        marginBottom: '10px',
+                                        background: idx === 0 ? 'rgba(37, 99, 235, 0.03)' : 'var(--bg-secondary)',
+                                        position: 'relative'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                            <span style={{ fontSize: '11px', fontWeight: '600', color: idx === 0 ? 'var(--primary)' : 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                                {idx === 0 ? 'Primary Vendor' : `Vendor ${idx + 1}`}
+                                            </span>
+                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                {idx > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const arr = [...formData.vendors];
+                                                            [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                                                            setFormData({ ...formData, vendors: arr });
+                                                        }}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px 6px' }}
+                                                        title="Move up (make primary)"
+                                                    >▲</button>
+                                                )}
+                                                {idx < formData.vendors.length - 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const arr = [...formData.vendors];
+                                                            [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                                                            setFormData({ ...formData, vendors: arr });
+                                                        }}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px 6px' }}
+                                                        title="Move down"
+                                                    >▼</button>
+                                                )}
+                                                {formData.vendors.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, vendors: formData.vendors.filter((_, i) => i !== idx) })}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: 'var(--danger)', padding: '2px 6px' }}
+                                                        title="Remove vendor"
+                                                    >✕</button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="form-group" style={{ marginBottom: '8px' }}>
+                                            <input
+                                                type="text"
+                                                className="form-input"
+                                                placeholder="Vendor name with address, e.g., Robu.in, Bangalore"
+                                                value={v.name}
+                                                onChange={e => {
+                                                    const arr = [...formData.vendors];
+                                                    arr[idx] = { ...arr[idx], name: e.target.value };
+                                                    setFormData({ ...formData, vendors: arr });
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="form-row" style={{ marginBottom: 0 }}>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <input
+                                                    type="tel"
+                                                    className="form-input"
+                                                    placeholder="Phone, e.g., +91 9876543210"
+                                                    value={v.phone}
+                                                    onChange={e => {
+                                                        const arr = [...formData.vendors];
+                                                        arr[idx] = { ...arr[idx], phone: e.target.value };
+                                                        setFormData({ ...formData, vendors: arr });
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <input
+                                                    type="email"
+                                                    className="form-input"
+                                                    placeholder="Email, e.g., vendor@example.com"
+                                                    value={v.email}
+                                                    onChange={e => {
+                                                        const arr = [...formData.vendors];
+                                                        arr[idx] = { ...arr[idx], email: e.target.value };
+                                                        setFormData({ ...formData, vendors: arr });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </Modal>
                     </div>
@@ -3020,6 +3152,7 @@
             const [productList, setProductList] = useState([]);
             const [componentResults, setComponentResults] = useState([]);
             const [grandTotal, setGrandTotal] = useState(0);
+            const [showVendorContact, setShowVendorContact] = useState(true);
 
             const addProduct = () => {
                 if (!selectedProduct || quantity < 1) return;
@@ -3089,17 +3222,20 @@
                     }
                 });
 
-                // Enrich with item details
+                // Enrich with item details - use primary vendor (first in list)
                 const results = Object.values(grouped).map(comp => {
                     const item = items.find(i => i.code === comp.code);
+                    const vendors = item?.vendors || parseVendorsGlobal(item?.vendor, item?.vendorAddress) || [];
+                    const primary = vendors[0] || { name: '', phone: '', email: '' };
                     return {
                         code: comp.code,
                         name: item?.name || 'Unknown',
                         qty: comp.qty,
                         price: item?.price || 0,
                         total: comp.qty * (item?.price || 0),
-                        vendor: item?.vendor || '-',
-                        vendorAddress: item?.vendorAddress || '-',
+                        vendor: primary.name || '-',
+                        vendorPhone: primary.phone || '',
+                        vendorEmail: primary.email || '',
                         category: item?.category || '-'
                     };
                 });
@@ -3134,7 +3270,9 @@
                             .total-row { font-weight: bold; background: #E8F4FD !important; }
                             .products-list { margin-bottom: 20px; }
                             .products-list li { margin: 5px 0; }
-                            @media print { body { padding: 0; } }
+                            a { color: #1E3A8A; text-decoration: none; }
+                            a:hover { text-decoration: underline; }
+                            @media print { body { padding: 0; } a { color: #1E3A8A; } }
                         </style>
                     </head>
                     <body>
@@ -3160,7 +3298,13 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${componentResults.map(c => `
+                                ${componentResults.map(c => {
+                                    let vendorHtml = c.vendor !== '-' ? c.vendor : '-';
+                                    if (c.vendor !== '-' && showVendorContact) {
+                                        if (c.vendorPhone) vendorHtml += '<br><small><a href="tel:' + c.vendorPhone + '">' + c.vendorPhone + '</a></small>';
+                                        if (c.vendorEmail) vendorHtml += '<br><small><a href="mailto:' + c.vendorEmail + '">' + c.vendorEmail + '</a></small>';
+                                    }
+                                    return `
                                     <tr>
                                         <td>${c.code}</td>
                                         <td>${c.name}</td>
@@ -3168,9 +3312,9 @@
                                         <td class="right">${c.qty}</td>
                                         <td class="right">₹${c.price.toLocaleString('en-IN')}</td>
                                         <td class="right">₹${c.total.toLocaleString('en-IN')}</td>
-                                        <td>${c.vendor}${c.vendorAddress && c.vendorAddress !== '-' ? '<br><small>' + c.vendorAddress + '</small>' : ''}</td>
-                                    </tr>
-                                `).join('')}
+                                        <td>${vendorHtml}</td>
+                                    </tr>`;
+                                }).join('')}
                                 <tr class="total-row">
                                     <td colspan="5" class="right">GRAND TOTAL:</td>
                                     <td class="right">₹${grandTotal.toLocaleString('en-IN')}</td>
@@ -3266,9 +3410,20 @@
                         <div className="card">
                             <div className="card-header">
                                 <h3 className="card-title">Components Required ({componentResults.length} items)</h3>
-                                <button className="btn btn-secondary" onClick={handlePrint}>
-                                    <Icons.Printer /> Print
-                                </button>
+                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={showVendorContact}
+                                            onChange={e => setShowVendorContact(e.target.checked)}
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                        Vendor Contacts
+                                    </label>
+                                    <button className="btn btn-secondary" onClick={handlePrint}>
+                                        <Icons.Printer /> Print
+                                    </button>
+                                </div>
                             </div>
                             <div className="table-container">
                                 <table className="table">
@@ -3296,8 +3451,15 @@
                                                     {c.vendor !== '-' ? (
                                                         <div style={{ fontSize: '13px' }}>
                                                             <div style={{ fontWeight: '500' }}>{c.vendor}</div>
-                                                            {c.vendorAddress !== '-' && (
-                                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{c.vendorAddress}</div>
+                                                            {showVendorContact && c.vendorPhone && (
+                                                                <div style={{ fontSize: '11px', marginTop: '2px' }}>
+                                                                    <a href={`tel:${c.vendorPhone}`} style={{ color: 'var(--primary)' }}>{c.vendorPhone}</a>
+                                                                </div>
+                                                            )}
+                                                            {showVendorContact && c.vendorEmail && (
+                                                                <div style={{ fontSize: '11px' }}>
+                                                                    <a href={`mailto:${c.vendorEmail}`} style={{ color: 'var(--primary)' }}>{c.vendorEmail}</a>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     ) : '-'}
@@ -3327,6 +3489,29 @@
                 </div>
             );
         };
+
+        // Parse vendor + vendorAddress ;; separated strings into vendors array
+        const parseVendorsGlobal = (vendor, vendorAddress) => {
+            if (!vendor) return [];
+            const names = vendor.split(' ;; ').map(s => s.trim());
+            const contacts = (vendorAddress || '').split(' ;; ').map(s => s.trim());
+            return names.map((name, i) => {
+                const contact = contacts[i] || '';
+                if (contact.includes('|')) {
+                    const parts = contact.split('|');
+                    return { name, phone: parts[0] || '', email: parts[1] || '' };
+                }
+                if (contact.includes('@')) return { name, phone: '', email: contact };
+                return { name: contact ? `${name} (${contact})` : name, phone: '', email: '' };
+            });
+        };
+
+        // Enrich items loaded from Google Sheets with parsed vendors array
+        const enrichItems = (items) => items.map(item => {
+            if (item.vendors && item.vendors.length > 0) return item;
+            const vendors = parseVendorsGlobal(item.vendor, item.vendorAddress);
+            return { ...item, vendors };
+        });
 
         // ============ MAIN APP ============
         const App = () => {
@@ -3388,8 +3573,8 @@
                         
                         if (result.success && result.data) {
                             setLoadingMessage('Loading data...');
-                            
-                            if (result.data.items) setItems(result.data.items);
+
+                            if (result.data.items) setItems(enrichItems(result.data.items));
                             if (result.data.products) setProducts(result.data.products);
                             if (result.data.bom) setBom(result.data.bom);
                             if (result.data.subProducts) setSubProducts(result.data.subProducts);
@@ -3424,7 +3609,7 @@
                     const saved = localStorage.getItem('mvs_data_v4');
                     if (saved) {
                         const data = JSON.parse(saved);
-                        if (data.items) setItems(data.items);
+                        if (data.items) setItems(enrichItems(data.items));
                         if (data.products) setProducts(data.products);
                         if (data.bom) setBom(data.bom);
                         if (data.subProducts) setSubProducts(data.subProducts);
@@ -3455,14 +3640,20 @@
                 try {
                     const payload = {
                         action: 'syncAll',
-                        items: items.map(item => ({
-                            code: item.code,
-                            name: item.name,
-                            price: item.price,
-                            category: item.category || 'Electronics',
-                            vendor: item.vendor || '',
-                            vendorAddress: item.vendorAddress || ''
-                        })),
+                        items: items.map(item => {
+                            // Build ;; separated vendor and contact strings
+                            const vendors = item.vendors || [];
+                            const vendorStr = vendors.map(v => v.name).join(' ;; ') || item.vendor || '';
+                            const contactStr = vendors.map(v => `${v.phone || ''}|${v.email || ''}`).join(' ;; ') || item.vendorAddress || '';
+                            return {
+                                code: item.code,
+                                name: item.name,
+                                price: item.price,
+                                category: item.category || 'Electronics',
+                                vendor: vendorStr,
+                                vendorAddress: contactStr
+                            };
+                        }),
                         products: products.map(p => {
                             const makingCost = calculateMakingCost(p, items, products, bom, subProducts);
                             return {
@@ -3529,12 +3720,12 @@
                     const result = await response.json();
                     
                     if (result.success && result.data) {
-                        if (result.data.items) setItems(result.data.items);
+                        if (result.data.items) setItems(enrichItems(result.data.items));
                         if (result.data.products) setProducts(result.data.products);
                         if (result.data.bom) setBom(result.data.bom);
                         if (result.data.subProducts) setSubProducts(result.data.subProducts);
                         if (result.data.quotations) setQuotations(result.data.quotations);
-                        
+
                         const now = new Date().toISOString();
                         setLastSync(now);
                         setSyncStatus('success');
