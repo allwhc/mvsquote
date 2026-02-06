@@ -3319,15 +3319,15 @@
                                     <th class="right">Unit Price</th>
                                     <th class="right">Total</th>
                                     <th>Vendor</th>
+                                    ${showVendorContact ? '<th>Contact</th>' : ''}
                                 </tr>
                             </thead>
                             <tbody>
                                 ${componentResults.map(c => {
-                                    let vendorHtml = c.vendor !== '-' ? c.vendor : '-';
-                                    if (c.vendor !== '-' && showVendorContact) {
-                                        if (c.vendorPhone) vendorHtml += '<br><small><a href="tel:' + c.vendorPhone + '">' + c.vendorPhone + '</a></small>';
-                                        if (c.vendorEmail) vendorHtml += '<br><small><a href="mailto:' + c.vendorEmail + '">' + c.vendorEmail + '</a></small>';
-                                    }
+                                    var contactParts = [];
+                                    if (c.vendorPhone) contactParts.push(c.vendorPhone);
+                                    if (c.vendorEmail) contactParts.push(c.vendorEmail);
+                                    var contactCell = contactParts.length > 0 ? contactParts.join('<br>') : '-';
                                     return `
                                     <tr>
                                         <td>${c.code}</td>
@@ -3336,13 +3336,14 @@
                                         <td class="right">${c.qty}</td>
                                         <td class="right">₹${c.price.toLocaleString('en-IN')}</td>
                                         <td class="right">₹${c.total.toLocaleString('en-IN')}</td>
-                                        <td>${vendorHtml}</td>
+                                        <td>${c.vendor !== '-' ? c.vendor : '-'}</td>
+                                        ${showVendorContact ? '<td>' + contactCell + '</td>' : ''}
                                     </tr>`;
                                 }).join('')}
                                 <tr class="total-row">
                                     <td colspan="5" class="right">GRAND TOTAL:</td>
                                     <td class="right">₹${grandTotal.toLocaleString('en-IN')}</td>
-                                    <td></td>
+                                    <td colspan="${showVendorContact ? 2 : 1}"></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -3352,6 +3353,115 @@
                 printWindow.document.write(html);
                 printWindow.document.close();
                 printWindow.print();
+            };
+
+            // Download PDF with clickable links
+            const handleDownloadPDF = () => {
+                if (componentResults.length === 0) return;
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('landscape');
+
+                // Header
+                doc.setFillColor(30, 58, 138);
+                doc.rect(0, 0, 297, 30, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(18);
+                doc.text('MV SOLUTIONS', 15, 14);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                doc.text('Component Estimate - ' + new Date().toLocaleDateString('en-IN'), 15, 23);
+
+                // Products list
+                doc.setTextColor(30, 58, 138);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(12);
+                doc.text('Products:', 15, 40);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                doc.setTextColor(50);
+                productList.forEach(function(p, i) {
+                    doc.text(p.name + ' (' + p.sku + ') x ' + p.qty, 20, 47 + i * 6);
+                });
+
+                var tableStartY = 47 + productList.length * 6 + 5;
+
+                // Build table columns based on toggle
+                var headRow = ['Code', 'Component', 'Category', 'Qty', 'Unit Price', 'Total', 'Vendor'];
+                var colStyles = {
+                    0: { cellWidth: 22 },
+                    1: { cellWidth: 50 },
+                    2: { cellWidth: 28 },
+                    3: { halign: 'right', cellWidth: 15 },
+                    4: { halign: 'right', cellWidth: 28 },
+                    5: { halign: 'right', cellWidth: 28 },
+                    6: { cellWidth: 40 }
+                };
+
+                if (showVendorContact) {
+                    headRow.push('Contact');
+                    colStyles[7] = { cellWidth: 55 };
+                }
+
+                var bodyData = componentResults.map(function(c) {
+                    var row = [
+                        c.code,
+                        c.name,
+                        c.category,
+                        c.qty.toString(),
+                        formatCurrencyPDF(c.price),
+                        formatCurrencyPDF(c.total),
+                        c.vendor !== '-' ? c.vendor : '-'
+                    ];
+                    if (showVendorContact) {
+                        var parts = [];
+                        if (c.vendorPhone) parts.push(c.vendorPhone);
+                        if (c.vendorEmail) parts.push(c.vendorEmail);
+                        row.push(parts.length > 0 ? parts.join('\n') : '-');
+                    }
+                    return row;
+                });
+
+                doc.autoTable({
+                    startY: tableStartY,
+                    head: [headRow],
+                    body: bodyData,
+                    theme: 'striped',
+                    headStyles: { fillColor: [30, 58, 138], fontSize: 8, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 8 },
+                    columnStyles: colStyles,
+                    didDrawCell: function(data) {
+                        // Add clickable links to Contact column
+                        if (!showVendorContact) return;
+                        var contactColIdx = 7;
+                        if (data.section === 'body' && data.column.index === contactColIdx) {
+                            var c = componentResults[data.row.index];
+                            if (c) {
+                                var cellX = data.cell.x + 1;
+                                var cellY = data.cell.y + 1;
+                                var lineH = data.cell.styles.fontSize * 0.5;
+                                if (c.vendorPhone) {
+                                    doc.link(cellX, cellY, data.cell.width - 2, lineH + 2, { url: 'tel:' + c.vendorPhone });
+                                    cellY += lineH + 3;
+                                }
+                                if (c.vendorEmail) {
+                                    doc.link(cellX, cellY, data.cell.width - 2, lineH + 2, { url: 'mailto:' + c.vendorEmail });
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Grand Total row
+                var finalY = doc.lastAutoTable.finalY + 8;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(12);
+                doc.setTextColor(30, 58, 138);
+                doc.text('GRAND TOTAL:', 180, finalY, { align: 'right' });
+                doc.setTextColor(16, 185, 129);
+                doc.text(formatCurrencyPDF(grandTotal), 220, finalY, { align: 'right' });
+
+                doc.save('component-estimate-' + new Date().toISOString().slice(0, 10) + '.pdf');
             };
 
             return (
@@ -3447,6 +3557,9 @@
                                     <button className="btn btn-secondary" onClick={handlePrint}>
                                         <Icons.Printer /> Print
                                     </button>
+                                    <button className="btn btn-primary" onClick={handleDownloadPDF}>
+                                        <Icons.Download /> Download PDF
+                                    </button>
                                 </div>
                             </div>
                             <div className="table-container">
@@ -3460,6 +3573,7 @@
                                             <th style={{ textAlign: 'right' }}>Unit Price</th>
                                             <th style={{ textAlign: 'right' }}>Total</th>
                                             <th>Vendor</th>
+                                            {showVendorContact && <th>Contact</th>}
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -3471,23 +3585,14 @@
                                                 <td style={{ textAlign: 'right', fontWeight: '600' }}>{c.qty}</td>
                                                 <td style={{ textAlign: 'right' }}>{formatCurrency(c.price)}</td>
                                                 <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--success)' }}>{formatCurrency(c.total)}</td>
-                                                <td>
-                                                    {c.vendor !== '-' ? (
-                                                        <div style={{ fontSize: '13px' }}>
-                                                            <div style={{ fontWeight: '500' }}>{c.vendor}</div>
-                                                            {showVendorContact && c.vendorPhone && (
-                                                                <div style={{ fontSize: '11px', marginTop: '2px' }}>
-                                                                    <a href={`tel:${c.vendorPhone}`} style={{ color: 'var(--primary)' }}>{c.vendorPhone}</a>
-                                                                </div>
-                                                            )}
-                                                            {showVendorContact && c.vendorEmail && (
-                                                                <div style={{ fontSize: '11px' }}>
-                                                                    <a href={`mailto:${c.vendorEmail}`} style={{ color: 'var(--primary)' }}>{c.vendorEmail}</a>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ) : '-'}
-                                                </td>
+                                                <td style={{ fontSize: '13px', fontWeight: '500' }}>{c.vendor !== '-' ? c.vendor : '-'}</td>
+                                                {showVendorContact && (
+                                                    <td style={{ fontSize: '12px' }}>
+                                                        {c.vendorPhone && <div><a href={`tel:${c.vendorPhone}`} style={{ color: 'var(--primary)' }}>{c.vendorPhone}</a></div>}
+                                                        {c.vendorEmail && <div><a href={`mailto:${c.vendorEmail}`} style={{ color: 'var(--primary)' }}>{c.vendorEmail}</a></div>}
+                                                        {!c.vendorPhone && !c.vendorEmail && '-'}
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -3495,7 +3600,7 @@
                                         <tr style={{ background: 'var(--bg-light)', fontWeight: '700' }}>
                                             <td colSpan="5" style={{ textAlign: 'right' }}>GRAND TOTAL:</td>
                                             <td style={{ textAlign: 'right', color: 'var(--primary)', fontSize: '16px' }}>{formatCurrency(grandTotal)}</td>
-                                            <td></td>
+                                            <td colSpan={showVendorContact ? 2 : 1}></td>
                                         </tr>
                                     </tfoot>
                                 </table>
