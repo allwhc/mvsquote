@@ -172,6 +172,7 @@
         .btn-sm { padding: 6px 12px; font-size: 13px; }
         .btn-icon { padding: 8px; }
         .btn-group { display: flex; gap: 8px; }
+        .btn svg { width: 18px; height: 18px; flex-shrink: 0; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .card {
@@ -485,8 +486,14 @@
 
         .quote-builder {
             display: grid;
-            grid-template-columns: 1fr 380px;
+            grid-template-columns: 1fr 280px;
             gap: 24px;
+        }
+
+        .quote-summary .btn svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
         }
 
         .quote-summary {
@@ -504,15 +511,34 @@
         .product-selector select { flex: 1; }
 
         .quote-item {
-            display: grid;
-            grid-template-columns: 1fr 60px 90px 70px 90px 90px 40px;
-            gap: 10px;
-            align-items: center;
             padding: 12px;
             background: var(--bg);
             border-radius: 8px;
             margin-bottom: 8px;
             font-size: 13px;
+        }
+
+        .quote-item-row1 {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .quote-item-row1 .quote-item-name { flex: 1; }
+
+        .quote-item-row2 {
+            display: grid;
+            grid-template-columns: 70px 100px 70px 100px 100px;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .quote-item-row2 label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+            display: block;
         }
 
         .quote-item-header {
@@ -521,6 +547,7 @@
             font-weight: 600;
             font-size: 11px;
             text-transform: uppercase;
+            display: none;
         }
 
         .quote-item-name {
@@ -640,6 +667,37 @@
                 phone: '+91 8097412355',
                 gst: '27ALDPJ5310J1ZA'
             },
+            BRANDS: {
+                'MV Solutions': {
+                    name: 'MV SOLUTIONS',
+                    tagline: 'Parent Company of Senseflow.in & ThermoAmp.com',
+                    email: 'solutionsmv11@gmail.com',
+                    website: '',
+                    color: [30, 58, 138],
+                    prefix: '',
+                    logo: null
+                },
+                'SenseFlow': {
+                    name: 'SenseFlow',
+                    tagline: 'Sense. Monitor. Control.',
+                    subtitle: 'A Brand of MV Solutions',
+                    email: 'info@senseflow.in',
+                    website: 'www.SenseFlow.in',
+                    color: [14, 116, 144],
+                    prefix: 'SF-',
+                    logo: 'data:image/jpeg;base64,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k9SY4XWP8Qor85reI1LBZjVw2YYWcEnaO17eabS13um1bTXd/q1Hwpq4/LaOKy3Fwm5K8t+W/wDdaTem1mk7q+my+V/+CQf7bnx+8X/HGL9m/wCIfi6+8U6Fe6LdXVhd6rMZrrS3twp/1xyzxMDs2uThiu0jJB+2v26dB0PxJ+x18S9O8Qohtk8G31wC4+7JDEZY2+okRSPcUv7N37Ff7NX7Jy3k3wQ+HEOnXuoRLHf6rcXUt3eTxg5CGWVmYJnB2rhcgEjIr5S/4LFf8FBvh/o3w11P9k34U+JLbVfEGtlYPFdxYziSPS7QMGe3Z1ODPIVClAcohbdglRXwb9lxPxfTnlNFwjeLeiVrO7m0tF9+r82fo9OFfhPgirSzmuqkuWaWrd+ZWjBN6v7tE+yPzc/trzFDEnpmmnVS2ctisBNULNl2HX1p/wDaIJ4I6da/o/kP5ddIueKPEH9meHb3UCBlbdlQZxlmG1f1IryJV2qFHYYrp/iJr5upI9CglysZEtzgcFsfIv4Ak/lXM18Xn2IjVxapx2irfPr+h3Yen7On6hRRRXiG4UUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAGWBDI7KykFXU4KkdCPeuk0nxMNRj8i8ZVuVXLDGA4/vL/UdvpXN0jKGxnscgg4IPqD2r0stzKrl9W61i91/XUGk1ZnVjUp4LqO8s55IpoXDwzwuUeNh0ZWBBU+4INeteCv+CiX7cfw9sY9N8L/ALVPjGO2iXbFBfagt6qD0H2lZCB+NeBxaxewqI5089f7wIDj+h/SlfXbNDtMhUn/AJ6KV/nX1vtMkzemlVjCflNJ2+T/AEOnCYnHYKV8NVlB/wB2TX5WPd/H/wDwUB/bT+Kemy6J46/ab8W3dlOu2ezttQFpHIp7MLdY9w9jxXlKX+z5VGBnPTqe5rAGvWoiEouE24+9vGKF8QWjtlZmdh1ESFq7aGHyzLqVqUYU4+SUV+FicVXx2Nnz4icptdZNv87nRDUM5Unmqmp+KPsEZt7Uhrhh8oPIT/ab+g7/AErEn1jULrKxDyEP8RILn6dl/Wq6IsYwo6nJJOST6k968bMs/o04unhXeXfovTu/w9TlVNL4hzM7sZJHLsxJd2OSxPUmkoor41tt3ZYUUUUgCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAE2rjG0flS5PrRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQB/9k='
+                },
+                'ThermoAmp': {
+                    name: 'ThermoAmp',
+                    tagline: 'Precision Temperature Solutions',
+                    subtitle: 'A Brand of MV Solutions',
+                    email: 'solutionsmv11@gmail.com',
+                    website: 'www.ThermoAmp.com',
+                    color: [153, 27, 27],
+                    prefix: 'TA-',
+                    logo: null
+                }
+            },
             GST_RATE: 18,
             DEFAULT_SELLING_MARGIN: 100, // 100% profit = 2x making cost
             DEFAULT_MRP_MARGIN: 150,     // 150% profit = 2.5x making cost
@@ -660,6 +718,7 @@
         
         // PDF-safe currency format (jsPDF doesn't support ₹ symbol)
         const formatCurrencyPDF = (num) => 'Rs. ' + Number(num || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        const formatDate = (d) => { const dt = new Date(d); const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return String(dt.getDate()).padStart(2,'0') + '-' + months[dt.getMonth()] + '-' + dt.getFullYear(); };
 
         // ============ PASSWORD UTILITIES ============
         // Hash password using SHA-256 (async)
@@ -2455,6 +2514,7 @@
             const [quoteItems, setQuoteItems] = useState([]);
             const [notes, setNotes] = useState('');
             const [selectedProduct, setSelectedProduct] = useState('');
+            const [selectedBrand, setSelectedBrand] = useState('MV Solutions');
 
             const addItem = () => {
                 if (!selectedProduct) return;
@@ -2465,27 +2525,35 @@
                 const mrp = getMRP(product, makingCost);
                 const sellingPrice = getSellingPrice(product, makingCost);
 
-                const existingIndex = quoteItems.findIndex(i => i.sku === product.sku);
-                if (existingIndex >= 0) {
-                    const updated = [...quoteItems];
-                    updated[existingIndex].qty += 1;
-                    setQuoteItems(updated);
-                } else {
-                    setQuoteItems([...quoteItems, {
-                        sku: product.sku,
-                        name: product.name,
-                        mrp: mrp,
-                        minPrice: sellingPrice,
-                        qty: 1,
-                        discount: 0
-                    }]);
-                }
+                setQuoteItems([...quoteItems, {
+                    sku: product.sku,
+                    name: product.name,
+                    mrp: mrp,
+                    minPrice: sellingPrice,
+                    qty: 1,
+                    discount: 0
+                }]);
                 setSelectedProduct('');
+            };
+
+            const addCustomItem = () => {
+                setQuoteItems([...quoteItems, {
+                    sku: 'CUSTOM',
+                    name: '',
+                    mrp: 0,
+                    minPrice: 0,
+                    qty: 1,
+                    discount: 0
+                }]);
             };
 
             const updateItem = (index, field, value) => {
                 const updated = [...quoteItems];
-                updated[index][field] = Number(value);
+                if (field === 'name') {
+                    updated[index][field] = value;
+                } else {
+                    updated[index][field] = Number(value);
+                }
                 setQuoteItems(updated);
             };
 
@@ -2515,29 +2583,44 @@
 
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
+                const brand = CONFIG.BRANDS[selectedBrand];
+                const brandColor = brand.color;
 
                 // Header
-                doc.setFillColor(30, 58, 138);
-                doc.rect(0, 0, 210, 45, 'F');
+                doc.setFillColor(...brandColor);
+                doc.rect(0, 0, 210, 48, 'F');
+
+                let headerStartX = 15;
+                if (brand.logo) {
+                    try { doc.addImage(brand.logo, 'JPEG', 11, 1, 36, 36); headerStartX = 50; } catch(e) {}
+                }
 
                 doc.setTextColor(255, 255, 255);
                 doc.setFontSize(22);
                 doc.setFont('helvetica', 'bold');
-                doc.text(CONFIG.COMPANY.name, 15, 18);
+                doc.text(brand.name, headerStartX, 14);
 
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'italic');
-                doc.text(CONFIG.COMPANY.tagline, 15, 26);
+                doc.text(brand.tagline, headerStartX, 22);
+
+                if (brand.subtitle) {
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(brand.subtitle, headerStartX, 28);
+                }
 
                 doc.setFont('helvetica', 'normal');
-                doc.text(`${CONFIG.COMPANY.address} | ${CONFIG.COMPANY.city}`, 15, 34);
-                doc.text(`Email: ${CONFIG.COMPANY.email} | Phone: ${CONFIG.COMPANY.phone} | GSTIN: ${CONFIG.COMPANY.gst}`, 15, 41);
+                doc.setFontSize(9);
+                doc.text(CONFIG.COMPANY.address + ' | ' + CONFIG.COMPANY.city, 15, 37);
+                const contactLine = 'Email: ' + brand.email + (brand.website ? ' | Web: ' + brand.website : '') + ' | Phone: ' + CONFIG.COMPANY.phone + ' | GSTIN: ' + CONFIG.COMPANY.gst;
+                doc.text(contactLine, 15, 43);
 
                 // Document Info
-                const docNumber = generateDocNumber(type === 'quotation' ? 'QT' : 'INV', quotations.length);
-                const today = new Date().toLocaleDateString('en-IN');
+                const docNumber = generateDocNumber(brand.prefix + (type === 'quotation' ? 'QT' : 'INV'), quotations.length);
+                const today = formatDate(new Date());
 
-                doc.setTextColor(30, 58, 138);
+                doc.setTextColor(...brandColor);
                 doc.setFontSize(18);
                 doc.setFont('helvetica', 'bold');
                 doc.text(type === 'quotation' ? 'QUOTATION' : 'TAX INVOICE', 15, 58);
@@ -2550,89 +2633,108 @@
 
                 // Customer
                 doc.setFillColor(241, 245, 249);
-                doc.rect(15, 65, 180, 22, 'F');
+                doc.rect(15, 68, 180, 30, 'F');
 
                 doc.setTextColor(100);
                 doc.setFontSize(9);
-                doc.text('BILL TO:', 20, 73);
+                doc.text('BILL TO:', 20, 76);
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(11);
                 doc.setTextColor(30);
-                doc.text(customer.name, 20, 80);
+                doc.text(customer.name, 20, 83);
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(9);
                 doc.setTextColor(100);
-                if (customer.phone) doc.text(`Ph: ${customer.phone}`, 100, 73);
-                if (customer.address) doc.text(customer.address, 100, 80);
+                if (customer.phone) doc.text('Ph: ' + customer.phone, 100, 76);
+                if (customer.address) { const al = doc.splitTextToSize(customer.address, 85); doc.text(al, 100, 83); }
 
-                // Table
-                const tableData = quoteItems.map(item => {
-                    const netPrice = calculateNetPrice(item);
-                    return [
-                        item.name,
-                        item.qty.toString(),
-                        formatCurrencyPDF(item.mrp),
-                        item.discount > 0 ? `${item.discount}%` : '-',
-                        formatCurrencyPDF(netPrice),
-                        formatCurrencyPDF(netPrice * item.qty)
-                    ];
-                });
+                // Table - smart columns based on discount usage
+                const hasDiscount = quoteItems.some(item => item.discount > 0);
+
+                let tableHead, tableData, colStyles;
+                if (hasDiscount) {
+                    tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
+                    tableData = quoteItems.map(item => {
+                        const netPrice = calculateNetPrice(item);
+                        return [item.name, item.qty.toString(), formatCurrencyPDF(item.mrp), item.discount + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                    });
+                    colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
+                } else {
+                    tableHead = [['Product', 'Qty', 'Price', 'Total']];
+                    tableData = quoteItems.map(item => {
+                        const netPrice = calculateNetPrice(item);
+                        return [item.name, item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                    });
+                    colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
+                }
 
                 doc.autoTable({
-                    startY: 95,
-                    head: [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']],
+                    startY: 104,
+                    head: tableHead,
                     body: tableData,
                     theme: 'striped',
-                    headStyles: { fillColor: [30, 58, 138], fontSize: 9, fontStyle: 'bold' },
-                    bodyStyles: { fontSize: 9 },
-                    columnStyles: {
-                        0: { cellWidth: 55 },
-                        1: { halign: 'center', cellWidth: 15 },
-                        2: { halign: 'right', cellWidth: 25 },
-                        3: { halign: 'center', cellWidth: 20 },
-                        4: { halign: 'right', cellWidth: 28 },
-                        5: { halign: 'right', cellWidth: 30 }
-                    }
+                    headStyles: { fillColor: brandColor, fontSize: 9, fontStyle: 'bold', cellPadding: 4 },
+                    bodyStyles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak' },
+                    columnStyles: colStyles,
+                    tableWidth: 180,
+                    margin: { left: 15, right: 15 }
                 });
 
                 // Summary
-                const finalY = doc.lastAutoTable.finalY + 10;
+                const finalY = doc.lastAutoTable.finalY + 12;
 
-                doc.setFontSize(10);
-                doc.setTextColor(100);
-                doc.text('Subtotal:', 140, finalY);
+                doc.setFontSize(11);
+                doc.setTextColor(80);
+                doc.text('Subtotal:', 135, finalY);
                 doc.setTextColor(30);
-                doc.text(formatCurrencyPDF(subtotal), 185, finalY, { align: 'right' });
+                doc.setFont('helvetica', 'bold');
+                doc.text(formatCurrencyPDF(subtotal), 195, finalY, { align: 'right' });
 
-                doc.setTextColor(100);
-                doc.text(`GST (${CONFIG.GST_RATE}%):`, 140, finalY + 7);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(80);
+                doc.text('GST (' + CONFIG.GST_RATE + '%):', 135, finalY + 8);
                 doc.setTextColor(30);
-                doc.text(formatCurrencyPDF(gst), 185, finalY + 7, { align: 'right' });
+                doc.setFont('helvetica', 'bold');
+                doc.text(formatCurrencyPDF(gst), 195, finalY + 8, { align: 'right' });
 
-                doc.setDrawColor(30, 58, 138);
+                doc.setDrawColor(...brandColor);
                 doc.setLineWidth(0.5);
-                doc.line(140, finalY + 11, 190, finalY + 11);
+                doc.line(120, finalY + 13, 195, finalY + 13);
 
                 doc.setFont('helvetica', 'bold');
-                doc.setFontSize(12);
-                doc.setTextColor(30, 58, 138);
-                doc.text('Grand Total:', 140, finalY + 19);
+                doc.setFontSize(14);
+                doc.setTextColor(...brandColor);
+                doc.text('Grand Total:', 125, finalY + 20);
                 doc.setTextColor(16, 185, 129);
-                doc.text(formatCurrencyPDF(grandTotal), 185, finalY + 19, { align: 'right' });
+                doc.text(formatCurrencyPDF(grandTotal), 195, finalY + 20, { align: 'right' });
 
-                // Notes
+                // Notes - placed below the summary block with bullet points
+                let notesEndY = finalY + 28;
                 if (notes) {
-                    doc.setTextColor(100);
+                    const notesStartY = finalY + 32;
+                    doc.setTextColor(...brandColor);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(10);
+                    doc.text('Terms & Conditions:', 15, notesStartY);
                     doc.setFont('helvetica', 'normal');
                     doc.setFontSize(9);
-                    doc.text('Terms & Conditions:', 15, finalY + 5);
-                    doc.text(notes, 15, finalY + 11);
+                    doc.setTextColor(60);
+                    const bulletLines = notes.split('\n').filter(l => l.trim());
+                    let bulletY = notesStartY + 7;
+                    bulletLines.forEach(line => {
+                        const wrapped = doc.splitTextToSize(line.trim(), 165);
+                        doc.text('\u2022', 17, bulletY);
+                        doc.text(wrapped, 22, bulletY);
+                        bulletY += wrapped.length * 4.5 + 2;
+                    });
+                    notesEndY = bulletY;
                 }
 
                 // Footer
+                const footerY = Math.max(notesEndY + 15, 280);
                 doc.setTextColor(150);
                 doc.setFontSize(8);
-                doc.text('Thank you for your business!', 105, 285, { align: 'center' });
+                doc.text('Thank you for your business!', 105, Math.min(footerY, 290), { align: 'center' });
 
                 doc.save(`${type}-${docNumber}.pdf`);
 
@@ -2642,6 +2744,7 @@
                     number: docNumber,
                     date: new Date().toISOString(),
                     customer,
+                    brand: selectedBrand,
                     items: quoteItems,
                     subtotal,
                     gst,
@@ -2665,6 +2768,33 @@
 
                     <div className="quote-builder">
                         <div>
+                            {/* Brand Selector */}
+                            <div className="card" style={{ marginBottom: '20px' }}>
+                                <div className="card-header">
+                                    <h3 className="card-title">Brand</h3>
+                                </div>
+                                <div className="card-body">
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                        {Object.keys(CONFIG.BRANDS).map(b => {
+                                            const br = CONFIG.BRANDS[b];
+                                            const isActive = selectedBrand === b;
+                                            return (
+                                                <button key={b} onClick={() => setSelectedBrand(b)} style={{
+                                                    padding: '10px 20px', borderRadius: '8px', border: isActive ? '2px solid rgb(' + br.color.join(',') + ')' : '2px solid #e2e8f0',
+                                                    background: isActive ? 'rgba(' + br.color.join(',') + ', 0.1)' : '#fff',
+                                                    color: isActive ? 'rgb(' + br.color.join(',') + ')' : '#64748b',
+                                                    fontWeight: isActive ? '700' : '500', cursor: 'pointer', transition: 'all 0.2s',
+                                                    fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px'
+                                                }}>
+                                                    <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'rgb(' + br.color.join(',') + ')', display: 'inline-block' }}></span>
+                                                    {b}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Customer */}
                             <div className="card" style={{ marginBottom: '20px' }}>
                                 <div className="card-header">
@@ -2708,6 +2838,7 @@
                                             })}
                                         </select>
                                         <button className="btn btn-primary" onClick={addItem}><Icons.Plus /> Add</button>
+                                        <button className="btn btn-secondary" onClick={addCustomItem} title="Add custom line item"><Icons.Plus /> Custom Item</button>
                                     </div>
 
                                     {hasWarning && (
@@ -2724,30 +2855,26 @@
                                         </div>
                                     ) : (
                                         <>
-                                            <div className="quote-item quote-item-header">
-                                                <div>Product</div>
-                                                <div>Qty</div>
-                                                <div>MRP</div>
-                                                <div>Disc %</div>
-                                                <div>Net Price</div>
-                                                <div>Total</div>
-                                                <div></div>
-                                            </div>
+
                                             {quoteItems.map((item, index) => {
                                                 const netPrice = calculateNetPrice(item);
-                                                const isBelowMin = netPrice < item.minPrice;
+                                                const isBelowMin = item.minPrice > 0 && netPrice < item.minPrice;
                                                 return (
                                                     <div className="quote-item" key={index} style={isBelowMin ? { background: '#FEE2E2' } : {}}>
-                                                        <div className="quote-item-name">
-                                                            {item.name}
-                                                            <small>{item.sku} | Min: {formatCurrency(item.minPrice)}</small>
+                                                        <div className="quote-item-row1">
+                                                            <div className="quote-item-name">
+                                                                <textarea className="form-textarea" value={item.name} placeholder="Enter product description..." onChange={e => updateItem(index, 'name', e.target.value)} rows="2" style={{ fontSize: '14px', padding: '8px 10px', width: '100%', fontWeight: '500', resize: 'vertical', minHeight: '44px' }} />
+                                                                <small>{item.sku !== 'CUSTOM' ? (item.sku + ' | Min: ' + formatCurrency(item.minPrice)) : 'Custom Item'}</small>
+                                                            </div>
+                                                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeItem(index)} style={{ marginTop: '4px' }}><Icons.X /></button>
                                                         </div>
-                                                        <input type="number" className="form-input small" value={item.qty} min="1" onChange={e => updateItem(index, 'qty', e.target.value)} style={{ textAlign: 'center' }} />
-                                                        <div className="price">{formatCurrency(item.mrp)}</div>
-                                                        <input type="number" className="form-input small" value={item.discount} min="0" max="50" onChange={e => updateItem(index, 'discount', e.target.value)} style={{ textAlign: 'center' }} />
-                                                        <div className={`price ${isBelowMin ? 'red' : 'green'}`}>{formatCurrency(netPrice)}</div>
-                                                        <div className="price green">{formatCurrency(netPrice * item.qty)}</div>
-                                                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeItem(index)}><Icons.X /></button>
+                                                        <div className="quote-item-row2">
+                                                            <div><label>Qty</label><input type="number" className="form-input small" value={item.qty} min="1" onChange={e => updateItem(index, 'qty', e.target.value)} style={{ textAlign: 'center' }} /></div>
+                                                            <div><label>MRP (₹)</label><input type="number" className="form-input small" value={item.mrp} min="0" step="100" onChange={e => updateItem(index, 'mrp', e.target.value)} style={{ textAlign: 'right' }} /></div>
+                                                            <div><label>Disc %</label><input type="number" className="form-input small" value={item.discount} min="0" max="100" onChange={e => updateItem(index, 'discount', e.target.value)} style={{ textAlign: 'center' }} /></div>
+                                                            <div><label>Net Price</label><div className={'price ' + (isBelowMin ? 'red' : 'green')} style={{ padding: '6px 0' }}>{formatCurrency(netPrice)}</div></div>
+                                                            <div><label>Total</label><div className="price green" style={{ padding: '6px 0' }}>{formatCurrency(netPrice * item.qty)}</div></div>
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
@@ -2828,125 +2955,160 @@
             const generatePDFFromDoc = (doc, type = 'quotation') => {
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF();
+                const brandKey = doc.brand || 'MV Solutions';
+                const brand = CONFIG.BRANDS[brandKey] || CONFIG.BRANDS['MV Solutions'];
+                const brandColor = brand.color;
 
                 // Header
-                pdf.setFillColor(30, 58, 138);
-                pdf.rect(0, 0, 210, 45, 'F');
-                
+                pdf.setFillColor(...brandColor);
+                pdf.rect(0, 0, 210, 48, 'F');
+
+                let headerStartX = 15;
+                if (brand.logo) {
+                    try { pdf.addImage(brand.logo, 'JPEG', 11, 1, 36, 36); headerStartX = 50; } catch(e) {}
+                }
+
                 pdf.setTextColor(255, 255, 255);
                 pdf.setFont('helvetica', 'bold');
-                pdf.setFontSize(24);
-                pdf.text('MV SOLUTIONS', 15, 20);
-                
+                pdf.setFontSize(22);
+                pdf.text(brand.name, headerStartX, 14);
+
                 pdf.setFont('helvetica', 'italic');
                 pdf.setFontSize(10);
-                pdf.text('Parent Company of Senseflow.in & ThermoAmp.com', 15, 28);
-                
+                pdf.text(brand.tagline, headerStartX, 22);
+
+                if (brand.subtitle) {
+                    pdf.setFontSize(8);
+                    pdf.setFont('helvetica', 'normal');
+                    pdf.text(brand.subtitle, headerStartX, 28);
+                }
+
                 pdf.setFont('helvetica', 'normal');
                 pdf.setFontSize(9);
-                pdf.text('MVS Lab, Shri Bungalow Road No 37, Gorai 2, Borivali | Mumbai, Maharashtra 400091', 15, 35);
-                pdf.text('Email: solutionsmv11@gmail.com | Phone: +91 8097412355 | GSTIN: 27ALDPJ5310J1ZA', 15, 41);
+                pdf.text(CONFIG.COMPANY.address + ' | ' + CONFIG.COMPANY.city, 15, 37);
+                const contactLine2 = 'Email: ' + brand.email + (brand.website ? ' | Web: ' + brand.website : '') + ' | Phone: ' + CONFIG.COMPANY.phone + ' | GSTIN: ' + CONFIG.COMPANY.gst;
+                pdf.text(contactLine2, 15, 43);
 
                 // Document Type & Number
-                pdf.setTextColor(30, 58, 138);
+                pdf.setTextColor(...brandColor);
                 pdf.setFont('helvetica', 'bold');
-                pdf.setFontSize(20);
-                pdf.text(type === 'invoice' ? 'INVOICE' : 'QUOTATION', 15, 58);
+                pdf.setFontSize(18);
+                pdf.text(type === 'invoice' ? 'TAX INVOICE' : 'QUOTATION', 15, 58);
 
                 pdf.setTextColor(100);
                 pdf.setFont('helvetica', 'normal');
                 pdf.setFontSize(10);
                 pdf.text(`No: ${doc.number}`, 160, 52);
-                pdf.text(`Date: ${new Date(doc.date).toLocaleDateString('en-IN')}`, 160, 59);
+                pdf.text('Date: ' + formatDate(doc.date), 160, 59);
 
                 // Customer Info
-                pdf.setDrawColor(200);
-                pdf.setLineWidth(0.5);
-                pdf.roundedRect(15, 65, 180, 22, 2, 2);
+                pdf.setFillColor(241, 245, 249);
+                pdf.rect(15, 68, 180, 30, 'F');
 
                 pdf.setTextColor(100);
                 pdf.setFontSize(9);
-                pdf.text('BILL TO:', 20, 72);
-                pdf.setTextColor(30);
+                pdf.text('BILL TO:', 20, 76);
                 pdf.setFont('helvetica', 'bold');
-                pdf.text(doc.customer.name || 'N/A', 20, 79);
-                
-                pdf.setFont('helvetica', 'normal');
-                pdf.setTextColor(100);
-                if (doc.customer.phone) pdf.text(`Ph: ${doc.customer.phone}`, 100, 72);
-                if (doc.customer.address) pdf.text(doc.customer.address, 100, 79);
+                pdf.setFontSize(11);
+                pdf.setTextColor(30);
+                pdf.text(doc.customer.name || 'N/A', 20, 83);
 
-                // Table
-                const tableData = doc.items.map(item => {
-                    const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
-                    return [
-                        item.name,
-                        item.qty.toString(),
-                        formatCurrencyPDF(item.mrp),
-                        item.discount > 0 ? `${item.discount}%` : '-',
-                        formatCurrencyPDF(netPrice),
-                        formatCurrencyPDF(netPrice * item.qty)
-                    ];
-                });
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(9);
+                pdf.setTextColor(100);
+                if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 100, 76);
+                if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 85); pdf.text(al, 100, 83); }
+
+                // Table - smart columns based on discount usage
+                const hasDiscount = doc.items.some(item => (item.discount || 0) > 0);
+
+                let tableHead, tableData, colStyles;
+                if (hasDiscount) {
+                    tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
+                    tableData = doc.items.map(item => {
+                        const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
+                        return [item.name, item.qty.toString(), formatCurrencyPDF(item.mrp), (item.discount || 0) + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                    });
+                    colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
+                } else {
+                    tableHead = [['Product', 'Qty', 'Price', 'Total']];
+                    tableData = doc.items.map(item => {
+                        const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
+                        return [item.name, item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                    });
+                    colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
+                }
 
                 pdf.autoTable({
-                    startY: 95,
-                    head: [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']],
+                    startY: 104,
+                    head: tableHead,
                     body: tableData,
                     theme: 'striped',
-                    headStyles: { fillColor: [30, 58, 138], fontSize: 9, fontStyle: 'bold' },
-                    bodyStyles: { fontSize: 9 },
-                    columnStyles: {
-                        0: { cellWidth: 55 },
-                        1: { halign: 'center', cellWidth: 15 },
-                        2: { halign: 'right', cellWidth: 25 },
-                        3: { halign: 'center', cellWidth: 20 },
-                        4: { halign: 'right', cellWidth: 28 },
-                        5: { halign: 'right', cellWidth: 30 }
-                    }
+                    headStyles: { fillColor: brandColor, fontSize: 9, fontStyle: 'bold', cellPadding: 4 },
+                    bodyStyles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak' },
+                    columnStyles: colStyles,
+                    tableWidth: 180,
+                    margin: { left: 15, right: 15 }
                 });
 
                 // Summary
-                const finalY = pdf.lastAutoTable.finalY + 10;
+                const finalY = pdf.lastAutoTable.finalY + 12;
 
-                pdf.setFontSize(10);
-                pdf.setTextColor(100);
-                pdf.text('Subtotal:', 140, finalY);
+                pdf.setFontSize(11);
+                pdf.setTextColor(80);
+                pdf.text('Subtotal:', 135, finalY);
                 pdf.setTextColor(30);
-                pdf.text(formatCurrencyPDF(doc.subtotal), 185, finalY, { align: 'right' });
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(formatCurrencyPDF(doc.subtotal), 195, finalY, { align: 'right' });
 
-                pdf.setTextColor(100);
-                pdf.text(`GST (${CONFIG.GST_RATE}%):`, 140, finalY + 7);
+                pdf.setFont('helvetica', 'normal');
+                pdf.setTextColor(80);
+                pdf.text('GST (' + CONFIG.GST_RATE + '%):', 135, finalY + 8);
                 pdf.setTextColor(30);
-                pdf.text(formatCurrencyPDF(doc.gst), 185, finalY + 7, { align: 'right' });
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(formatCurrencyPDF(doc.gst), 195, finalY + 8, { align: 'right' });
 
-                pdf.setDrawColor(30, 58, 138);
+                pdf.setDrawColor(...brandColor);
                 pdf.setLineWidth(0.5);
-                pdf.line(140, finalY + 11, 190, finalY + 11);
+                pdf.line(120, finalY + 13, 195, finalY + 13);
 
                 pdf.setFont('helvetica', 'bold');
-                pdf.setFontSize(12);
-                pdf.setTextColor(30, 58, 138);
-                pdf.text('Grand Total:', 140, finalY + 19);
+                pdf.setFontSize(14);
+                pdf.setTextColor(...brandColor);
+                pdf.text('Grand Total:', 120, finalY + 20);
                 pdf.setTextColor(16, 185, 129);
-                pdf.text(formatCurrencyPDF(doc.grandTotal), 185, finalY + 19, { align: 'right' });
+                pdf.text(formatCurrencyPDF(doc.grandTotal), 195, finalY + 20, { align: 'right' });
 
-                // Notes
+                // Notes - placed below the summary block with bullet points
+                let notesEndY = finalY + 28;
                 if (doc.notes) {
-                    pdf.setTextColor(100);
+                    const notesStartY = finalY + 32;
+                    pdf.setTextColor(...brandColor);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(10);
+                    pdf.text('Terms & Conditions:', 15, notesStartY);
                     pdf.setFont('helvetica', 'normal');
                     pdf.setFontSize(9);
-                    pdf.text('Terms & Conditions:', 15, finalY + 5);
-                    pdf.text(doc.notes, 15, finalY + 11);
+                    pdf.setTextColor(60);
+                    const bulletLines = doc.notes.split('\n').filter(l => l.trim());
+                    let bulletY = notesStartY + 7;
+                    bulletLines.forEach(line => {
+                        const wrapped = pdf.splitTextToSize(line.trim(), 165);
+                        pdf.text('\u2022', 17, bulletY);
+                        pdf.text(wrapped, 22, bulletY);
+                        bulletY += wrapped.length * 4.5 + 2;
+                    });
+                    notesEndY = bulletY;
                 }
 
                 // Footer
+                const footerY = Math.max(notesEndY + 15, 280);
                 pdf.setTextColor(150);
                 pdf.setFontSize(8);
-                pdf.text('Thank you for your business!', 105, 285, { align: 'center' });
+                pdf.text('Thank you for your business!', 105, Math.min(footerY, 290), { align: 'center' });
 
                 // Save
-                const filename = `${type === 'invoice' ? 'INV' : 'QT'}-${doc.number.split('-').slice(1).join('-')}.pdf`;
+                const filename = `${type === 'invoice' ? 'INV' : 'QT'}-${doc.number}.pdf`;
                 pdf.save(filename);
             };
 
@@ -2965,6 +3127,7 @@
                                 <thead>
                                     <tr>
                                         <th>Document #</th>
+                                        <th>Brand</th>
                                         <th>Date</th>
                                         <th>Customer</th>
                                         <th>Items</th>
@@ -2976,15 +3139,19 @@
                                 <tbody>
                                     {quotations.length === 0 ? (
                                         <tr>
-                                            <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                                            <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                                                 No documents yet. Create a quotation to get started.
                                             </td>
                                         </tr>
                                     ) : (
-                                        quotations.map(doc => (
+                                        quotations.map(doc => {
+                                            const bk = doc.brand || 'MV Solutions';
+                                            const bi = CONFIG.BRANDS[bk] || CONFIG.BRANDS['MV Solutions'];
+                                            return (
                                             <tr key={doc.id}>
                                                 <td><span className="code-badge">{doc.number}</span></td>
-                                                <td>{new Date(doc.date).toLocaleDateString('en-IN')}</td>
+                                                <td><span style={{ padding: '2px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', color: 'rgb(' + bi.color.join(',') + ')', background: 'rgba(' + bi.color.join(',') + ', 0.1)', border: '1px solid rgba(' + bi.color.join(',') + ', 0.3)', whiteSpace: 'nowrap' }}>{bk}</span></td>
+                                                <td>{formatDate(doc.date)}</td>
                                                 <td>
                                                     <strong>{doc.customer.name}</strong>
                                                     {doc.customer.phone && <small style={{ display: 'block', color: 'var(--text-muted)' }}>{doc.customer.phone}</small>}
@@ -3014,7 +3181,7 @@
                                                     </button>
                                                 </td>
                                             </tr>
-                                        ))
+                                        );})
                                     )}
                                 </tbody>
                             </table>
