@@ -46,8 +46,8 @@ function initializeSheetHeaders(sheet, name) {
     [SHEETS.PRODUCTS]: ['SKU', 'Name', 'Category', 'Selling Price', 'MRP', 'D2C Rate', 'Amazon Rate', 'Flipkart Rate', 'Dealer Rate'],
     [SHEETS.BOM]: ['Product SKU', 'Component Code', 'Qty'],
     [SHEETS.SUB_PRODUCTS]: ['Product SKU', 'Sub Product SKU', 'Qty'],
-    [SHEETS.QUOTATIONS]: ['ID', 'Number', 'Date', 'Customer Name', 'Customer Phone', 'Customer Address', 'Subtotal', 'GST', 'Grand Total', 'Notes', 'Status'],
-    [SHEETS.QUOTATION_ITEMS]: ['Quotation ID', 'Product SKU', 'Qty', 'MRP', 'Discount %', 'Net Price', 'Total']
+    [SHEETS.QUOTATIONS]: ['ID', 'Number', 'Date', 'Customer Name', 'Customer Phone', 'Customer Address', 'Subtotal', 'GST', 'Grand Total', 'Notes', 'Status', 'Brand'],
+    [SHEETS.QUOTATION_ITEMS]: ['Quotation ID', 'Product SKU', 'Product Name', 'Qty', 'MRP', 'Discount %', 'Net Price', 'Total']
   };
   
   if (headers[name]) {
@@ -243,11 +243,12 @@ function getQuotations() {
         if (itemsData[j][0] == quotId) {
           items.push({
             sku: itemsData[j][1],
-            qty: Number(itemsData[j][2]) || 1,
-            mrp: Number(itemsData[j][3]) || 0,
-            discount: Number(itemsData[j][4]) || 0,
-            netPrice: Number(itemsData[j][5]) || 0,
-            total: Number(itemsData[j][6]) || 0
+            name: itemsData[j][2] || '',
+            qty: Number(itemsData[j][3]) || 1,
+            mrp: Number(itemsData[j][4]) || 0,
+            discount: Number(itemsData[j][5]) || 0,
+            netPrice: Number(itemsData[j][6]) || 0,
+            total: Number(itemsData[j][7]) || 0
           });
         }
       }
@@ -266,6 +267,7 @@ function getQuotations() {
         grandTotal: Number(quotData[i][8]) || 0,
         notes: quotData[i][9] || '',
         status: quotData[i][10] || 'draft',
+        brand: quotData[i][11] || 'MV Solutions',
         items: items
       });
     }
@@ -294,9 +296,10 @@ function syncQuotations(quotations) {
       q.gst,
       q.grandTotal,
       q.notes || '',
-      q.status || 'draft'
+      q.status || 'draft',
+      q.brand || 'MV Solutions'
     ]);
-    quotSheet.getRange(2, 1, quotData.length, 11).setValues(quotData);
+    quotSheet.getRange(2, 1, quotData.length, 12).setValues(quotData);
     
     // Sync quotation items
     const allItems = [];
@@ -306,6 +309,7 @@ function syncQuotations(quotations) {
           allItems.push([
             q.id,
             item.sku,
+            item.name || '',
             item.qty,
             item.mrp,
             item.discount,
@@ -317,7 +321,7 @@ function syncQuotations(quotations) {
     });
     
     if (allItems.length > 0) {
-      itemsSheet.getRange(2, 1, allItems.length, 7).setValues(allItems);
+      itemsSheet.getRange(2, 1, allItems.length, 8).setValues(allItems);
     }
   }
   
