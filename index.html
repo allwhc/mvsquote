@@ -4308,6 +4308,9 @@ ${componentResults.map(c => {
             };
 
             const handleDeleteTxn = async (id) => {
+                const pwd = prompt('Enter admin password to delete this transaction:');
+                if (!pwd) return;
+                if (pwd !== 'admin123') { alert('Incorrect password.'); return; }
                 if (!confirm('Delete this transaction? This will affect stock counts.')) return;
                 await FirebaseInventory.deleteTransaction(id);
                 await refreshTransactions();
