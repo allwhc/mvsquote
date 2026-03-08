@@ -782,6 +782,48 @@
             ]
         };
 
+        // ============ FIREBASE QUOTATION HELPERS ============
+        const FirebaseQuotations = {
+            // Save a quotation/invoice immediately to Firebase
+            async saveQuotation(quotation) {
+                try {
+                    const docRef = await db.collection('quotations').add({
+                        ...quotation,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return docRef.id;
+                } catch (e) {
+                    console.error('Firebase quotation save failed:', e);
+                    return null;
+                }
+            },
+
+            // Load all quotations from Firebase
+            async getAllQuotations() {
+                try {
+                    const snapshot = await db.collection('quotations').orderBy('createdAt', 'desc').get();
+                    return snapshot.docs.map(doc => ({ ...doc.data(), firebaseId: doc.id, createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt }));
+                } catch (e) {
+                    console.error('Firebase quotation load failed:', e);
+                    return null;
+                }
+            },
+
+            // Delete a quotation (requires password)
+            async deleteQuotation(firebaseId) {
+                await db.collection('quotations').doc(firebaseId).delete();
+            },
+
+            // Update quotation status
+            async updateStatus(firebaseId, newStatus) {
+                try {
+                    await db.collection('quotations').doc(firebaseId).update({ status: newStatus });
+                } catch (e) {
+                    console.error('Firebase status update failed:', e);
+                }
+            }
+        };
+
         // ============ FIREBASE INVENTORY HELPERS ============
         const FirebaseInventory = {
             // Add a transaction (IN or OUT)
@@ -3032,10 +3074,11 @@
 
                 doc.save(`${type}-${docNumber}.pdf`);
 
-                // Save quotation
+                // Save quotation to Firebase immediately (tamper-proof)
                 const quotation = {
                     id: Date.now(),
                     number: docNumber,
+                    type: type,
                     date: new Date().toISOString(),
                     customer,
                     brand: selectedBrand,
@@ -3047,9 +3090,18 @@
                     notes,
                     status: 'sent'
                 };
+
+                const firebaseId = await FirebaseQuotations.saveQuotation(quotation);
+                if (firebaseId) {
+                    quotation.firebaseId = firebaseId;
+                }
                 setQuotations([quotation, ...quotations]);
 
-                alert(`${type === 'quotation' ? 'Quotation' : 'Invoice'} ${docNumber} saved!`);
+                if (firebaseId) {
+                    alert(`${type === 'quotation' ? 'Quotation' : 'Invoice'} ${docNumber} saved & synced to cloud!`);
+                } else {
+                    alert(`${type === 'quotation' ? 'Quotation' : 'Invoice'} ${docNumber} saved locally. Cloud sync failed — push to cloud manually.`);
+                }
             };
 
             return (
@@ -3247,14 +3299,30 @@
                 setShowModal(true);
             };
 
-            const deleteDocument = (id) => {
-                if (confirm('Delete this document permanently?')) {
-                    setQuotations(quotations.filter(q => q.id !== id));
+            const deleteDocument = async (id) => {
+                const pwd = prompt('Enter admin password to delete this document:');
+                if (!pwd) return;
+                if (pwd !== 'admin123') { alert('Incorrect password.'); return; }
+                if (!confirm('Delete this document permanently? This action is logged.')) return;
+
+                const doc = quotations.find(q => q.id === id);
+                if (doc && doc.firebaseId) {
+                    try {
+                        await FirebaseQuotations.deleteQuotation(doc.firebaseId);
+                    } catch (e) {
+                        alert('Failed to delete from cloud. Try again.');
+                        return;
+                    }
                 }
+                setQuotations(quotations.filter(q => q.id !== id));
             };
 
-            const updateStatus = (id, newStatus) => {
-                setQuotations(quotations.map(q => 
+            const updateStatus = async (id, newStatus) => {
+                const doc = quotations.find(q => q.id === id);
+                if (doc && doc.firebaseId) {
+                    await FirebaseQuotations.updateStatus(doc.firebaseId, newStatus);
+                }
+                setQuotations(quotations.map(q =>
                     q.id === id ? { ...q, status: newStatus } : q
                 ));
             };
@@ -4663,18 +4731,26 @@ ${componentResults.map(c => {
                             if (result.data.products) setProducts(result.data.products);
                             if (result.data.bom) setBom(result.data.bom);
                             if (result.data.subProducts) setSubProducts(result.data.subProducts);
-                            if (result.data.quotations) setQuotations(result.data.quotations);
-                            
+
+                            // Load quotations from Firebase (tamper-proof source of truth)
+                            setLoadingMessage('Loading quotations from Firebase...');
+                            const firebaseQuotations = await FirebaseQuotations.getAllQuotations();
+                            if (firebaseQuotations && firebaseQuotations.length > 0) {
+                                setQuotations(firebaseQuotations);
+                            } else if (result.data.quotations) {
+                                setQuotations(result.data.quotations);
+                            }
+
                             setLastSync(new Date().toISOString());
                             setLoadingMessage('Ready!');
-                            
+
                             // Save to localStorage as backup
                             localStorage.setItem('mvs_data_v4', JSON.stringify({
                                 items: result.data.items || [],
                                 products: result.data.products || [],
                                 bom: result.data.bom || [],
                                 subProducts: result.data.subProducts || [],
-                                quotations: result.data.quotations || [],
+                                quotations: firebaseQuotations || result.data.quotations || [],
                                 lastSync: new Date().toISOString()
                             }));
                         } else {
@@ -4809,13 +4885,25 @@ ${componentResults.map(c => {
                         if (result.data.products) setProducts(result.data.products);
                         if (result.data.bom) setBom(result.data.bom);
                         if (result.data.subProducts) setSubProducts(result.data.subProducts);
-                        if (result.data.quotations) setQuotations(result.data.quotations);
+
+                        // Load quotations from Firebase (tamper-proof source)
+                        const firebaseQuotations = await FirebaseQuotations.getAllQuotations();
+                        if (firebaseQuotations && firebaseQuotations.length > 0) {
+                            setQuotations(firebaseQuotations);
+                        } else if (result.data.quotations) {
+                            setQuotations(result.data.quotations);
+                        }
 
                         const now = new Date().toISOString();
                         setLastSync(now);
                         setSyncStatus('success');
-                        setSyncMessage('Data loaded from Google Sheets!');
+                        setSyncMessage('Data loaded from Google Sheets + Firebase!');
                     } else {
+                        // Still try Firebase for quotations even if GSheets is empty
+                        const firebaseQuotations = await FirebaseQuotations.getAllQuotations();
+                        if (firebaseQuotations && firebaseQuotations.length > 0) {
+                            setQuotations(firebaseQuotations);
+                        }
                         setSyncStatus('success');
                         setSyncMessage('No data in Google Sheets yet.');
                     }
