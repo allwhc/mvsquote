@@ -4562,14 +4562,17 @@ ${componentResults.map(c => {
                         footer={<button className="btn btn-primary" onClick={handleAddTransaction} disabled={!form.itemCode || !form.qty || !form.reason}>Save</button>}>
                         <div className="inv-form-grid">
                             <div className="form-group full-width">
-                                <label className="form-label">Item *</label>
-                                <select className="form-input" value={form.itemCode} onChange={e => setForm({ ...form, itemCode: e.target.value })}>
-                                    <option value="">Select Item...</option>
-                                    {items.map(i => {
+                                <label className="form-label">Item * (only registered items)</label>
+                                <SearchableSelect
+                                    options={items}
+                                    value={form.itemCode}
+                                    onChange={val => setForm({ ...form, itemCode: val })}
+                                    placeholder="Search items by name or code..."
+                                    renderOption={(i) => {
                                         const avail = stock[i.code]?.current || 0;
-                                        return <option key={i.code} value={i.code}>{i.name} ({i.code}) {addType === 'OUT' ? `[Stock: ${avail}]` : ''}</option>;
-                                    })}
-                                </select>
+                                        return `${i.code} - ${i.name}${addType === 'OUT' ? ` [Stock: ${avail}]` : ''}`;
+                                    }}
+                                />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Quantity *</label>
@@ -4634,11 +4637,13 @@ ${componentResults.map(c => {
                         <div className="inv-form-grid">
                             <div className="form-group full-width">
                                 <label className="form-label">Product *</label>
-                                <select className="form-input" value={prodForm.productSKU}
-                                    onChange={e => { setProdForm({ ...prodForm, productSKU: e.target.value }); setBomCheck([]); setProdError(''); }}>
-                                    <option value="">Select Product...</option>
-                                    {products.map(p => <option key={p.sku} value={p.sku}>{p.name} ({p.sku})</option>)}
-                                </select>
+                                <SearchableSelect
+                                    options={products}
+                                    value={prodForm.productSKU}
+                                    onChange={val => { setProdForm({ ...prodForm, productSKU: val }); setBomCheck([]); setProdError(''); }}
+                                    placeholder="Search products by name or SKU..."
+                                    renderOption={(p) => `${p.sku} - ${p.name}`}
+                                />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Quantity to Build *</label>
