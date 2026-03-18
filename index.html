@@ -4826,7 +4826,7 @@ ${componentResults.map(c => {
                 submersiblePumpControl: false, submersiblePumpDesc: '',
                 singlePhaseMotorControl: false, singlePhaseMotorDesc: '',
                 pumpAutomation: 'No', pumpCount: '',
-                suggestedProduct: '',
+                suggestedProducts: [],
                 notes: '',
                 inspectedBy: '',
                 status: 'pending_quote'
@@ -5154,12 +5154,14 @@ ${componentResults.map(c => {
                             </div>
                         </div>
 
-                        {/* Suggested Product */}
+                        {/* Suggested Products */}
                         <div className="card">
-                            <div className="card-header"><h3 className="card-title">Suggested Product</h3></div>
+                            <div className="card-header"><h3 className="card-title">Suggested Products</h3></div>
                             <div className="card-body">
-                                {selectedInsp.suggestedProduct ? (
-                                    <span className="code-badge">{selectedInsp.suggestedProduct}</span>
+                                {selectedInsp.suggestedProducts?.length > 0 ? (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                        {selectedInsp.suggestedProducts.map(sku => <span key={sku} className="code-badge">{sku}</span>)}
+                                    </div>
                                 ) : <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>None suggested</span>}
                             </div>
                         </div>
@@ -5472,18 +5474,22 @@ ${componentResults.map(c => {
                             <div>
                                 <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Technician Recommendations</h3>
                                 <div className="form-group">
-                                    <label className="form-label">Suggested Product</label>
-                                    <select className="form-select" value={form.suggestedProduct} onChange={e => setForm(f => ({ ...f, suggestedProduct: e.target.value }))}>
-                                        <option value="">— Select a product —</option>
-                                        {products.map(p => (
-                                            <option key={p.sku} value={p.sku}>{p.sku} – {p.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="form-group">
                                     <label className="form-label">Notes / Observations</label>
                                     <textarea className="form-textarea" rows="4" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g., Tanks on rooftop, cable tray needed, corrosive environment near tank 3..." />
                                 </div>
+                                {products.length > 0 && (
+                                    <div className="form-group">
+                                        <label className="form-label">Suggested Products <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '12px' }}>(optional — tap to select)</span></label>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                                            {products.map(p => (
+                                                <div key={p.sku} className={`checklist-item ${(form.suggestedProducts || []).includes(p.sku) ? 'checked' : ''}`}
+                                                    onClick={() => toggleProduct(p.sku)}>
+                                                    {(form.suggestedProducts || []).includes(p.sku) ? '✓ ' : ''}{p.sku} – {p.name}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
