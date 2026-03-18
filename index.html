@@ -683,6 +683,41 @@
 
         .inv-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .inv-form-grid .full-width { grid-column: 1 / -1; }
+
+        /* Site Inspection Styles */
+        .insp-steps { display: flex; gap: 0; margin-bottom: 24px; overflow-x: auto; }
+        .insp-step { flex: 1; min-width: 100px; padding: 10px 8px; text-align: center; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.6); background: var(--primary); border-right: 1px solid rgba(255,255,255,0.15); cursor: pointer; transition: all 0.2s; }
+        .insp-step:first-child { border-radius: 8px 0 0 8px; }
+        .insp-step:last-child { border-radius: 0 8px 8px 0; border-right: none; }
+        .insp-step.active { background: var(--secondary); color: white; }
+        .insp-step.done { background: var(--success); color: white; }
+        .insp-step-num { display: block; font-size: 18px; font-weight: 800; margin-bottom: 2px; }
+
+        .tank-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; position: relative; border-left: 4px solid var(--secondary); }
+        .tank-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .tank-card-label { font-weight: 700; font-size: 14px; color: var(--primary); }
+        .tank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .tank-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+        .photo-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: #0EA5E9; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .photo-btn:hover { background: #0284C7; }
+        .photo-record { display: inline-flex; align-items: center; gap: 6px; background: #D1FAE5; color: #065F46; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; margin: 4px 4px 0 0; }
+
+        .insp-card { background: white; border-radius: 12px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 10px; border-left: 4px solid var(--primary); cursor: pointer; transition: all 0.2s; }
+        .insp-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .insp-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .insp-card-name { font-weight: 700; font-size: 15px; }
+        .insp-card-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .insp-status-pending { background: #FEF3C7; color: #92400E; }
+        .insp-status-quoted { background: #D1FAE5; color: #065F46; }
+        .insp-status-closed { background: #F3F4F6; color: #6B7280; }
+
+        .checklist-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+        .checklist-item { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; user-select: none; }
+        .checklist-item.checked { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .gps-box { background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+        .gps-box.no-gps { background: #FEF3C7; border-color: #FDE68A; }
     </style>
 </head>
 <body>
@@ -821,6 +856,48 @@
                 } catch (e) {
                     console.error('Firebase status update failed:', e);
                 }
+            }
+        };
+
+        // ============ FIREBASE SITE INSPECTION HELPERS ============
+        const FirebaseInspections = {
+            async saveInspection(inspection) {
+                try {
+                    const docRef = await db.collection('site_inspections').add({
+                        ...inspection,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return docRef.id;
+                } catch (e) {
+                    console.error('Firebase inspection save failed:', e);
+                    return null;
+                }
+            },
+
+            async getAllInspections() {
+                try {
+                    const snapshot = await db.collection('site_inspections').orderBy('createdAt', 'desc').get();
+                    return snapshot.docs.map(doc => ({
+                        ...doc.data(),
+                        firebaseId: doc.id,
+                        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt
+                    }));
+                } catch (e) {
+                    console.error('Firebase inspection load failed:', e);
+                    return [];
+                }
+            },
+
+            async updateStatus(firebaseId, status) {
+                try {
+                    await db.collection('site_inspections').doc(firebaseId).update({ status });
+                } catch (e) {
+                    console.error('Firebase inspection status update failed:', e);
+                }
+            },
+
+            async deleteInspection(firebaseId) {
+                await db.collection('site_inspections').doc(firebaseId).delete();
             }
         };
 
@@ -1160,7 +1237,10 @@
             ArrowIn: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>,
             ArrowOut: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>,
             Factory: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 20h20"/><path d="M6 20V8l6 4V8l6 4V4h2v16"/></svg>,
-            AlertTriangle: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            AlertTriangle: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+            Clipboard: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>,
+            MapPin: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+            Camera: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         };
 
         // ============ MODAL COMPONENT ============
@@ -4671,6 +4751,586 @@ ${componentResults.map(c => {
             );
         };
 
+        // ============ SITE INSPECTION ============
+        const TANK_MATERIALS = ['Concrete', 'Plastic (HDPE)', 'Stainless Steel', 'Mild Steel', 'FRP', 'Other'];
+        const TANK_TYPES = ['Overhead', 'Underground', 'Ground Level'];
+        const MONITORING_OPTIONS = ['Water Level', 'Temperature', 'Flow', 'Pressure'];
+        const ALERT_OPTIONS = ['Overflow', 'Low Level', 'Dry Run', 'Leak Detection'];
+        const INSPECTION_STATUSES = ['pending_quote', 'quoted', 'closed'];
+
+        const emptyTank = () => ({ label: '', type: 'Overhead', material: 'Concrete', height: '', capacity: '', photos: [] });
+
+        const SiteInspection = ({ products }) => {
+            const [view, setView] = useState('list'); // 'list' | 'form' | 'detail'
+            const [inspections, setInspections] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [saving, setSaving] = useState(false);
+            const [selectedInsp, setSelectedInsp] = useState(null);
+            const [step, setStep] = useState(0);
+
+            // Form state
+            const emptyForm = () => ({
+                customerName: '', contactPerson: '', phone: '',
+                gps: null, address: '',
+                tanks: [emptyTank()],
+                clustered: 'Clustered (<50m)',
+                power: 'Yes', wifi: 'Yes',
+                controlRoomDistance: '',
+                monitoring: ['Water Level'],
+                alerts: ['Overflow', 'Low Level'],
+                pumpAutomation: 'No', pumpCount: '',
+                suggestedProducts: [],
+                photoFilenames: '',
+                notes: '',
+                inspectedBy: '',
+                status: 'pending_quote'
+            });
+            const [form, setForm] = useState(emptyForm());
+
+            useEffect(() => {
+                FirebaseInspections.getAllInspections().then(data => {
+                    setInspections(data);
+                    setLoading(false);
+                });
+            }, []);
+
+            // GPS capture
+            const captureGPS = () => {
+                if (!navigator.geolocation) { alert('GPS not supported on this device.'); return; }
+                navigator.geolocation.getCurrentPosition(
+                    pos => setForm(f => ({ ...f, gps: { lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6), accuracy: Math.round(pos.coords.accuracy) } })),
+                    err => alert('Could not get GPS: ' + err.message),
+                    { enableHighAccuracy: true, timeout: 10000 }
+                );
+            };
+
+            // Camera trigger — captures filename only, photo stays on phone
+            const triggerCamera = (onCapture) => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.capture = 'environment';
+                input.onchange = e => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        onCapture({ filename: file.name, takenAt: new Date().toISOString() });
+                    }
+                    input.value = '';
+                };
+                input.click();
+            };
+
+            // Tank helpers
+            const addTank = () => setForm(f => ({ ...f, tanks: [...f.tanks, emptyTank()] }));
+            const removeTank = idx => setForm(f => ({ ...f, tanks: f.tanks.filter((_, i) => i !== idx) }));
+            const updateTank = (idx, field, val) => setForm(f => {
+                const tanks = [...f.tanks];
+                tanks[idx] = { ...tanks[idx], [field]: val };
+                return { ...f, tanks };
+            });
+            const addTankPhoto = (idx) => {
+                triggerCamera(photo => {
+                    setForm(f => {
+                        const tanks = [...f.tanks];
+                        tanks[idx] = { ...tanks[idx], photos: [...(tanks[idx].photos || []), photo] };
+                        return { ...f, tanks };
+                    });
+                });
+            };
+
+            // Checklist toggle
+            const toggleCheck = (field, val) => {
+                setForm(f => {
+                    const arr = f[field] || [];
+                    return { ...f, [field]: arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val] };
+                });
+            };
+
+            // Product multi-select
+            const toggleProduct = (sku) => {
+                setForm(f => {
+                    const arr = f.suggestedProducts || [];
+                    return { ...f, suggestedProducts: arr.includes(sku) ? arr.filter(x => x !== sku) : [...arr, sku] };
+                });
+            };
+
+            const handleSave = async () => {
+                if (!form.customerName || !form.inspectedBy) { alert('Customer name and Inspected By are required.'); return; }
+                setSaving(true);
+                const id = await FirebaseInspections.saveInspection({ ...form, id: Date.now() });
+                if (id) {
+                    const saved = { ...form, id: Date.now(), firebaseId: id, createdAt: new Date().toISOString() };
+                    setInspections(prev => [saved, ...prev]);
+                    setForm(emptyForm());
+                    setStep(0);
+                    setView('list');
+                    alert('Inspection saved to Firebase!');
+                } else {
+                    alert('Save failed. Check internet connection.');
+                }
+                setSaving(false);
+            };
+
+            const handleStatusChange = async (insp, newStatus) => {
+                if (insp.firebaseId) await FirebaseInspections.updateStatus(insp.firebaseId, newStatus);
+                setInspections(prev => prev.map(i => i.firebaseId === insp.firebaseId ? { ...i, status: newStatus } : i));
+                if (selectedInsp?.firebaseId === insp.firebaseId) setSelectedInsp(s => ({ ...s, status: newStatus }));
+            };
+
+            const handleDelete = async (insp) => {
+                const pwd = prompt('Enter admin password to delete this inspection:');
+                if (!pwd) return;
+                if (pwd !== 'admin123') { alert('Incorrect password.'); return; }
+                if (!confirm('Delete this inspection permanently?')) return;
+                if (insp.firebaseId) await FirebaseInspections.deleteInspection(insp.firebaseId);
+                setInspections(prev => prev.filter(i => i.firebaseId !== insp.firebaseId));
+                setView('list');
+                setSelectedInsp(null);
+            };
+
+            const statusLabel = s => ({ pending_quote: 'Pending Quote', quoted: 'Quoted', closed: 'Closed' }[s] || s);
+            const statusClass = s => ({ pending_quote: 'insp-status-pending', quoted: 'insp-status-quoted', closed: 'insp-status-closed' }[s] || '');
+
+            const STEPS = ['Customer', 'Tanks', 'Site', 'Requirements', 'Recommend'];
+
+            // ---- RENDER: LIST ----
+            if (view === 'list') return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <h1 className="page-title">Site Inspections</h1>
+                            <p className="page-subtitle">Field inspection forms — saved to Firebase instantly</p>
+                        </div>
+                        <button className="btn btn-primary" onClick={() => { setForm(emptyForm()); setStep(0); setView('form'); }}>
+                            <Icons.Plus /> New Inspection
+                        </button>
+                    </div>
+
+                    {loading ? (
+                        <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Loading from Firebase...</div>
+                    ) : inspections.length === 0 ? (
+                        <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                            <Icons.Clipboard />
+                            <h3 style={{ marginTop: '16px' }}>No inspections yet</h3>
+                            <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>Tap "New Inspection" to start a site visit form</p>
+                            <button className="btn btn-primary" onClick={() => { setForm(emptyForm()); setStep(0); setView('form'); }}>
+                                <Icons.Plus /> Start First Inspection
+                            </button>
+                        </div>
+                    ) : (
+                        <div>
+                            {inspections.map(insp => (
+                                <div key={insp.firebaseId || insp.id} className="insp-card" onClick={() => { setSelectedInsp(insp); setView('detail'); }}>
+                                    <div className="insp-card-header">
+                                        <div>
+                                            <div className="insp-card-name">{insp.customerName}</div>
+                                            <div className="insp-card-meta">
+                                                {insp.contactPerson && <span>{insp.contactPerson} · </span>}
+                                                {insp.phone && <span>{insp.phone} · </span>}
+                                                {insp.tanks?.length || 0} tanks · {insp.inspectedBy}
+                                            </div>
+                                            {insp.address && <div className="insp-card-meta" style={{ marginTop: '2px' }}>{insp.address}</div>}
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                                            <span className={`status-badge ${statusClass(insp.status)}`}>{statusLabel(insp.status)}</span>
+                                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{insp.createdAt ? formatDate(insp.createdAt) : ''}</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                        {insp.monitoring?.length > 0 && <span>📊 {insp.monitoring.join(', ')}</span>}
+                                        {insp.suggestedProducts?.length > 0 && <span>🛒 {insp.suggestedProducts.length} product(s) suggested</span>}
+                                        {insp.gps && <span>📍 GPS captured</span>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+
+            // ---- RENDER: DETAIL ----
+            if (view === 'detail' && selectedInsp) return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <button className="btn btn-secondary btn-sm" onClick={() => setView('list')} style={{ marginBottom: '8px' }}>← Back</button>
+                            <h1 className="page-title">{selectedInsp.customerName}</h1>
+                            <p className="page-subtitle">{selectedInsp.address} · {formatDate(selectedInsp.createdAt)} · By {selectedInsp.inspectedBy}</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <select className="form-select" style={{ width: 'auto' }} value={selectedInsp.status}
+                                onChange={e => handleStatusChange(selectedInsp, e.target.value)}>
+                                {INSPECTION_STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
+                            </select>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(selectedInsp)}>
+                                <Icons.Trash /> Delete
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        {/* Customer */}
+                        <div className="card">
+                            <div className="card-header"><h3 className="card-title">Customer Info</h3></div>
+                            <div className="card-body" style={{ fontSize: '14px' }}>
+                                <div><strong>Customer:</strong> {selectedInsp.customerName}</div>
+                                <div><strong>Contact:</strong> {selectedInsp.contactPerson || '—'}</div>
+                                <div><strong>Phone:</strong> {selectedInsp.phone ? <a href={`tel:${selectedInsp.phone}`}>{selectedInsp.phone}</a> : '—'}</div>
+                                <div><strong>Address:</strong> {selectedInsp.address || '—'}</div>
+                                {selectedInsp.gps ? (
+                                    <div className="gps-box" style={{ marginTop: '10px' }}>
+                                        <Icons.MapPin />
+                                        <span>GPS: {selectedInsp.gps.lat}, {selectedInsp.gps.lng} (±{selectedInsp.gps.accuracy}m)</span>
+                                        <a href={`https://maps.google.com/?q=${selectedInsp.gps.lat},${selectedInsp.gps.lng}`} target="_blank" rel="noreferrer"
+                                            style={{ marginLeft: 'auto', color: 'var(--primary)', fontSize: '12px' }}>Open Map</a>
+                                    </div>
+                                ) : <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px' }}>No GPS captured</div>}
+                            </div>
+                        </div>
+
+                        {/* Site Conditions */}
+                        <div className="card">
+                            <div className="card-header"><h3 className="card-title">Site Conditions</h3></div>
+                            <div className="card-body" style={{ fontSize: '14px' }}>
+                                <div><strong>Tank Layout:</strong> {selectedInsp.clustered}</div>
+                                <div><strong>Power Available:</strong> {selectedInsp.power}</div>
+                                <div><strong>WiFi Available:</strong> {selectedInsp.wifi}</div>
+                                <div><strong>Control Room Distance:</strong> {selectedInsp.controlRoomDistance ? selectedInsp.controlRoomDistance + ' meters' : '—'}</div>
+                                <div><strong>Pump Automation:</strong> {selectedInsp.pumpAutomation}{selectedInsp.pumpCount ? ` (${selectedInsp.pumpCount} pumps)` : ''}</div>
+                            </div>
+                        </div>
+
+                        {/* Tanks */}
+                        <div className="card" style={{ gridColumn: '1 / -1' }}>
+                            <div className="card-header"><h3 className="card-title">Tanks ({selectedInsp.tanks?.length || 0})</h3></div>
+                            <div className="table-container">
+                                <table>
+                                    <thead><tr><th>Label</th><th>Type</th><th>Material</th><th>Height/Depth</th><th>Capacity</th><th>Photos</th></tr></thead>
+                                    <tbody>
+                                        {(selectedInsp.tanks || []).map((t, i) => (
+                                            <tr key={i}>
+                                                <td><strong>{t.label || `Tank ${i+1}`}</strong></td>
+                                                <td>{t.type}</td>
+                                                <td>{t.material}</td>
+                                                <td>{t.height ? t.height + ' ft' : '—'}</td>
+                                                <td>{t.capacity ? Number(t.capacity).toLocaleString() + ' L' : '—'}</td>
+                                                <td>{t.photos?.length > 0 ? <span style={{ color: 'var(--success)' }}>📷 {t.photos.length} photo(s)</span> : <span style={{ color: 'var(--text-muted)' }}>None</span>}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Requirements */}
+                        <div className="card">
+                            <div className="card-header"><h3 className="card-title">Requirements</h3></div>
+                            <div className="card-body" style={{ fontSize: '14px' }}>
+                                <div><strong>Monitor:</strong> {selectedInsp.monitoring?.join(', ') || '—'}</div>
+                                <div style={{ marginTop: '6px' }}><strong>Alerts:</strong> {selectedInsp.alerts?.join(', ') || '—'}</div>
+                            </div>
+                        </div>
+
+                        {/* Suggested Products */}
+                        <div className="card">
+                            <div className="card-header"><h3 className="card-title">Suggested Products</h3></div>
+                            <div className="card-body">
+                                {selectedInsp.suggestedProducts?.length > 0 ? (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                        {selectedInsp.suggestedProducts.map(sku => (
+                                            <span key={sku} className="code-badge">{sku}</span>
+                                        ))}
+                                    </div>
+                                ) : <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>None suggested</span>}
+                            </div>
+                        </div>
+
+                        {/* Notes & Photos */}
+                        {(selectedInsp.notes || selectedInsp.photoFilenames) && (
+                            <div className="card" style={{ gridColumn: '1 / -1' }}>
+                                <div className="card-header"><h3 className="card-title">Notes & Photos</h3></div>
+                                <div className="card-body" style={{ fontSize: '14px' }}>
+                                    {selectedInsp.notes && <div><strong>Notes:</strong> {selectedInsp.notes}</div>}
+                                    {selectedInsp.photoFilenames && <div style={{ marginTop: '6px' }}><strong>Photo filenames:</strong> {selectedInsp.photoFilenames}</div>}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+
+            // ---- RENDER: FORM ----
+            return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <button className="btn btn-secondary btn-sm" onClick={() => setView('list')} style={{ marginBottom: '8px' }}>← Cancel</button>
+                            <h1 className="page-title">New Site Inspection</h1>
+                        </div>
+                        {step === STEPS.length - 1 && (
+                            <button className="btn btn-success" onClick={handleSave} disabled={saving}>
+                                {saving ? 'Saving...' : '💾 Save Inspection'}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Step indicator */}
+                    <div className="insp-steps">
+                        {STEPS.map((s, i) => (
+                            <div key={s} className={`insp-step ${i === step ? 'active' : i < step ? 'done' : ''}`}
+                                onClick={() => setStep(i)}>
+                                <span className="insp-step-num">{i < step ? '✓' : i + 1}</span>
+                                {s}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="card">
+                        <div className="card-body">
+
+                        {/* STEP 0: Customer Info */}
+                        {step === 0 && (
+                            <div>
+                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Customer & Site Info</h3>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="form-label">Customer Name <span>*</span></label>
+                                        <input className="form-input" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} placeholder="e.g., Sharma Industries" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Contact Person on Site</label>
+                                        <input className="form-input" value={form.contactPerson} onChange={e => setForm(f => ({ ...f, contactPerson: e.target.value }))} placeholder="Name of person at site" />
+                                    </div>
+                                </div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="form-label">Phone</label>
+                                        <input type="tel" className="form-input" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+91 98765 43210" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Inspected By <span>*</span></label>
+                                        <input className="form-input" value={form.inspectedBy} onChange={e => setForm(f => ({ ...f, inspectedBy: e.target.value }))} placeholder="Technician name" />
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Site Address</label>
+                                    <input className="form-input" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Full site address" />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">GPS Location</label>
+                                    {form.gps ? (
+                                        <div className="gps-box">
+                                            <Icons.MapPin />
+                                            <span>Lat: {form.gps.lat}, Lng: {form.gps.lng} (±{form.gps.accuracy}m accuracy)</span>
+                                            <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setForm(f => ({ ...f, gps: null }))}>Clear</button>
+                                        </div>
+                                    ) : (
+                                        <div className="gps-box no-gps">
+                                            <Icons.MapPin />
+                                            <span style={{ color: '#92400E' }}>GPS not captured yet</span>
+                                            <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={captureGPS}>📍 Capture GPS</button>
+                                        </div>
+                                    )}
+                                </div>
+                                {/* Site photos */}
+                                <div className="form-group">
+                                    <label className="form-label">Site Overview Photos</label>
+                                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                        <button className="photo-btn" onClick={() => triggerCamera(photo => setForm(f => ({ ...f, sitePhotos: [...(f.sitePhotos || []), photo] })))}>
+                                            <Icons.Camera /> Take Site Photo
+                                        </button>
+                                        {(form.sitePhotos || []).map((p, i) => (
+                                            <span key={i} className="photo-record">📷 {p.filename}</span>
+                                        ))}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos are saved to your phone only. Filenames are recorded here.</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* STEP 1: Tanks */}
+                        {step === 1 && (
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <h3 style={{ color: 'var(--primary)' }}>Tanks ({form.tanks.length})</h3>
+                                    <button className="btn btn-secondary btn-sm" onClick={addTank}><Icons.Plus /> Add Tank</button>
+                                </div>
+                                {form.tanks.map((tank, idx) => (
+                                    <div key={idx} className="tank-card">
+                                        <div className="tank-card-header">
+                                            <span className="tank-card-label">{tank.label || `Tank ${idx + 1}`}</span>
+                                            {form.tanks.length > 1 && (
+                                                <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeTank(idx)}><Icons.X /></button>
+                                            )}
+                                        </div>
+                                        <div className="tank-grid" style={{ marginBottom: '10px' }}>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <label className="form-label">Label</label>
+                                                <input className="form-input" value={tank.label} onChange={e => updateTank(idx, 'label', e.target.value)} placeholder="e.g., OH-1, UG-3" />
+                                            </div>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <label className="form-label">Type</label>
+                                                <select className="form-select" value={tank.type} onChange={e => updateTank(idx, 'type', e.target.value)}>
+                                                    {TANK_TYPES.map(t => <option key={t}>{t}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <label className="form-label">Material</label>
+                                                <select className="form-select" value={tank.material} onChange={e => updateTank(idx, 'material', e.target.value)}>
+                                                    {TANK_MATERIALS.map(m => <option key={m}>{m}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <label className="form-label">Height/Depth (ft)</label>
+                                                <input type="number" className="form-input" value={tank.height} onChange={e => updateTank(idx, 'height', e.target.value)} placeholder="e.g., 8" />
+                                            </div>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <label className="form-label">Capacity (Litres)</label>
+                                                <input type="number" className="form-input" value={tank.capacity} onChange={e => updateTank(idx, 'capacity', e.target.value)} placeholder="e.g., 5000" />
+                                            </div>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <label className="form-label">Tank Photo</label>
+                                                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                                    <button className="photo-btn" style={{ padding: '6px 10px', fontSize: '12px' }} onClick={() => addTankPhoto(idx)}>
+                                                        <Icons.Camera /> Photo
+                                                    </button>
+                                                    {(tank.photos || []).map((p, pi) => (
+                                                        <span key={pi} className="photo-record">📷 {p.filename}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button className="btn btn-secondary" style={{ width: '100%' }} onClick={addTank}><Icons.Plus /> Add Another Tank</button>
+                            </div>
+                        )}
+
+                        {/* STEP 2: Site Conditions */}
+                        {step === 2 && (
+                            <div>
+                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Site Conditions</h3>
+                                <div className="form-group">
+                                    <label className="form-label">Tank Layout</label>
+                                    <select className="form-select" value={form.clustered} onChange={e => setForm(f => ({ ...f, clustered: e.target.value }))}>
+                                        <option>Clustered (&lt;50m)</option>
+                                        <option>Spread (50-200m)</option>
+                                        <option>Far Apart (&gt;200m)</option>
+                                    </select>
+                                </div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="form-label">Power Available Near Tanks?</label>
+                                        <select className="form-select" value={form.power} onChange={e => setForm(f => ({ ...f, power: e.target.value }))}>
+                                            <option>Yes</option><option>No</option><option>Partial</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">WiFi / Internet Available?</label>
+                                        <select className="form-select" value={form.wifi} onChange={e => setForm(f => ({ ...f, wifi: e.target.value }))}>
+                                            <option>Yes</option><option>No</option><option>Can Arrange</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="form-label">Distance to Control Room (meters)</label>
+                                        <input type="number" className="form-input" value={form.controlRoomDistance} onChange={e => setForm(f => ({ ...f, controlRoomDistance: e.target.value }))} placeholder="e.g., 50" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Pump Automation Needed?</label>
+                                        <select className="form-select" value={form.pumpAutomation} onChange={e => setForm(f => ({ ...f, pumpAutomation: e.target.value }))}>
+                                            <option>No</option><option>Yes</option><option>Future</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                {form.pumpAutomation === 'Yes' && (
+                                    <div className="form-group">
+                                        <label className="form-label">Number of Pumps</label>
+                                        <input type="number" className="form-input" value={form.pumpCount} onChange={e => setForm(f => ({ ...f, pumpCount: e.target.value }))} placeholder="e.g., 4" style={{ maxWidth: '150px' }} />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* STEP 3: Requirements */}
+                        {step === 3 && (
+                            <div>
+                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Monitoring Requirements</h3>
+                                <div className="form-group">
+                                    <label className="form-label">What to Monitor?</label>
+                                    <div className="checklist-row">
+                                        {MONITORING_OPTIONS.map(opt => (
+                                            <div key={opt} className={`checklist-item ${form.monitoring.includes(opt) ? 'checked' : ''}`}
+                                                onClick={() => toggleCheck('monitoring', opt)}>
+                                                {form.monitoring.includes(opt) ? '✓ ' : ''}{opt}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Alerts Required?</label>
+                                    <div className="checklist-row">
+                                        {ALERT_OPTIONS.map(opt => (
+                                            <div key={opt} className={`checklist-item ${form.alerts.includes(opt) ? 'checked' : ''}`}
+                                                onClick={() => toggleCheck('alerts', opt)}>
+                                                {form.alerts.includes(opt) ? '✓ ' : ''}{opt}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* STEP 4: Recommendation */}
+                        {step === 4 && (
+                            <div>
+                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Technician Recommendations</h3>
+                                <div className="form-group">
+                                    <label className="form-label">Suggested Products (from catalog)</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                                        {products.map(p => (
+                                            <div key={p.sku} className={`checklist-item ${form.suggestedProducts.includes(p.sku) ? 'checked' : ''}`}
+                                                onClick={() => toggleProduct(p.sku)}>
+                                                {form.suggestedProducts.includes(p.sku) ? '✓ ' : ''}{p.sku} – {p.name}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Notes / Observations</label>
+                                    <textarea className="form-textarea" rows="3" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g., Tanks on rooftop, cable tray needed, corrosive environment near tank 3..." />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Photo Filenames (reference)</label>
+                                    <input className="form-input" value={form.photoFilenames} onChange={e => setForm(f => ({ ...f, photoFilenames: e.target.value }))} placeholder="e.g., Sharma_site.jpg, Sharma_OH1.jpg" />
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>List any extra filenames not captured via camera buttons above.</div>
+                                </div>
+                            </div>
+                        )}
+
+                        </div>
+                    </div>
+
+                    {/* Navigation */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+                        <button className="btn btn-secondary" onClick={() => step > 0 ? setStep(step - 1) : setView('list')}>
+                            ← {step === 0 ? 'Cancel' : 'Back'}
+                        </button>
+                        {step < STEPS.length - 1 ? (
+                            <button className="btn btn-primary" onClick={() => setStep(step + 1)}>
+                                Next →
+                            </button>
+                        ) : (
+                            <button className="btn btn-success" onClick={handleSave} disabled={saving}>
+                                {saving ? 'Saving...' : '💾 Save Inspection'}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
         // ============ MAIN APP ============
         const App = () => {
             const [page, setPage] = useState('dashboard');
@@ -4955,6 +5615,7 @@ ${componentResults.map(c => {
                     case 'documents': return <SavedDocuments quotations={quotations} setQuotations={setQuotations} products={products} items={items} bom={bom} subProducts={subProducts} />;
                     case 'estimator': return <ComponentEstimator products={products} items={items} bom={bom} subProducts={subProducts} />;
                     case 'inventory': return <InventoryManagement items={items} products={products} bom={bom} subProducts={subProducts} />;
+                    case 'inspection': return <SiteInspection products={products} />;
                     default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                 }
             };
@@ -4977,6 +5638,9 @@ ${componentResults.map(c => {
                             </div>
                             <div className={`nav-item ${page === 'inventory' ? 'active' : ''}`} onClick={() => setPage('inventory')}>
                                 <Icons.Inventory /> Inventory
+                            </div>
+                            <div className={`nav-item ${page === 'inspection' ? 'active' : ''}`} onClick={() => setPage('inspection')}>
+                                <Icons.Clipboard /> Site Inspections
                             </div>
 
                             {/* Admin Section - Password Protected */}
