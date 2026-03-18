@@ -640,10 +640,49 @@
         }
 
         @media (max-width: 768px) {
-            .sidebar { display: none; }
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.28s ease;
+                z-index: 1000;
+            }
+            .sidebar.sidebar-open {
+                transform: translateX(0);
+            }
             .main { margin-left: 0; }
             .page-header { flex-direction: column; gap: 16px; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        .sidebar-backdrop.active { display: block; }
+
+        .hamburger-btn {
+            display: none;
+            position: fixed;
+            top: 14px;
+            left: 14px;
+            z-index: 998;
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .hamburger-btn svg { width: 22px; height: 22px; }
+
+        @media (max-width: 768px) {
+            .hamburger-btn { display: flex; }
         }
 
         @media print {
@@ -5334,6 +5373,7 @@ ${componentResults.map(c => {
         // ============ MAIN APP ============
         const App = () => {
             const [page, setPage] = useState('dashboard');
+            const [sidebarOpen, setSidebarOpen] = useState(false);
             const [items, setItems] = useState([]);
             const [products, setProducts] = useState([]);
             const [bom, setBom] = useState([]);
@@ -5606,6 +5646,8 @@ ${componentResults.map(c => {
                 return <LoadingScreen message={loadingMessage} />;
             }
 
+            const navigate = (p) => { setPage(p); setSidebarOpen(false); };
+
             const renderPage = () => {
                 switch (page) {
                     case 'dashboard': return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
@@ -5622,7 +5664,13 @@ ${componentResults.map(c => {
 
             return (
                 <div className="app">
-                    <nav className="sidebar">
+                    <button className="hamburger-btn" onClick={() => setSidebarOpen(true)}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                        </svg>
+                    </button>
+                    <div className={`sidebar-backdrop ${sidebarOpen ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}></div>
+                    <nav className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
                         <div className="logo">
                             <div className="logo-icon">MV</div>
                             <div className="logo-text">MV Solutions<small>Quotation System</small></div>
@@ -5630,16 +5678,16 @@ ${componentResults.map(c => {
 
                         <div className="nav">
                             {/* Public Section - Always visible */}
-                            <div className={`nav-item ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')}>
+                            <div className={`nav-item ${page === 'dashboard' ? 'active' : ''}`} onClick={() => navigate('dashboard')}>
                                 <Icons.Dashboard /> Product Catalog
                             </div>
-                            <div className={`nav-item ${page === 'quotation' ? 'active' : ''}`} onClick={() => setPage('quotation')}>
+                            <div className={`nav-item ${page === 'quotation' ? 'active' : ''}`} onClick={() => navigate('quotation')}>
                                 <Icons.Quote /> Create Quotation
                             </div>
-                            <div className={`nav-item ${page === 'inventory' ? 'active' : ''}`} onClick={() => setPage('inventory')}>
+                            <div className={`nav-item ${page === 'inventory' ? 'active' : ''}`} onClick={() => navigate('inventory')}>
                                 <Icons.Inventory /> Inventory
                             </div>
-                            <div className={`nav-item ${page === 'inspection' ? 'active' : ''}`} onClick={() => setPage('inspection')}>
+                            <div className={`nav-item ${page === 'inspection' ? 'active' : ''}`} onClick={() => navigate('inspection')}>
                                 <Icons.Clipboard /> Site Inspections
                             </div>
 
@@ -5706,16 +5754,16 @@ ${componentResults.map(c => {
 
                             {adminUnlocked && adminExpanded && (
                                 <>
-                                    <div className={`nav-item ${page === 'items' ? 'active' : ''}`} onClick={() => setPage('items')}>
+                                    <div className={`nav-item ${page === 'items' ? 'active' : ''}`} onClick={() => navigate('items')}>
                                         <Icons.Items /> Items Master
                                     </div>
-                                    <div className={`nav-item ${page === 'products' ? 'active' : ''}`} onClick={() => setPage('products')}>
+                                    <div className={`nav-item ${page === 'products' ? 'active' : ''}`} onClick={() => navigate('products')}>
                                         <Icons.Products /> Products
                                     </div>
-                                    <div className={`nav-item ${page === 'estimator' ? 'active' : ''}`} onClick={() => setPage('estimator')}>
+                                    <div className={`nav-item ${page === 'estimator' ? 'active' : ''}`} onClick={() => navigate('estimator')}>
                                         <Icons.Calculator /> Estimator
                                     </div>
-                                    <div className={`nav-item ${page === 'documents' ? 'active' : ''}`} onClick={() => setPage('documents')}>
+                                    <div className={`nav-item ${page === 'documents' ? 'active' : ''}`} onClick={() => navigate('documents')}>
                                         <Icons.History /> Saved Documents
                                     </div>
                                 </>
