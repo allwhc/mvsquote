@@ -1278,8 +1278,8 @@
             Factory: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 20h20"/><path d="M6 20V8l6 4V8l6 4V4h2v16"/></svg>,
             AlertTriangle: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
             Clipboard: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>,
-            MapPin: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
-            Camera: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            MapPin: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+            Camera: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         };
 
         // ============ MODAL COMPONENT ============
@@ -4797,7 +4797,7 @@ ${componentResults.map(c => {
         const ALERT_OPTIONS = ['Overflow', 'Low Level', 'Dry Run', 'Leak Detection'];
         const INSPECTION_STATUSES = ['pending_quote', 'quoted', 'closed'];
 
-        const emptyTank = () => ({ label: '', type: 'Overhead', material: 'Concrete', height: '', capacity: '', photos: [] });
+        const emptyTank = () => ({ label: '', type: 'Overhead', material: 'Concrete', height: '', capacity: '', photos: [], wireRouting: '', wireNotes: '' });
 
         const SiteInspection = ({ products }) => {
             const [view, setView] = useState('list'); // 'list' | 'form' | 'detail'
@@ -4815,11 +4815,15 @@ ${componentResults.map(c => {
                 clustered: 'Clustered (<50m)',
                 power: 'Yes', wifi: 'Yes',
                 controlRoomDistance: '',
+                siteConditionPhotos: [],
+                siteExtraDetails: '',
                 monitoring: ['Water Level'],
                 alerts: ['Overflow', 'Low Level'],
+                valveControl: false, valveControlDesc: '',
+                submersiblePumpControl: false, submersiblePumpDesc: '',
+                singlePhaseMotorControl: false, singlePhaseMotorDesc: '',
                 pumpAutomation: 'No', pumpCount: '',
-                suggestedProducts: [],
-                photoFilenames: '',
+                suggestedProduct: '',
                 notes: '',
                 inspectedBy: '',
                 status: 'pending_quote'
@@ -5044,16 +5048,18 @@ ${componentResults.map(c => {
                             <div className="card-header"><h3 className="card-title">Tanks ({selectedInsp.tanks?.length || 0})</h3></div>
                             <div className="table-container">
                                 <table>
-                                    <thead><tr><th>Label</th><th>Type</th><th>Material</th><th>Height/Depth</th><th>Capacity</th><th>Photos</th></tr></thead>
+                                    <thead><tr><th>Label</th><th>Type</th><th>Material</th><th>H/D (ft)</th><th>Capacity</th><th>Wire Routing</th><th>Notes</th><th>Photos</th></tr></thead>
                                     <tbody>
                                         {(selectedInsp.tanks || []).map((t, i) => (
                                             <tr key={i}>
                                                 <td><strong>{t.label || `Tank ${i+1}`}</strong></td>
                                                 <td>{t.type}</td>
                                                 <td>{t.material}</td>
-                                                <td>{t.height ? t.height + ' ft' : '—'}</td>
+                                                <td>{t.height || '—'}</td>
                                                 <td>{t.capacity ? Number(t.capacity).toLocaleString() + ' L' : '—'}</td>
-                                                <td>{t.photos?.length > 0 ? <span style={{ color: 'var(--success)' }}>📷 {t.photos.length} photo(s)</span> : <span style={{ color: 'var(--text-muted)' }}>None</span>}</td>
+                                                <td>{t.wireRouting || '—'}</td>
+                                                <td>{t.wireNotes || '—'}</td>
+                                                <td>{t.photos?.length > 0 ? <span style={{ color: 'var(--success)' }}>📷 {t.photos.length}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -5067,31 +5073,32 @@ ${componentResults.map(c => {
                             <div className="card-body" style={{ fontSize: '14px' }}>
                                 <div><strong>Monitor:</strong> {selectedInsp.monitoring?.join(', ') || '—'}</div>
                                 <div style={{ marginTop: '6px' }}><strong>Alerts:</strong> {selectedInsp.alerts?.join(', ') || '—'}</div>
+                                {selectedInsp.valveControl && <div style={{ marginTop: '6px' }}><strong>Valve Control:</strong> {selectedInsp.valveControlDesc || 'Yes'}</div>}
+                                {selectedInsp.submersiblePumpControl && <div style={{ marginTop: '6px' }}><strong>Submersible Pump:</strong> {selectedInsp.submersiblePumpDesc || 'Yes'}</div>}
+                                {selectedInsp.singlePhaseMotorControl && <div style={{ marginTop: '6px' }}><strong>Single Phase Motor:</strong> {selectedInsp.singlePhaseMotorDesc || 'Yes'}</div>}
                             </div>
                         </div>
 
-                        {/* Suggested Products */}
+                        {/* Suggested Product */}
                         <div className="card">
-                            <div className="card-header"><h3 className="card-title">Suggested Products</h3></div>
+                            <div className="card-header"><h3 className="card-title">Suggested Product</h3></div>
                             <div className="card-body">
-                                {selectedInsp.suggestedProducts?.length > 0 ? (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                        {selectedInsp.suggestedProducts.map(sku => (
-                                            <span key={sku} className="code-badge">{sku}</span>
-                                        ))}
-                                    </div>
+                                {selectedInsp.suggestedProduct ? (
+                                    <span className="code-badge">{selectedInsp.suggestedProduct}</span>
                                 ) : <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>None suggested</span>}
                             </div>
                         </div>
 
-                        {/* Notes & Photos */}
-                        {(selectedInsp.notes || selectedInsp.photoFilenames) && (
+                        {selectedInsp.notes && (
                             <div className="card" style={{ gridColumn: '1 / -1' }}>
-                                <div className="card-header"><h3 className="card-title">Notes & Photos</h3></div>
-                                <div className="card-body" style={{ fontSize: '14px' }}>
-                                    {selectedInsp.notes && <div><strong>Notes:</strong> {selectedInsp.notes}</div>}
-                                    {selectedInsp.photoFilenames && <div style={{ marginTop: '6px' }}><strong>Photo filenames:</strong> {selectedInsp.photoFilenames}</div>}
-                                </div>
+                                <div className="card-header"><h3 className="card-title">Notes</h3></div>
+                                <div className="card-body" style={{ fontSize: '14px' }}>{selectedInsp.notes}</div>
+                            </div>
+                        )}
+                        {selectedInsp.siteExtraDetails && (
+                            <div className="card" style={{ gridColumn: '1 / -1' }}>
+                                <div className="card-header"><h3 className="card-title">Additional Site Details</h3></div>
+                                <div className="card-body" style={{ fontSize: '14px' }}>{selectedInsp.siteExtraDetails}</div>
                             </div>
                         )}
                     </div>
@@ -5176,13 +5183,15 @@ ${componentResults.map(c => {
                                     <label className="form-label">Site Overview Photos</label>
                                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                                         <button className="photo-btn" onClick={() => triggerCamera(photo => setForm(f => ({ ...f, sitePhotos: [...(f.sitePhotos || []), photo] })))}>
-                                            <Icons.Camera /> Take Site Photo
+                                            <Icons.Camera /> Take Photo
                                         </button>
                                         {(form.sitePhotos || []).map((p, i) => (
-                                            <span key={i} className="photo-record">📷 {p.filename}</span>
+                                            <span key={i} className="photo-record" style={{ cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, sitePhotos: f.sitePhotos.filter((_, x) => x !== i) }))}>
+                                                📷 {p.filename} ✕
+                                            </span>
                                         ))}
                                     </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos are saved to your phone only. Filenames are recorded here.</div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos stay on your phone. Tap a badge to remove it.</div>
                                 </div>
                             </div>
                         )}
@@ -5228,15 +5237,37 @@ ${componentResults.map(c => {
                                                 <input type="number" className="form-input" value={tank.capacity} onChange={e => updateTank(idx, 'capacity', e.target.value)} placeholder="e.g., 5000" />
                                             </div>
                                             <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Tank Photo</label>
+                                                <label className="form-label">Tank Photos</label>
                                                 <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                                                     <button className="photo-btn" style={{ padding: '6px 10px', fontSize: '12px' }} onClick={() => addTankPhoto(idx)}>
-                                                        <Icons.Camera /> Photo
+                                                        <Icons.Camera /> Add Photo
                                                     </button>
                                                     {(tank.photos || []).map((p, pi) => (
-                                                        <span key={pi} className="photo-record">📷 {p.filename}</span>
+                                                        <span key={pi} className="photo-record" style={{ cursor: 'pointer' }} onClick={() => {
+                                                            setForm(f => {
+                                                                const tanks = [...f.tanks];
+                                                                tanks[idx] = { ...tanks[idx], photos: tanks[idx].photos.filter((_, x) => x !== pi) };
+                                                                return { ...f, tanks };
+                                                            });
+                                                        }}>📷 {p.filename} ✕</span>
                                                     ))}
                                                 </div>
+                                            </div>
+                                        </div>
+                                        <div className="form-row" style={{ marginTop: '8px' }}>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <label className="form-label">Wire Routing Possible?</label>
+                                                <select className="form-select" value={tank.wireRouting} onChange={e => updateTank(idx, 'wireRouting', e.target.value)}>
+                                                    <option value="">Select</option>
+                                                    <option>Yes — Easy Access</option>
+                                                    <option>Yes — Conduit Required</option>
+                                                    <option>Partial — Some Challenges</option>
+                                                    <option>No — Wireless Only</option>
+                                                </select>
+                                            </div>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <label className="form-label">Wire Routing Notes</label>
+                                                <input className="form-input" value={tank.wireNotes} onChange={e => updateTank(idx, 'wireNotes', e.target.value)} placeholder="e.g., 20m cable, 2 bends needed" />
                                             </div>
                                         </div>
                                     </div>
@@ -5289,13 +5320,31 @@ ${componentResults.map(c => {
                                         <input type="number" className="form-input" value={form.pumpCount} onChange={e => setForm(f => ({ ...f, pumpCount: e.target.value }))} placeholder="e.g., 4" style={{ maxWidth: '150px' }} />
                                     </div>
                                 )}
+                                <div className="form-group">
+                                    <label className="form-label">Site Condition Photos</label>
+                                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                        <button className="photo-btn" onClick={() => triggerCamera(photo => setForm(f => ({ ...f, siteConditionPhotos: [...(f.siteConditionPhotos || []), photo] })))}>
+                                            <Icons.Camera /> Take Photo
+                                        </button>
+                                        {(form.siteConditionPhotos || []).map((p, i) => (
+                                            <span key={i} className="photo-record" style={{ cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, siteConditionPhotos: f.siteConditionPhotos.filter((_, x) => x !== i) }))}>
+                                                📷 {p.filename} ✕
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos stay on your phone. Tap a photo badge to remove it.</div>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Additional Site Details</label>
+                                    <textarea className="form-textarea" rows="3" value={form.siteExtraDetails} onChange={e => setForm(f => ({ ...f, siteExtraDetails: e.target.value }))} placeholder="e.g., Rooftop access via external staircase, corrosive environment near tank 3, CCTV room nearby, conduit already in place..." />
+                                </div>
                             </div>
                         )}
 
                         {/* STEP 3: Requirements */}
                         {step === 3 && (
                             <div>
-                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Monitoring Requirements</h3>
+                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Monitoring & Control Requirements</h3>
                                 <div className="form-group">
                                     <label className="form-label">What to Monitor?</label>
                                     <div className="checklist-row">
@@ -5318,6 +5367,24 @@ ${componentResults.map(c => {
                                         ))}
                                     </div>
                                 </div>
+                                <div className="form-group">
+                                    <label className="form-label" style={{ marginBottom: '10px' }}>Control Requirements</label>
+                                    {[
+                                        { key: 'valveControl', descKey: 'valveControlDesc', label: 'Valve Control', placeholder: 'e.g., 4 motorised ball valves, 2 inch' },
+                                        { key: 'submersiblePumpControl', descKey: 'submersiblePumpDesc', label: 'Submersible Pump Control', placeholder: 'e.g., 2 pumps, 1HP each, 3-phase' },
+                                        { key: 'singlePhaseMotorControl', descKey: 'singlePhaseMotorDesc', label: 'Single Phase Motor Control', placeholder: 'e.g., 3 motors, 0.5HP, star-delta starter needed' },
+                                    ].map(ctrl => (
+                                        <div key={ctrl.key} style={{ background: 'var(--bg)', borderRadius: '8px', padding: '12px', marginBottom: '10px' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
+                                                <input type="checkbox" checked={form[ctrl.key]} onChange={e => setForm(f => ({ ...f, [ctrl.key]: e.target.checked }))} style={{ width: '18px', height: '18px' }} />
+                                                {ctrl.label}
+                                            </label>
+                                            {form[ctrl.key] && (
+                                                <input className="form-input" style={{ marginTop: '8px' }} value={form[ctrl.descKey]} onChange={e => setForm(f => ({ ...f, [ctrl.descKey]: e.target.value }))} placeholder={ctrl.placeholder} />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
 
@@ -5326,24 +5393,17 @@ ${componentResults.map(c => {
                             <div>
                                 <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Technician Recommendations</h3>
                                 <div className="form-group">
-                                    <label className="form-label">Suggested Products (from catalog)</label>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                                    <label className="form-label">Suggested Product</label>
+                                    <select className="form-select" value={form.suggestedProduct} onChange={e => setForm(f => ({ ...f, suggestedProduct: e.target.value }))}>
+                                        <option value="">— Select a product —</option>
                                         {products.map(p => (
-                                            <div key={p.sku} className={`checklist-item ${form.suggestedProducts.includes(p.sku) ? 'checked' : ''}`}
-                                                onClick={() => toggleProduct(p.sku)}>
-                                                {form.suggestedProducts.includes(p.sku) ? '✓ ' : ''}{p.sku} – {p.name}
-                                            </div>
+                                            <option key={p.sku} value={p.sku}>{p.sku} – {p.name}</option>
                                         ))}
-                                    </div>
+                                    </select>
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">Notes / Observations</label>
-                                    <textarea className="form-textarea" rows="3" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g., Tanks on rooftop, cable tray needed, corrosive environment near tank 3..." />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Photo Filenames (reference)</label>
-                                    <input className="form-input" value={form.photoFilenames} onChange={e => setForm(f => ({ ...f, photoFilenames: e.target.value }))} placeholder="e.g., Sharma_site.jpg, Sharma_OH1.jpg" />
-                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>List any extra filenames not captured via camera buttons above.</div>
+                                    <textarea className="form-textarea" rows="4" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g., Tanks on rooftop, cable tray needed, corrosive environment near tank 3..." />
                                 </div>
                             </div>
                         )}
