@@ -4799,11 +4799,14 @@ ${componentResults.map(c => {
 
         const emptyTank = () => ({ label: '', type: 'Overhead', material: 'Concrete', height: '', capacity: '', photos: [], wireRouting: '', wireNotes: '' });
 
+        const INSP_DRAFT_KEY = 'mvs_inspection_draft';
+
         const SiteInspection = ({ products }) => {
             const [view, setView] = useState('list'); // 'list' | 'form' | 'detail'
             const [inspections, setInspections] = useState([]);
             const [loading, setLoading] = useState(true);
             const [saving, setSaving] = useState(false);
+            const [draftSaved, setDraftSaved] = useState(false);
             const [selectedInsp, setSelectedInsp] = useState(null);
             const [step, setStep] = useState(0);
 
@@ -4829,6 +4832,61 @@ ${componentResults.map(c => {
                 status: 'pending_quote'
             });
             const [form, setForm] = useState(emptyForm());
+
+            // Draft helpers
+            const hasDraft = () => { try { return !!localStorage.getItem(INSP_DRAFT_KEY); } catch { return false; } };
+            const loadDraft = () => { try { return JSON.parse(localStorage.getItem(INSP_DRAFT_KEY)); } catch { return null; } };
+            const saveDraft = (data) => { try { localStorage.setItem(INSP_DRAFT_KEY, JSON.stringify({ ...data, _draftSavedAt: new Date().toISOString() })); } catch {} };
+            const clearDraft = () => { try { localStorage.removeItem(INSP_DRAFT_KEY); } catch {} };
+
+            // Auto-save draft whenever form changes (only while in form view)
+            useEffect(() => {
+                if (view === 'form') {
+                    saveDraft(form);
+                    setDraftSaved(true);
+                    const t = setTimeout(() => setDraftSaved(false), 2000);
+                    return () => clearTimeout(t);
+                }
+            }, [form, view]);
+
+            const startNewInspection = () => {
+                if (hasDraft()) {
+                    const draft = loadDraft();
+                    const name = draft?.customerName || 'unnamed';
+                    const savedAt = draft?._draftSavedAt ? new Date(draft._draftSavedAt).toLocaleTimeString() : '';
+                    const resume = confirm(`You have a saved draft for "${name}" (saved at ${savedAt}).\n\nTap OK to resume draft, or Cancel to start fresh.`);
+                    if (resume) {
+                        setForm(draft);
+                    } else {
+                        clearDraft();
+                        setForm(emptyForm());
+                    }
+                } else {
+                    setForm(emptyForm());
+                }
+                setStep(0);
+                setView('form');
+            };
+
+            const handleCancel = () => {
+                if (form.customerName || form.inspectedBy) {
+                    const keep = confirm('Keep this as a draft to continue later?\n\nOK = Save draft\nCancel = Discard and go back');
+                    if (keep) {
+                        saveDraft(form);
+                        alert('Draft saved. You can resume it next time.');
+                    } else {
+                        clearDraft();
+                    }
+                } else {
+                    clearDraft();
+                }
+                setView('list');
+            };
+
+            const handleManualSaveDraft = () => {
+                saveDraft(form);
+                alert('Draft saved to this device.');
+            };
 
             useEffect(() => {
                 FirebaseInspections.getAllInspections().then(data => {
@@ -4900,16 +4958,18 @@ ${componentResults.map(c => {
             const handleSave = async () => {
                 if (!form.customerName || !form.inspectedBy) { alert('Customer name and Inspected By are required.'); return; }
                 setSaving(true);
-                const id = await FirebaseInspections.saveInspection({ ...form, id: Date.now() });
+                const { _draftSavedAt, ...formData } = form;
+                const id = await FirebaseInspections.saveInspection({ ...formData, id: Date.now() });
                 if (id) {
-                    const saved = { ...form, id: Date.now(), firebaseId: id, createdAt: new Date().toISOString() };
+                    clearDraft();
+                    const saved = { ...formData, id: Date.now(), firebaseId: id, createdAt: new Date().toISOString() };
                     setInspections(prev => [saved, ...prev]);
                     setForm(emptyForm());
                     setStep(0);
                     setView('list');
-                    alert('Inspection saved to Firebase!');
+                    alert('Inspection submitted to Firebase!');
                 } else {
-                    alert('Save failed. Check internet connection.');
+                    alert('Submit failed. Check internet connection.\n\nYour data is still saved as a draft on this device.');
                 }
                 setSaving(false);
             };
@@ -4944,10 +5004,25 @@ ${componentResults.map(c => {
                             <h1 className="page-title">Site Inspections</h1>
                             <p className="page-subtitle">Field inspection forms — saved to Firebase instantly</p>
                         </div>
-                        <button className="btn btn-primary" onClick={() => { setForm(emptyForm()); setStep(0); setView('form'); }}>
+                        <button className="btn btn-primary" onClick={startNewInspection}>
                             <Icons.Plus /> New Inspection
                         </button>
                     </div>
+
+                    {hasDraft() && (() => { const d = loadDraft(); return (
+                        <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                            <div>
+                                <strong style={{ color: '#92400E' }}>Draft in progress</strong>
+                                <span style={{ color: '#92400E', fontSize: '13px', marginLeft: '8px' }}>
+                                    {d?.customerName ? `"${d.customerName}"` : 'Unnamed'}{d?._draftSavedAt ? ` · saved ${new Date(d._draftSavedAt).toLocaleTimeString()}` : ''}
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="btn btn-primary btn-sm" onClick={startNewInspection}>Resume Draft</button>
+                                <button className="btn btn-danger btn-sm" onClick={() => { if (confirm('Discard draft?')) { clearDraft(); setInspections(prev => [...prev]); } }}>Discard</button>
+                            </div>
+                        </div>
+                    ); })()}
 
                     {loading ? (
                         <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Loading from Firebase...</div>
@@ -4956,7 +5031,7 @@ ${componentResults.map(c => {
                             <Icons.Clipboard />
                             <h3 style={{ marginTop: '16px' }}>No inspections yet</h3>
                             <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>Tap "New Inspection" to start a site visit form</p>
-                            <button className="btn btn-primary" onClick={() => { setForm(emptyForm()); setStep(0); setView('form'); }}>
+                            <button className="btn btn-primary" onClick={startNewInspection}>
                                 <Icons.Plus /> Start First Inspection
                             </button>
                         </div>
@@ -5110,14 +5185,18 @@ ${componentResults.map(c => {
                 <div>
                     <div className="page-header">
                         <div>
-                            <button className="btn btn-secondary btn-sm" onClick={() => setView('list')} style={{ marginBottom: '8px' }}>← Cancel</button>
+                            <button className="btn btn-secondary btn-sm" onClick={handleCancel} style={{ marginBottom: '8px' }}>← Cancel</button>
                             <h1 className="page-title">New Site Inspection</h1>
+                            {draftSaved && <span style={{ fontSize: '11px', color: 'var(--success)', marginLeft: '8px' }}>✓ Draft auto-saved</span>}
                         </div>
-                        {step === STEPS.length - 1 && (
-                            <button className="btn btn-success" onClick={handleSave} disabled={saving}>
-                                {saving ? 'Saving...' : '💾 Save Inspection'}
-                            </button>
-                        )}
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button className="btn btn-secondary btn-sm" onClick={handleManualSaveDraft}>💾 Save Draft</button>
+                            {step === STEPS.length - 1 && (
+                                <button className="btn btn-success" onClick={handleSave} disabled={saving}>
+                                    {saving ? 'Submitting...' : '🚀 Submit to Firebase'}
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Step indicator */}
@@ -5413,7 +5492,7 @@ ${componentResults.map(c => {
 
                     {/* Navigation */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
-                        <button className="btn btn-secondary" onClick={() => step > 0 ? setStep(step - 1) : setView('list')}>
+                        <button className="btn btn-secondary" onClick={() => step > 0 ? setStep(step - 1) : handleCancel()}>
                             ← {step === 0 ? 'Cancel' : 'Back'}
                         </button>
                         {step < STEPS.length - 1 ? (
@@ -5422,7 +5501,7 @@ ${componentResults.map(c => {
                             </button>
                         ) : (
                             <button className="btn btn-success" onClick={handleSave} disabled={saving}>
-                                {saving ? 'Saving...' : '💾 Save Inspection'}
+                                {saving ? 'Submitting...' : '🚀 Submit to Firebase'}
                             </button>
                         )}
                     </div>
