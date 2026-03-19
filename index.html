@@ -4814,6 +4814,7 @@ ${componentResults.map(c => {
             const emptyForm = () => ({
                 customerName: '', contactPerson: '', phone: '',
                 gps: null, address: '',
+                propertyType: '', numBuildings: '', numFloors: '',
                 tanks: [emptyTank()],
                 clustered: 'Clustered (<50m)',
                 power: 'Yes', wifi: 'Yes',
@@ -4828,6 +4829,7 @@ ${componentResults.map(c => {
                 pumpAutomation: 'No', pumpCount: '',
                 suggestedProducts: [],
                 notes: '',
+                nextAction: '', nextFollowupDate: '',
                 inspectedBy: '',
                 status: 'pending_quote'
             });
@@ -5045,7 +5047,7 @@ ${componentResults.map(c => {
                                             <div className="insp-card-meta">
                                                 {insp.contactPerson && <span>{insp.contactPerson} · </span>}
                                                 {insp.phone && <span>{insp.phone} · </span>}
-                                                {insp.tanks?.length || 0} tanks · {insp.inspectedBy}
+                                                {insp.propertyType && <span>{insp.propertyType} · </span>}{insp.tanks?.length || 0} tanks · {insp.inspectedBy}
                                             </div>
                                             {insp.address && <div className="insp-card-meta" style={{ marginTop: '2px' }}>{insp.address}</div>}
                                         </div>
@@ -5095,6 +5097,7 @@ ${componentResults.map(c => {
                                 <div><strong>Contact:</strong> {selectedInsp.contactPerson || '—'}</div>
                                 <div><strong>Phone:</strong> {selectedInsp.phone ? <a href={`tel:${selectedInsp.phone}`}>{selectedInsp.phone}</a> : '—'}</div>
                                 <div><strong>Address:</strong> {selectedInsp.address || '—'}</div>
+                                {selectedInsp.propertyType && <div style={{ marginTop: '6px' }}><strong>Property Type:</strong> {selectedInsp.propertyType}{selectedInsp.numBuildings ? ` · ${selectedInsp.numBuildings} buildings` : ''}{selectedInsp.numFloors ? `, ${selectedInsp.numFloors} floors` : ''}</div>}
                                 {selectedInsp.gps ? (
                                     <div className="gps-box" style={{ marginTop: '10px' }}>
                                         <Icons.MapPin />
@@ -5176,6 +5179,15 @@ ${componentResults.map(c => {
                             <div className="card" style={{ gridColumn: '1 / -1' }}>
                                 <div className="card-header"><h3 className="card-title">Additional Site Details</h3></div>
                                 <div className="card-body" style={{ fontSize: '14px' }}>{selectedInsp.siteExtraDetails}</div>
+                            </div>
+                        )}
+                        {(selectedInsp.nextAction || selectedInsp.nextFollowupDate) && (
+                            <div className="card" style={{ gridColumn: '1 / -1', background: '#EFF6FF', borderColor: '#BFDBFE' }}>
+                                <div className="card-header"><h3 className="card-title">Next Steps</h3></div>
+                                <div className="card-body" style={{ fontSize: '14px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                                    {selectedInsp.nextAction && <div><strong>Document Required:</strong> {selectedInsp.nextAction}</div>}
+                                    {selectedInsp.nextFollowupDate && <div><strong>Follow-up Date:</strong> {new Date(selectedInsp.nextFollowupDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -5280,6 +5292,29 @@ ${componentResults.map(c => {
                         {/* STEP 1: Tanks */}
                         {step === 1 && (
                             <div>
+                                <div className="form-group">
+                                    <label className="form-label">Property Type</label>
+                                    <div className="checklist-row">
+                                        {['Housing Society', 'Bungalow', 'Building', 'Chawl', 'Industrial', 'Other'].map(pt => (
+                                            <div key={pt} className={`checklist-item ${form.propertyType === pt ? 'checked' : ''}`}
+                                                onClick={() => setForm(f => ({ ...f, propertyType: pt }))}>
+                                                {form.propertyType === pt ? '✓ ' : ''}{pt}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                {['Housing Society', 'Building', 'Chawl'].includes(form.propertyType) && (
+                                    <div className="form-row" style={{ marginBottom: '16px' }}>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label">Number of Buildings / Wings</label>
+                                            <input type="number" className="form-input" value={form.numBuildings} onChange={e => setForm(f => ({ ...f, numBuildings: e.target.value }))} placeholder="e.g., 6" min="1" />
+                                        </div>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label">Floors per Building</label>
+                                            <input type="number" className="form-input" value={form.numFloors} onChange={e => setForm(f => ({ ...f, numFloors: e.target.value }))} placeholder="e.g., 12" min="1" />
+                                        </div>
+                                    </div>
+                                )}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                                     <h3 style={{ color: 'var(--primary)' }}>Tanks ({form.tanks.length})</h3>
                                     <button className="btn btn-secondary btn-sm" onClick={addTank}><Icons.Plus /> Add Tank</button>
@@ -5476,6 +5511,26 @@ ${componentResults.map(c => {
                                 <div className="form-group">
                                     <label className="form-label">Notes / Observations</label>
                                     <textarea className="form-textarea" rows="4" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g., Tanks on rooftop, cable tray needed, corrosive environment near tank 3..." />
+                                </div>
+                                <div className="form-row">
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label">Next Document Required</label>
+                                        <select className="form-select" value={form.nextAction} onChange={e => setForm(f => ({ ...f, nextAction: e.target.value }))}>
+                                            <option value="">— Select —</option>
+                                            <option>Presentation</option>
+                                            <option>Quotation</option>
+                                            <option>Revised Quotation</option>
+                                            <option>Proposal</option>
+                                            <option>Demo / POC</option>
+                                            <option>Site Survey Report</option>
+                                            <option>Purchase Order Expected</option>
+                                            <option>Follow-up Call Only</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label">Next Follow-up Date</label>
+                                        <input type="date" className="form-input" value={form.nextFollowupDate} onChange={e => setForm(f => ({ ...f, nextFollowupDate: e.target.value }))} />
+                                    </div>
                                 </div>
                                 {products.length > 0 && (
                                     <div className="form-group">
