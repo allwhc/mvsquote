@@ -5934,7 +5934,7 @@ ${componentResults.map(c => {
             }, [projects, filter]);
 
             // — List View —
-            const ListView = () => (
+            const renderListView = () => (
                 <div>
                     <div className="page-header">
                         <h1 className="page-title">Projects</h1>
@@ -5974,7 +5974,7 @@ ${componentResults.map(c => {
             );
 
             // — Form View —
-            const FormView = () => (
+            const renderFormView = () => (
                 <div>
                     <div className="page-header">
                         <button className="btn btn-secondary btn-sm" onClick={() => setView(editingId && selectedProject ? 'detail' : 'list')}>← Back</button>
@@ -6067,7 +6067,7 @@ ${componentResults.map(c => {
             );
 
             // — Detail View —
-            const DetailView = () => {
+            const renderDetailView = () => {
                 if (!selectedProject) return null;
                 const total = projectTasks.length;
                 const done = projectTasks.filter(t => t.status === 'Completed').length;
@@ -6284,9 +6284,9 @@ ${componentResults.map(c => {
                 );
             };
 
-            if (view === 'form') return <div className="page"><FormView /></div>;
-            if (view === 'detail') return <div className="page"><DetailView /></div>;
-            return <div className="page"><ListView /></div>;
+            if (view === 'form') return <div className="page">{renderFormView()}</div>;
+            if (view === 'detail') return <div className="page">{renderDetailView()}</div>;
+            return <div className="page">{renderListView()}</div>;
         };
 
         // ============ TEAM TASKS ============
@@ -6385,7 +6385,7 @@ ${componentResults.map(c => {
             };
 
             // ---- Board View ----
-            const BoardView = () => {
+            const renderBoardView = () => {
                 const weekGroups = useMemo(() => {
                     if (filter !== 'week') return null;
                     const overdue = filteredTasks.filter(t => isOverdue(t));
@@ -6497,7 +6497,7 @@ ${componentResults.map(c => {
             };
 
             // ---- Form View ----
-            const FormView = () => (
+            const renderFormView = () => (
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
                         <button className="btn btn-secondary" onClick={() => setView('board')}>← Back</button>
@@ -6563,7 +6563,7 @@ ${componentResults.map(c => {
             );
 
             // ---- Detail View ----
-            const DetailView = () => {
+            const renderDetailView = () => {
                 if (!selectedTask) return null;
                 const task = tasks.find(t => t.id === selectedTask.id) || selectedTask;
                 const overdue = isOverdue(task);
@@ -6696,9 +6696,9 @@ ${componentResults.map(c => {
 
             return (
                 <div>
-                    {view === 'board' && <BoardView />}
-                    {view === 'form' && <FormView />}
-                    {view === 'detail' && <DetailView />}
+                    {view === 'board' && renderBoardView()}
+                    {view === 'form' && renderFormView()}
+                    {view === 'detail' && renderDetailView()}
                 </div>
             );
         };
