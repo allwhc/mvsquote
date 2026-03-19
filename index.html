@@ -942,6 +942,161 @@
             }
         };
 
+        // ============ FIREBASE CATALOG HELPERS ============
+        const FirebaseCatalog = {
+            MIGRATION_KEY: 'mvs_catalog_migrated',
+
+            isMigrated() {
+                return localStorage.getItem(this.MIGRATION_KEY) === 'true';
+            },
+
+            async getItems() {
+                try {
+                    const snap = await db.collection('catalog_items').get();
+                    return snap.docs.map(d => ({ ...d.data(), _fbId: d.id }));
+                } catch(e) { console.error('FirebaseCatalog.getItems failed:', e); return null; }
+            },
+
+            async getProducts() {
+                try {
+                    const snap = await db.collection('catalog_products').get();
+                    return snap.docs.map(d => ({ ...d.data(), _fbId: d.id }));
+                } catch(e) { console.error('FirebaseCatalog.getProducts failed:', e); return null; }
+            },
+
+            async getBom() {
+                try {
+                    const snap = await db.collection('catalog_bom').get();
+                    return snap.docs.map(d => ({ ...d.data(), _fbId: d.id }));
+                } catch(e) { console.error('FirebaseCatalog.getBom failed:', e); return null; }
+            },
+
+            async getSubProducts() {
+                try {
+                    const snap = await db.collection('catalog_subproducts').get();
+                    return snap.docs.map(d => ({ ...d.data(), _fbId: d.id }));
+                } catch(e) { console.error('FirebaseCatalog.getSubProducts failed:', e); return null; }
+            },
+
+            async saveItems(items) {
+                try {
+                    const batch = db.batch();
+                    const existing = await db.collection('catalog_items').get();
+                    existing.docs.forEach(d => batch.delete(d.ref));
+                    items.forEach(item => {
+                        const { _fbId, ...data } = item;
+                        const ref = db.collection('catalog_items').doc();
+                        batch.set(ref, data);
+                    });
+                    await batch.commit();
+                    return true;
+                } catch(e) { console.error('FirebaseCatalog.saveItems failed:', e); return false; }
+            },
+
+            async saveProducts(products) {
+                try {
+                    const batch = db.batch();
+                    const existing = await db.collection('catalog_products').get();
+                    existing.docs.forEach(d => batch.delete(d.ref));
+                    products.forEach(product => {
+                        const { _fbId, ...data } = product;
+                        const ref = db.collection('catalog_products').doc();
+                        batch.set(ref, data);
+                    });
+                    await batch.commit();
+                    return true;
+                } catch(e) { console.error('FirebaseCatalog.saveProducts failed:', e); return false; }
+            },
+
+            async saveBom(bom) {
+                try {
+                    const batch = db.batch();
+                    const existing = await db.collection('catalog_bom').get();
+                    existing.docs.forEach(d => batch.delete(d.ref));
+                    bom.forEach(entry => {
+                        const { _fbId, ...data } = entry;
+                        const ref = db.collection('catalog_bom').doc();
+                        batch.set(ref, data);
+                    });
+                    await batch.commit();
+                    return true;
+                } catch(e) { console.error('FirebaseCatalog.saveBom failed:', e); return false; }
+            },
+
+            async saveSubProducts(subProducts) {
+                try {
+                    const batch = db.batch();
+                    const existing = await db.collection('catalog_subproducts').get();
+                    existing.docs.forEach(d => batch.delete(d.ref));
+                    subProducts.forEach(sp => {
+                        const { _fbId, ...data } = sp;
+                        const ref = db.collection('catalog_subproducts').doc();
+                        batch.set(ref, data);
+                    });
+                    await batch.commit();
+                    return true;
+                } catch(e) { console.error('FirebaseCatalog.saveSubProducts failed:', e); return false; }
+            },
+
+            async updateItem(item) {
+                try {
+                    if (item._fbId) {
+                        const { _fbId, ...data } = item;
+                        await db.collection('catalog_items').doc(_fbId).set(data);
+                    }
+                    return true;
+                } catch(e) { console.error(e); return false; }
+            },
+
+            async migrateFromSheets(items, products, bom, subProducts) {
+                try {
+                    let batch = db.batch();
+                    let count = 0;
+                    for (const item of items) {
+                        const { _fbId, vendors, ...data } = item;
+                        batch.set(db.collection('catalog_items').doc(), data);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    if (count > 0) await batch.commit();
+
+                    batch = db.batch(); count = 0;
+                    for (const p of products) {
+                        const { _fbId, ...data } = p;
+                        batch.set(db.collection('catalog_products').doc(), data);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    if (count > 0) await batch.commit();
+
+                    batch = db.batch(); count = 0;
+                    for (const b of bom) {
+                        const { _fbId, ...data } = b;
+                        batch.set(db.collection('catalog_bom').doc(), data);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    if (count > 0) await batch.commit();
+
+                    batch = db.batch(); count = 0;
+                    for (const sp of subProducts) {
+                        const { _fbId, ...data } = sp;
+                        batch.set(db.collection('catalog_subproducts').doc(), data);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    if (count > 0) await batch.commit();
+
+                    localStorage.setItem(this.MIGRATION_KEY, 'true');
+                    localStorage.setItem('mvs_catalog_migrated_at', new Date().toISOString());
+                    return true;
+                } catch(e) {
+                    console.error('Migration failed:', e);
+                    return false;
+                }
+            }
+        };
+
         // ============ FIREBASE PROJECTS HELPERS ============
         const FirebaseProjects = {
             async getProjects() {
@@ -6727,6 +6882,7 @@ ${componentResults.map(c => {
             const [adminUnlocked, setAdminUnlocked] = useState(isAdminAuthenticated());
             const [adminPassword, setAdminPassword] = useState('');
             const [adminError, setAdminError] = useState('');
+            const [migrating, setMigrating] = useState(false);
 
             const handleAdminUnlock = async () => {
                 try {
@@ -6753,17 +6909,122 @@ ${componentResults.map(c => {
                 setPage('dashboard');
             };
 
+            const handleMigrate = async () => {
+                if (!confirm('This will copy all Items, Products, and BOM from Google Sheets to Firebase.\n\nGoogle Sheets data will NOT be deleted.\n\nProceed?')) return;
+                setMigrating(true);
+                setSyncMessage('Fetching data from Google Sheets...');
+                setSyncStatus('syncing');
+                try {
+                    const response = await fetch(`${CONFIG.API_URL}?action=getAllData`);
+                    const result = await response.json();
+                    if (!result.success || !result.data) {
+                        alert('Could not fetch from Google Sheets. Check connection.');
+                        setSyncStatus('error');
+                        setMigrating(false);
+                        return;
+                    }
+                    const { items: sheetItems, products: sheetProducts, bom: sheetBom, subProducts: sheetSubProducts } = result.data;
+                    setSyncMessage(`Migrating ${sheetItems?.length || 0} items, ${sheetProducts?.length || 0} products...`);
+
+                    const success = await FirebaseCatalog.migrateFromSheets(
+                        sheetItems || [], sheetProducts || [], sheetBom || [], sheetSubProducts || []
+                    );
+
+                    if (success) {
+                        setSyncStatus('success');
+                        setSyncMessage(`Migration complete! ${sheetItems?.length || 0} items, ${sheetProducts?.length || 0} products, ${sheetBom?.length || 0} BOM entries moved to Firebase.`);
+                        alert(`Migration successful!\n\n${sheetItems?.length || 0} items\n${sheetProducts?.length || 0} products\n${sheetBom?.length || 0} BOM entries\n\nApp will now load from Firebase.`);
+                        // Reload page to trigger Firebase-first load
+                        window.location.reload();
+                    } else {
+                        setSyncStatus('error');
+                        setSyncMessage('Migration failed. Google Sheets unchanged.');
+                        alert('Migration failed. Please try again.');
+                    }
+                } catch(e) {
+                    console.error(e);
+                    setSyncStatus('error');
+                    setSyncMessage('Migration error: ' + e.message);
+                    alert('Migration error: ' + e.message);
+                }
+                setMigrating(false);
+            };
+
+            const handleReMigrate = async () => {
+                if (!confirm('Re-sync all Items, Products, BOM from Google Sheets to Firebase?\n\nThis will overwrite Firebase catalog with current Sheets data.')) return;
+                localStorage.removeItem(FirebaseCatalog.MIGRATION_KEY);
+                await handleMigrate();
+            };
+
             // ============ AUTO-LOAD ON STARTUP ============
             useEffect(() => {
+                const loadFromLocalStorage = () => {
+                    const saved = localStorage.getItem('mvs_data_v4');
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        if (data.items) setItems(enrichItems(data.items));
+                        if (data.products) setProducts(data.products);
+                        if (data.bom) setBom(data.bom);
+                        if (data.subProducts) setSubProducts(data.subProducts);
+                        if (data.quotations) setQuotations(data.quotations);
+                        if (data.lastSync) setLastSync(data.lastSync);
+                    }
+                };
+
                 const loadData = async () => {
                     setIsLoading(true);
+
+                    if (FirebaseCatalog.isMigrated()) {
+                        // PRIMARY: Load from Firebase
+                        setLoadingMessage('Loading from Firebase...');
+                        try {
+                            const [fbItems, fbProducts, fbBom, fbSubProducts] = await Promise.all([
+                                FirebaseCatalog.getItems(),
+                                FirebaseCatalog.getProducts(),
+                                FirebaseCatalog.getBom(),
+                                FirebaseCatalog.getSubProducts()
+                            ]);
+
+                            if (fbItems && fbItems.length > 0) {
+                                setItems(enrichItems(fbItems));
+                                setProducts(fbProducts || []);
+                                setBom(fbBom || []);
+                                setSubProducts(fbSubProducts || []);
+
+                                // Cache locally
+                                const cacheData = { items: fbItems, products: fbProducts, bom: fbBom, subProducts: fbSubProducts };
+                                localStorage.setItem('mvs_data_v4', JSON.stringify(cacheData));
+
+                                setLoadingMessage('Loading quotations...');
+                                const firebaseQuotations = await FirebaseQuotations.getAllQuotations();
+                                if (firebaseQuotations && firebaseQuotations.length > 0) {
+                                    setQuotations(firebaseQuotations);
+                                }
+                                setLastSync(new Date().toISOString());
+                                setTimeout(() => setIsLoading(false), 500);
+
+                                // Background: sync from Sheets to keep state updated
+                                setTimeout(() => backgroundSyncFromSheets(), 3000);
+                                return;
+                            }
+                        } catch(e) {
+                            console.error('Firebase load failed, falling back to cache:', e);
+                        }
+
+                        // Fallback to localStorage cache
+                        setLoadingMessage('Loading from local cache...');
+                        loadFromLocalStorage();
+                        setTimeout(() => setIsLoading(false), 500);
+                        return;
+                    }
+
+                    // NOT migrated — original Sheets flow
                     setLoadingMessage('Connecting to Google Sheets...');
-                    
                     try {
                         // Try to load from Google Sheets first
                         const response = await fetch(`${CONFIG.API_URL}?action=getAllData`);
                         const result = await response.json();
-                        
+
                         if (result.success && result.data) {
                             setLoadingMessage('Loading data...');
 
@@ -6802,21 +7063,8 @@ ${componentResults.map(c => {
                         setLoadingMessage('Offline mode - Loading local data...');
                         loadFromLocalStorage();
                     }
-                    
-                    setTimeout(() => setIsLoading(false), 500);
-                };
 
-                const loadFromLocalStorage = () => {
-                    const saved = localStorage.getItem('mvs_data_v4');
-                    if (saved) {
-                        const data = JSON.parse(saved);
-                        if (data.items) setItems(enrichItems(data.items));
-                        if (data.products) setProducts(data.products);
-                        if (data.bom) setBom(data.bom);
-                        if (data.subProducts) setSubProducts(data.subProducts);
-                        if (data.quotations) setQuotations(data.quotations);
-                        if (data.lastSync) setLastSync(data.lastSync);
-                    }
+                    setTimeout(() => setIsLoading(false), 500);
                 };
 
                 loadData();
@@ -6964,6 +7212,50 @@ ${componentResults.map(c => {
                     }, 5000);
                 }
             };
+
+            // Background sync from Sheets (runs silently after Firebase load)
+            const backgroundSyncFromSheets = async () => {
+                if (!FirebaseCatalog.isMigrated()) return;
+                try {
+                    const response = await fetch(`${CONFIG.API_URL}?action=getAllData`);
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                        if (result.data.items && result.data.items.length > 0) {
+                            const enriched = enrichItems(result.data.items);
+                            setItems(enriched);
+                            if (result.data.products) setProducts(result.data.products);
+                            if (result.data.bom) setBom(result.data.bom);
+                            if (result.data.subProducts) setSubProducts(result.data.subProducts);
+
+                            localStorage.setItem('mvs_data_v4', JSON.stringify({
+                                items: result.data.items,
+                                products: result.data.products,
+                                bom: result.data.bom,
+                                subProducts: result.data.subProducts
+                            }));
+                            setLastSync(new Date().toISOString());
+                        }
+                    }
+                } catch(e) {
+                    console.log('Background Sheets sync failed (non-critical):', e);
+                }
+            };
+
+            // Auto-sync to Google Sheets in background after catalog changes
+            const autoSyncTimer = React.useRef(null);
+            useEffect(() => {
+                if (!FirebaseCatalog.isMigrated()) return;
+                if (isLoading) return;
+                if (items.length === 0) return;
+
+                // Debounce: wait 10s after last change
+                if (autoSyncTimer.current) clearTimeout(autoSyncTimer.current);
+                autoSyncTimer.current = setTimeout(() => {
+                    syncToGoogleSheets();
+                }, 10000);
+
+                return () => { if (autoSyncTimer.current) clearTimeout(autoSyncTimer.current); };
+            }, [items, products, bom, subProducts]);
 
             const formatLastSync = () => {
                 if (!lastSync) return 'Never synced';
@@ -7137,6 +7429,33 @@ ${componentResults.map(c => {
                             >
                                 <SyncIcons.Download /> Load from Cloud
                             </div>
+
+                            {/* Data Storage - Firebase Migration */}
+                            {adminUnlocked && (
+                                <>
+                                    <div className="nav-divider"></div>
+                                    <div className="nav-label">Data Storage</div>
+                                    {!FirebaseCatalog.isMigrated() ? (
+                                        <div
+                                            className="nav-item"
+                                            onClick={handleMigrate}
+                                            style={{ background: 'rgba(59,130,246,0.2)', pointerEvents: migrating ? 'none' : 'auto' }}
+                                        >
+                                            <SyncIcons.Upload /> {migrating ? 'Migrating...' : 'Migrate to Firebase'}
+                                        </div>
+                                    ) : (
+                                        <div style={{ padding: '8px 14px', fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
+                                            ✓ Firebase Primary<br/>
+                                            <span style={{ fontSize: '10px' }}>Migrated {localStorage.getItem('mvs_catalog_migrated_at') ? new Date(localStorage.getItem('mvs_catalog_migrated_at')).toLocaleDateString() : ''}</span>
+                                        </div>
+                                    )}
+                                    {FirebaseCatalog.isMigrated() && (
+                                        <div className="nav-item" onClick={handleReMigrate} style={{ fontSize: '12px', pointerEvents: migrating ? 'none' : 'auto' }}>
+                                            ↺ Re-sync from Sheets
+                                        </div>
+                                    )}
+                                </>
+                            )}
 
                             {/* Sync Status - Visible to all */}
                             <div style={{
