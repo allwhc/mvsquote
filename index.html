@@ -965,8 +965,9 @@
             },
             async getProjectTasks(projectId) {
                 try {
-                    const snap = await db.collection('project_tasks').where('projectId','==',projectId).orderBy('createdAt','desc').get();
-                    return snap.docs.map(d => ({ ...d.data(), firebaseId: d.id, createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt }));
+                    const snap = await db.collection('project_tasks').where('projectId','==',projectId).get();
+                    const docs = snap.docs.map(d => ({ ...d.data(), firebaseId: d.id, createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt }));
+                    return docs.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
                 } catch(e) { console.error(e); return []; }
             },
             async addProjectTask(task) {
@@ -5870,8 +5871,9 @@ ${componentResults.map(c => {
                 setSaving(true);
                 const data = { ...taskForm, projectId: selectedProject.firebaseId };
                 delete data.firebaseId;
-                await FirebaseProjects.addProjectTask(data);
-                await loadProjectTasks(selectedProject.firebaseId);
+                const newId = await FirebaseProjects.addProjectTask(data);
+                const newTask = { ...data, firebaseId: newId, createdAt: new Date().toISOString() };
+                setProjectTasks(prev => [newTask, ...prev]);
                 setTaskForm({ ...emptyProjectTask, projectId: selectedProject.firebaseId });
                 setShowTaskForm(false);
                 setSaving(false);
