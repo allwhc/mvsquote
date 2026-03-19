@@ -4830,6 +4830,7 @@ ${componentResults.map(c => {
                 suggestedProducts: [],
                 notes: '',
                 nextAction: '', nextFollowupDate: '',
+                referenceSource: '',
                 inspectedBy: '',
                 status: 'pending_quote'
             });
@@ -5097,6 +5098,7 @@ ${componentResults.map(c => {
                                 <div><strong>Contact:</strong> {selectedInsp.contactPerson || '—'}</div>
                                 <div><strong>Phone:</strong> {selectedInsp.phone ? <a href={`tel:${selectedInsp.phone}`}>{selectedInsp.phone}</a> : '—'}</div>
                                 <div><strong>Address:</strong> {selectedInsp.address || '—'}</div>
+                                {selectedInsp.referenceSource && <div style={{ marginTop: '6px' }}><strong>Reference:</strong> {selectedInsp.referenceSource}</div>}
                                 {selectedInsp.propertyType && <div style={{ marginTop: '6px' }}><strong>Property Type:</strong> {selectedInsp.propertyType}{selectedInsp.numBuildings ? ` · ${selectedInsp.numBuildings} buildings` : ''}{selectedInsp.numFloors ? `, ${selectedInsp.numFloors} floors` : ''}</div>}
                                 {selectedInsp.gps ? (
                                     <div className="gps-box" style={{ marginTop: '10px' }}>
@@ -5249,6 +5251,17 @@ ${componentResults.map(c => {
                                     <div className="form-group">
                                         <label className="form-label">Inspected By <span>*</span></label>
                                         <input className="form-input" value={form.inspectedBy} onChange={e => setForm(f => ({ ...f, inspectedBy: e.target.value }))} placeholder="Technician name" />
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">How Did They Hear About Us?</label>
+                                    <div className="checklist-row">
+                                        {['Friend / Referral', 'Google Search', 'WhatsApp Ad', 'ChatGPT / AI Tools', 'Social Media', 'Exhibition / Event', 'Existing Customer', 'Other'].map(src => (
+                                            <div key={src} className={`checklist-item ${form.referenceSource === src ? 'checked' : ''}`}
+                                                onClick={() => setForm(f => ({ ...f, referenceSource: src }))}>
+                                                {form.referenceSource === src ? '✓ ' : ''}{src}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                                 <div className="form-group">
