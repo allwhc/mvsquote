@@ -757,6 +757,37 @@
 
         .gps-box { background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
         .gps-box.no-gps { background: #FEF3C7; border-color: #FDE68A; }
+
+        /* Team Tasks Styles */
+        .filter-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; }
+        .filter-tab { padding: 7px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--border); background: white; color: var(--text-muted); white-space: nowrap; transition: all 0.2s; }
+        .filter-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .task-card { background: white; border-radius: 12px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 10px; border-left: 4px solid #9CA3AF; cursor: pointer; transition: all 0.2s; }
+        .task-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .task-card.priority-low { border-left-color: #9CA3AF; }
+        .task-card.priority-medium { border-left-color: #3B82F6; }
+        .task-card.priority-high { border-left-color: #F97316; }
+        .task-card.priority-urgent { border-left-color: #EF4444; }
+        .task-card.overdue { border-left-color: #EF4444 !important; }
+        .task-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .priority-urgent { background: #FEE2E2; color: #991B1B; }
+        .priority-high { background: #FFEDD5; color: #9A3412; }
+        .priority-medium { background: #DBEAFE; color: #1E40AF; }
+        .priority-low { background: #F3F4F6; color: #374151; }
+        .status-open { background: #F3F4F6; color: #374151; }
+        .status-inprogress { background: #DBEAFE; color: #1E40AF; }
+        .status-done { background: #D1FAE5; color: #065F46; }
+        .status-blocked { background: #FEE2E2; color: #991B1B; }
+        .update-entry { padding: 10px 14px; background: #F9FAFB; border-left: 3px solid var(--secondary); border-radius: 0 8px 8px 0; margin-bottom: 8px; font-size: 13px; }
+        .update-entry .update-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+        .ext-entry { padding: 8px 12px; background: #FFFBEB; border-left: 3px solid #F59E0B; border-radius: 0 8px 8px 0; margin-bottom: 8px; font-size: 13px; }
+        .meeting-group { margin-bottom: 24px; }
+        .meeting-group-title { font-size: 14px; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; padding: 6px 12px; background: #F3F4F6; border-radius: 8px; }
+        .priority-tap-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .priority-tap { padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 2px solid transparent; opacity: 0.6; transition: all 0.15s; }
+        .priority-tap.selected { opacity: 1; border-color: currentColor; }
+        .members-section { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px; }
+        .member-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #EEF2FF; color: #4338CA; border-radius: 20px; font-size: 12px; font-weight: 600; margin: 4px; }
     </style>
 </head>
 <body>
@@ -894,6 +925,77 @@
                     await db.collection('quotations').doc(firebaseId).update({ status: newStatus });
                 } catch (e) {
                     console.error('Firebase status update failed:', e);
+                }
+            }
+        };
+
+        // ============ FIREBASE TASKS HELPERS ============
+        const FirebaseTasks = {
+            async getMembers() {
+                try {
+                    const snap = await db.collection('team_members').orderBy('name').get();
+                    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                } catch (e) {
+                    console.error('FirebaseTasks.getMembers failed:', e);
+                    return [];
+                }
+            },
+            async addMember(name, role) {
+                try {
+                    const docRef = await db.collection('team_members').add({
+                        name, role,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return docRef.id;
+                } catch (e) {
+                    console.error('FirebaseTasks.addMember failed:', e);
+                    return null;
+                }
+            },
+            async deleteMember(id) {
+                try {
+                    await db.collection('team_members').doc(id).delete();
+                } catch (e) {
+                    console.error('FirebaseTasks.deleteMember failed:', e);
+                }
+            },
+            async getTasks() {
+                try {
+                    const snap = await db.collection('tasks').orderBy('createdAt', 'desc').get();
+                    return snap.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt
+                    }));
+                } catch (e) {
+                    console.error('FirebaseTasks.getTasks failed:', e);
+                    return [];
+                }
+            },
+            async addTask(task) {
+                try {
+                    const docRef = await db.collection('tasks').add({
+                        ...task,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return docRef.id;
+                } catch (e) {
+                    console.error('FirebaseTasks.addTask failed:', e);
+                    return null;
+                }
+            },
+            async updateTask(id, data) {
+                try {
+                    await db.collection('tasks').doc(id).update(data);
+                } catch (e) {
+                    console.error('FirebaseTasks.updateTask failed:', e);
+                }
+            },
+            async deleteTask(id) {
+                try {
+                    await db.collection('tasks').doc(id).delete();
+                } catch (e) {
+                    console.error('FirebaseTasks.deleteTask failed:', e);
                 }
             }
         };
@@ -1279,7 +1381,8 @@
             AlertTriangle: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
             Clipboard: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>,
             MapPin: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
-            Camera: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Camera: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
+            CheckList: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         };
 
         // ============ MODAL COMPONENT ============
@@ -5583,6 +5686,420 @@ ${componentResults.map(c => {
             );
         };
 
+        // ============ TEAM TASKS ============
+        const TeamTasks = () => {
+            const [members, setMembers] = useState([]);
+            const [tasks, setTasks] = useState([]);
+            const [view, setView] = useState('board'); // 'board' | 'form' | 'detail'
+            const [selectedTask, setSelectedTask] = useState(null);
+            const [filter, setFilter] = useState('all');
+            const [myName, setMyName] = useState(() => localStorage.getItem('mvs_my_name') || '');
+            const [loading, setLoading] = useState(true);
+            const [saving, setSaving] = useState(false);
+            const [membersOpen, setMembersOpen] = useState(false);
+            const [newMemberName, setNewMemberName] = useState('');
+            const [newMemberRole, setNewMemberRole] = useState('');
+
+            // Form state
+            const [form, setForm] = useState({
+                title: '', description: '', assignedTo: '', assignedBy: '',
+                targetDate: '', priority: 'Medium', status: 'Open'
+            });
+
+            // Detail view state
+            const [noteText, setNoteText] = useState('');
+            const [lessonText, setLessonText] = useState('');
+            const [outcomeText, setOutcomeText] = useState('');
+            const [detailStatus, setDetailStatus] = useState('');
+
+            const today = new Date(); today.setHours(0,0,0,0);
+
+            useEffect(() => {
+                if (!myName) {
+                    const n = prompt('Your name (used for task attribution):');
+                    if (n && n.trim()) {
+                        localStorage.setItem('mvs_my_name', n.trim());
+                        setMyName(n.trim());
+                    }
+                }
+                loadData();
+            }, []);
+
+            const loadData = async () => {
+                setLoading(true);
+                const cachedMembers = localStorage.getItem('mvs_team_members');
+                if (cachedMembers) setMembers(JSON.parse(cachedMembers));
+                const [m, t] = await Promise.all([FirebaseTasks.getMembers(), FirebaseTasks.getTasks()]);
+                setMembers(m);
+                localStorage.setItem('mvs_team_members', JSON.stringify(m));
+                setTasks(t);
+                setLoading(false);
+            };
+
+            const isOverdue = (task) => {
+                if (!task.targetDate || task.status === 'Done') return false;
+                const due = new Date(task.targetDate); due.setHours(0,0,0,0);
+                return due < today;
+            };
+
+            const isThisWeek = (task) => {
+                const start = new Date(today); start.setDate(today.getDate() - today.getDay());
+                const end = new Date(start); end.setDate(start.getDate() + 6);
+                const checkDate = (d) => { if (!d) return false; const dt = new Date(d); dt.setHours(0,0,0,0); return dt >= start && dt <= end; };
+                const updatedThisWeek = (task.updates || []).some(u => checkDate(u.at));
+                const completedThisWeek = task.status === 'Done' && checkDate(task.targetDate);
+                return checkDate(task.targetDate) || updatedThisWeek || completedThisWeek;
+            };
+
+            const filteredTasks = useMemo(() => {
+                let list = [...tasks];
+                if (filter === 'my') list = list.filter(t => t.assignedTo === myName);
+                if (filter === 'overdue') list = list.filter(t => isOverdue(t));
+                if (filter === 'week') list = list.filter(t => isThisWeek(t));
+                return list;
+            }, [tasks, filter, myName]);
+
+            const getPriorityClass = (p) => {
+                if (p === 'Urgent') return 'priority-urgent';
+                if (p === 'High') return 'priority-high';
+                if (p === 'Medium') return 'priority-medium';
+                return 'priority-low';
+            };
+
+            const getStatusClass = (s) => {
+                if (s === 'Done') return 'status-done';
+                if (s === 'In Progress') return 'status-inprogress';
+                if (s === 'Blocked') return 'status-blocked';
+                return 'status-open';
+            };
+
+            const fmtShortDate = (d) => {
+                if (!d) return '—';
+                try {
+                    const dt = new Date(d);
+                    return dt.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()];
+                } catch { return d; }
+            };
+
+            // ---- Board View ----
+            const BoardView = () => {
+                const weekGroups = useMemo(() => {
+                    if (filter !== 'week') return null;
+                    const overdue = filteredTasks.filter(t => isOverdue(t));
+                    const inProgress = filteredTasks.filter(t => !isOverdue(t) && t.status === 'In Progress');
+                    const done = filteredTasks.filter(t => t.status === 'Done');
+                    const blocked = filteredTasks.filter(t => t.status === 'Blocked');
+                    return { overdue, inProgress, done, blocked };
+                }, [filteredTasks, filter]);
+
+                const renderCard = (task) => {
+                    const latestUpdate = task.updates && task.updates.length > 0 ? task.updates[task.updates.length - 1] : null;
+                    const overdue = isOverdue(task);
+                    return (
+                        <div
+                            key={task.id}
+                            className={`task-card priority-${(task.priority || 'medium').toLowerCase()}${overdue ? ' overdue' : ''}`}
+                            onClick={() => { setSelectedTask(task); setDetailStatus(task.status); setLessonText(task.lesson || ''); setOutcomeText(task.outcome || ''); setView('detail'); }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                                <div style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{task.title}</div>
+                                <span className={`task-badge ${getPriorityClass(task.priority)}`} style={{ marginLeft: 8 }}>{task.priority}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                {task.assignedTo && <span className="task-badge" style={{ background: '#EEF2FF', color: '#4338CA' }}>{task.assignedTo}</span>}
+                                <span className={`task-badge ${getStatusClass(task.status)}`}>{task.status}</span>
+                                {task.targetDate && <span className="task-badge" style={{ background: overdue ? '#FEE2E2' : '#F3F4F6', color: overdue ? '#991B1B' : '#374151' }}>Due {fmtShortDate(task.targetDate)}</span>}
+                                {task.extensions && task.extensions.length > 0 && <span className="task-badge" style={{ background: '#FFFBEB', color: '#92400E' }}>+{task.extensions.length} ext</span>}
+                            </div>
+                            {latestUpdate && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>"{latestUpdate.text}"</div>}
+                        </div>
+                    );
+                };
+
+                return (
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <div>
+                                <h1 className="page-title">Team Tasks</h1>
+                                <p className="page-subtitle">Track work across the team</p>
+                            </div>
+                            <button className="btn btn-primary" onClick={() => setView('form')}>+ New Task</button>
+                        </div>
+                        <div className="filter-tabs">
+                            {[['all','All'],['my','My Tasks'],['overdue','Overdue'],['week','This Week']].map(([k,l]) => (
+                                <div key={k} className={`filter-tab${filter === k ? ' active' : ''}`} onClick={() => setFilter(k)}>{l}</div>
+                            ))}
+                        </div>
+
+                        {loading ? (
+                            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading tasks…</div>
+                        ) : filter === 'week' && weekGroups ? (
+                            <div>
+                                {weekGroups.overdue.length > 0 && <div className="meeting-group"><div className="meeting-group-title">⚠️ Overdue</div>{weekGroups.overdue.map(renderCard)}</div>}
+                                {weekGroups.inProgress.length > 0 && <div className="meeting-group"><div className="meeting-group-title">🔄 In Progress</div>{weekGroups.inProgress.map(renderCard)}</div>}
+                                {weekGroups.done.length > 0 && <div className="meeting-group"><div className="meeting-group-title">✅ Done This Week</div>{weekGroups.done.map(renderCard)}</div>}
+                                {weekGroups.blocked.length > 0 && <div className="meeting-group"><div className="meeting-group-title">🚫 Blocked</div>{weekGroups.blocked.map(renderCard)}</div>}
+                                {weekGroups.overdue.length === 0 && weekGroups.inProgress.length === 0 && weekGroups.done.length === 0 && weekGroups.blocked.length === 0 && (
+                                    <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No tasks for this week</div>
+                                )}
+                            </div>
+                        ) : filteredTasks.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                                <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+                                <div>No tasks found</div>
+                            </div>
+                        ) : (
+                            filteredTasks.map(renderCard)
+                        )}
+
+                        {/* Team Members Section */}
+                        <div className="members-section">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: membersOpen ? 12 : 0 }} onClick={() => setMembersOpen(!membersOpen)}>
+                                <span style={{ fontWeight: 700, fontSize: 14 }}>Team Members ({members.length})</span>
+                                <span style={{ fontSize: 18 }}>{membersOpen ? '▲' : '▼'}</span>
+                            </div>
+                            {membersOpen && (
+                                <div>
+                                    <div style={{ marginBottom: 10 }}>{members.map(m => (
+                                        <span key={m.id} className="member-chip">
+                                            {m.name}{m.role ? ` · ${m.role}` : ''}
+                                            <span style={{ cursor: 'pointer', marginLeft: 4, color: '#991B1B' }} onClick={async () => {
+                                                if (!confirm(`Remove ${m.name}?`)) return;
+                                                await FirebaseTasks.deleteMember(m.id);
+                                                const updated = members.filter(x => x.id !== m.id);
+                                                setMembers(updated);
+                                                localStorage.setItem('mvs_team_members', JSON.stringify(updated));
+                                            }}>×</span>
+                                        </span>
+                                    ))}</div>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                        <input className="form-input" placeholder="Name" value={newMemberName} onChange={e => setNewMemberName(e.target.value)} style={{ flex: '1 1 120px', minWidth: 0 }} />
+                                        <input className="form-input" placeholder="Role (optional)" value={newMemberRole} onChange={e => setNewMemberRole(e.target.value)} style={{ flex: '1 1 120px', minWidth: 0 }} />
+                                        <button className="btn btn-primary" onClick={async () => {
+                                            if (!newMemberName.trim()) return;
+                                            const id = await FirebaseTasks.addMember(newMemberName.trim(), newMemberRole.trim());
+                                            if (id) {
+                                                const updated = [...members, { id, name: newMemberName.trim(), role: newMemberRole.trim() }];
+                                                setMembers(updated);
+                                                localStorage.setItem('mvs_team_members', JSON.stringify(updated));
+                                                setNewMemberName(''); setNewMemberRole('');
+                                            }
+                                        }}>Add</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // ---- Form View ----
+            const FormView = () => (
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                        <button className="btn btn-secondary" onClick={() => setView('board')}>← Back</button>
+                        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>New Task</h2>
+                    </div>
+                    <div className="card" style={{ padding: 20 }}>
+                        <div className="form-group">
+                            <label className="form-label">Title *</label>
+                            <input className="form-input" value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="Task title" />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Description</label>
+                            <textarea className="form-input" rows={3} value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="What needs to be done?" style={{ resize: 'vertical' }} />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="form-group">
+                                <label className="form-label">Assigned To</label>
+                                <select className="form-input" value={form.assignedTo} onChange={e => setForm({...form, assignedTo: e.target.value})}>
+                                    <option value="">— Select —</option>
+                                    {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Assigned By</label>
+                                <select className="form-input" value={form.assignedBy} onChange={e => setForm({...form, assignedBy: e.target.value})}>
+                                    <option value="">— Select —</option>
+                                    {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Target Date *</label>
+                            <input type="date" className="form-input" value={form.targetDate} onChange={e => setForm({...form, targetDate: e.target.value})} />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Priority</label>
+                            <div className="priority-tap-row">
+                                {['Low','Medium','High','Urgent'].map(p => (
+                                    <div key={p} className={`priority-tap task-badge ${getPriorityClass(p)}${form.priority === p ? ' selected' : ''}`} onClick={() => setForm({...form, priority: p})}>{p}</div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Status</label>
+                            <select className="form-input" value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
+                                {['Open','In Progress','Done','Blocked'].map(s => <option key={s}>{s}</option>)}
+                            </select>
+                        </div>
+                        <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} disabled={saving || !form.title.trim() || !form.targetDate} onClick={async () => {
+                            setSaving(true);
+                            const newTask = { ...form, extensions: [], updates: [], lesson: '', outcome: '' };
+                            const id = await FirebaseTasks.addTask(newTask);
+                            if (id) {
+                                const created = { id, ...newTask, createdAt: new Date().toISOString() };
+                                setTasks(prev => [created, ...prev]);
+                                setForm({ title: '', description: '', assignedTo: '', assignedBy: '', targetDate: '', priority: 'Medium', status: 'Open' });
+                                setView('board');
+                            }
+                            setSaving(false);
+                        }}>{saving ? 'Saving…' : 'Save Task'}</button>
+                    </div>
+                </div>
+            );
+
+            // ---- Detail View ----
+            const DetailView = () => {
+                if (!selectedTask) return null;
+                const task = tasks.find(t => t.id === selectedTask.id) || selectedTask;
+                const overdue = isOverdue(task);
+
+                const saveStatus = async (newStatus) => {
+                    setDetailStatus(newStatus);
+                    await FirebaseTasks.updateTask(task.id, { status: newStatus });
+                    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
+                };
+
+                const extendDate = async () => {
+                    const newDate = prompt('New target date (YYYY-MM-DD):');
+                    if (!newDate) return;
+                    const reason = prompt('Reason for extension:');
+                    if (!reason) return;
+                    const ext = { from: task.targetDate, to: newDate, reason, at: new Date().toISOString() };
+                    const extensions = [...(task.extensions || []), ext];
+                    await FirebaseTasks.updateTask(task.id, { targetDate: newDate, extensions });
+                    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, targetDate: newDate, extensions } : t));
+                    setSelectedTask(prev => ({ ...prev, targetDate: newDate, extensions }));
+                };
+
+                const addNote = async () => {
+                    if (!noteText.trim()) return;
+                    const note = { text: noteText.trim(), by: myName || 'Unknown', at: new Date().toISOString() };
+                    const updates = [...(task.updates || []), note];
+                    await FirebaseTasks.updateTask(task.id, { updates });
+                    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, updates } : t));
+                    setSelectedTask(prev => ({ ...prev, updates }));
+                    setNoteText('');
+                };
+
+                const saveLessonOutcome = async () => {
+                    await FirebaseTasks.updateTask(task.id, { lesson: lessonText, outcome: outcomeText });
+                    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, lesson: lessonText, outcome: outcomeText } : t));
+                };
+
+                const deleteTask = async () => {
+                    const pwd = prompt('Enter admin password to delete this task:');
+                    if (pwd !== 'admin123') { alert('Wrong password'); return; }
+                    if (!confirm('Delete this task permanently?')) return;
+                    await FirebaseTasks.deleteTask(task.id);
+                    setTasks(prev => prev.filter(t => t.id !== task.id));
+                    setView('board');
+                };
+
+                return (
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                            <button className="btn btn-secondary" onClick={() => setView('board')}>← Back</button>
+                            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, flex: 1 }}>{task.title}</h2>
+                        </div>
+
+                        <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                                <span className={`task-badge ${getPriorityClass(task.priority)}`}>{task.priority}</span>
+                                <span className={`task-badge ${getStatusClass(detailStatus)}`}>{detailStatus}</span>
+                                {overdue && <span className="task-badge priority-urgent">Overdue</span>}
+                            </div>
+
+                            {task.description && <p style={{ color: 'var(--text-secondary)', marginBottom: 12, fontSize: 14 }}>{task.description}</p>}
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13, marginBottom: 16 }}>
+                                <div><span style={{ color: 'var(--text-muted)' }}>Assigned To:</span> <strong>{task.assignedTo || '—'}</strong></div>
+                                <div><span style={{ color: 'var(--text-muted)' }}>Assigned By:</span> <strong>{task.assignedBy || '—'}</strong></div>
+                                <div><span style={{ color: 'var(--text-muted)' }}>Due Date:</span> <strong style={{ color: overdue ? '#EF4444' : 'inherit' }}>{fmtShortDate(task.targetDate)}</strong></div>
+                                <div><span style={{ color: 'var(--text-muted)' }}>Created:</span> <strong>{task.createdAt ? fmtShortDate(task.createdAt) : '—'}</strong></div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                <label style={{ fontSize: 13, fontWeight: 600 }}>Status:</label>
+                                <select className="form-input" style={{ width: 'auto', padding: '6px 10px' }} value={detailStatus} onChange={e => saveStatus(e.target.value)}>
+                                    {['Open','In Progress','Done','Blocked'].map(s => <option key={s}>{s}</option>)}
+                                </select>
+                                <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 13 }} onClick={extendDate}>Extend Date</button>
+                            </div>
+                        </div>
+
+                        {task.extensions && task.extensions.length > 0 && (
+                            <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+                                <div style={{ fontWeight: 700, marginBottom: 10 }}>Date Extensions ({task.extensions.length})</div>
+                                {task.extensions.map((ext, i) => (
+                                    <div key={i} className="ext-entry">
+                                        <strong>{fmtShortDate(ext.from)} → {fmtShortDate(ext.to)}</strong>: {ext.reason}
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{ext.at ? formatDate(ext.at) : ''}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {detailStatus === 'Done' && (
+                            <div className="card" style={{ padding: 16, marginBottom: 16, background: '#F0FDF4' }}>
+                                <div style={{ fontWeight: 700, marginBottom: 10, color: '#065F46' }}>Closure Notes</div>
+                                <div className="form-group">
+                                    <label className="form-label">Lesson Learned</label>
+                                    <textarea className="form-input" rows={2} value={lessonText} onChange={e => setLessonText(e.target.value)} placeholder="What did we learn?" style={{ resize: 'vertical' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Outcome</label>
+                                    <textarea className="form-input" rows={2} value={outcomeText} onChange={e => setOutcomeText(e.target.value)} placeholder="What was achieved?" style={{ resize: 'vertical' }} />
+                                </div>
+                                <button className="btn btn-primary" style={{ padding: '8px 20px' }} onClick={saveLessonOutcome}>Save Closure Notes</button>
+                            </div>
+                        )}
+
+                        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+                            <div style={{ fontWeight: 700, marginBottom: 12 }}>Updates / Notes</div>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                                <input className="form-input" placeholder="Add a note…" value={noteText} onChange={e => setNoteText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addNote(); }} style={{ flex: 1 }} />
+                                <button className="btn btn-primary" style={{ padding: '8px 16px' }} onClick={addNote}>Add</button>
+                            </div>
+                            {task.updates && task.updates.length > 0 ? (
+                                [...task.updates].reverse().map((u, i) => (
+                                    <div key={i} className="update-entry">
+                                        <div>{u.text}</div>
+                                        <div className="update-meta">{u.by} · {u.at ? formatDate(u.at) : ''}</div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No updates yet</div>
+                            )}
+                        </div>
+
+                        <div style={{ textAlign: 'right', paddingBottom: 24 }}>
+                            <button className="btn" style={{ background: '#FEE2E2', color: '#991B1B', border: 'none' }} onClick={deleteTask}>Delete Task</button>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div>
+                    {view === 'board' && <BoardView />}
+                    {view === 'form' && <FormView />}
+                    {view === 'detail' && <DetailView />}
+                </div>
+            );
+        };
+
         // ============ MAIN APP ============
         const App = () => {
             const [page, setPage] = useState('dashboard');
@@ -5871,6 +6388,7 @@ ${componentResults.map(c => {
                     case 'estimator': return <ComponentEstimator products={products} items={items} bom={bom} subProducts={subProducts} />;
                     case 'inventory': return <InventoryManagement items={items} products={products} bom={bom} subProducts={subProducts} />;
                     case 'inspection': return <SiteInspection products={products} />;
+                    case 'tasks': return <TeamTasks />;
                     default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                 }
             };
@@ -5902,6 +6420,9 @@ ${componentResults.map(c => {
                             </div>
                             <div className={`nav-item ${page === 'inspection' ? 'active' : ''}`} onClick={() => navigate('inspection')}>
                                 <Icons.Clipboard /> Site Inspections
+                            </div>
+                            <div className={`nav-item ${page === 'tasks' ? 'active' : ''}`} onClick={() => navigate('tasks')}>
+                                <Icons.CheckList /> Team Tasks
                             </div>
 
                             {/* Admin Section - Password Protected */}
