@@ -6384,41 +6384,41 @@ ${componentResults.map(c => {
                 } catch { return d; }
             };
 
+            const weekGroups = useMemo(() => {
+                if (filter !== 'week') return null;
+                const overdue = filteredTasks.filter(t => isOverdue(t));
+                const inProgress = filteredTasks.filter(t => !isOverdue(t) && t.status === 'In Progress');
+                const done = filteredTasks.filter(t => t.status === 'Done');
+                const blocked = filteredTasks.filter(t => t.status === 'Blocked');
+                return { overdue, inProgress, done, blocked };
+            }, [filteredTasks, filter]);
+
+            const renderTaskCard = (task) => {
+                const latestUpdate = task.updates && task.updates.length > 0 ? task.updates[task.updates.length - 1] : null;
+                const overdue = isOverdue(task);
+                return (
+                    <div
+                        key={task.id}
+                        className={`task-card priority-${(task.priority || 'medium').toLowerCase()}${overdue ? ' overdue' : ''}`}
+                        onClick={() => { setSelectedTask(task); setDetailStatus(task.status); setLessonText(task.lesson || ''); setOutcomeText(task.outcome || ''); setView('detail'); }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                            <div style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{task.title}</div>
+                            <span className={`task-badge ${getPriorityClass(task.priority)}`} style={{ marginLeft: 8 }}>{task.priority}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                            {task.assignedTo && <span className="task-badge" style={{ background: '#EEF2FF', color: '#4338CA' }}>{task.assignedTo}</span>}
+                            <span className={`task-badge ${getStatusClass(task.status)}`}>{task.status}</span>
+                            {task.targetDate && <span className="task-badge" style={{ background: overdue ? '#FEE2E2' : '#F3F4F6', color: overdue ? '#991B1B' : '#374151' }}>Due {fmtShortDate(task.targetDate)}</span>}
+                            {task.extensions && task.extensions.length > 0 && <span className="task-badge" style={{ background: '#FFFBEB', color: '#92400E' }}>+{task.extensions.length} ext</span>}
+                        </div>
+                        {latestUpdate && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>"{latestUpdate.text}"</div>}
+                    </div>
+                );
+            };
+
             // ---- Board View ----
             const renderBoardView = () => {
-                const weekGroups = useMemo(() => {
-                    if (filter !== 'week') return null;
-                    const overdue = filteredTasks.filter(t => isOverdue(t));
-                    const inProgress = filteredTasks.filter(t => !isOverdue(t) && t.status === 'In Progress');
-                    const done = filteredTasks.filter(t => t.status === 'Done');
-                    const blocked = filteredTasks.filter(t => t.status === 'Blocked');
-                    return { overdue, inProgress, done, blocked };
-                }, [filteredTasks, filter]);
-
-                const renderCard = (task) => {
-                    const latestUpdate = task.updates && task.updates.length > 0 ? task.updates[task.updates.length - 1] : null;
-                    const overdue = isOverdue(task);
-                    return (
-                        <div
-                            key={task.id}
-                            className={`task-card priority-${(task.priority || 'medium').toLowerCase()}${overdue ? ' overdue' : ''}`}
-                            onClick={() => { setSelectedTask(task); setDetailStatus(task.status); setLessonText(task.lesson || ''); setOutcomeText(task.outcome || ''); setView('detail'); }}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                                <div style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{task.title}</div>
-                                <span className={`task-badge ${getPriorityClass(task.priority)}`} style={{ marginLeft: 8 }}>{task.priority}</span>
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                                {task.assignedTo && <span className="task-badge" style={{ background: '#EEF2FF', color: '#4338CA' }}>{task.assignedTo}</span>}
-                                <span className={`task-badge ${getStatusClass(task.status)}`}>{task.status}</span>
-                                {task.targetDate && <span className="task-badge" style={{ background: overdue ? '#FEE2E2' : '#F3F4F6', color: overdue ? '#991B1B' : '#374151' }}>Due {fmtShortDate(task.targetDate)}</span>}
-                                {task.extensions && task.extensions.length > 0 && <span className="task-badge" style={{ background: '#FFFBEB', color: '#92400E' }}>+{task.extensions.length} ext</span>}
-                            </div>
-                            {latestUpdate && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>"{latestUpdate.text}"</div>}
-                        </div>
-                    );
-                };
-
                 return (
                     <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -6438,10 +6438,10 @@ ${componentResults.map(c => {
                             <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading tasks…</div>
                         ) : filter === 'week' && weekGroups ? (
                             <div>
-                                {weekGroups.overdue.length > 0 && <div className="meeting-group"><div className="meeting-group-title">⚠️ Overdue</div>{weekGroups.overdue.map(renderCard)}</div>}
-                                {weekGroups.inProgress.length > 0 && <div className="meeting-group"><div className="meeting-group-title">🔄 In Progress</div>{weekGroups.inProgress.map(renderCard)}</div>}
-                                {weekGroups.done.length > 0 && <div className="meeting-group"><div className="meeting-group-title">✅ Done This Week</div>{weekGroups.done.map(renderCard)}</div>}
-                                {weekGroups.blocked.length > 0 && <div className="meeting-group"><div className="meeting-group-title">🚫 Blocked</div>{weekGroups.blocked.map(renderCard)}</div>}
+                                {weekGroups.overdue.length > 0 && <div className="meeting-group"><div className="meeting-group-title">⚠️ Overdue</div>{weekGroups.overdue.map(renderTaskCard)}</div>}
+                                {weekGroups.inProgress.length > 0 && <div className="meeting-group"><div className="meeting-group-title">🔄 In Progress</div>{weekGroups.inProgress.map(renderTaskCard)}</div>}
+                                {weekGroups.done.length > 0 && <div className="meeting-group"><div className="meeting-group-title">✅ Done This Week</div>{weekGroups.done.map(renderTaskCard)}</div>}
+                                {weekGroups.blocked.length > 0 && <div className="meeting-group"><div className="meeting-group-title">🚫 Blocked</div>{weekGroups.blocked.map(renderTaskCard)}</div>}
                                 {weekGroups.overdue.length === 0 && weekGroups.inProgress.length === 0 && weekGroups.done.length === 0 && weekGroups.blocked.length === 0 && (
                                     <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No tasks for this week</div>
                                 )}
@@ -6452,7 +6452,7 @@ ${componentResults.map(c => {
                                 <div>No tasks found</div>
                             </div>
                         ) : (
-                            filteredTasks.map(renderCard)
+                            filteredTasks.map(renderTaskCard)
                         )}
 
                         {/* Team Members Section */}
