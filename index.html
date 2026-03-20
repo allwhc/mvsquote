@@ -4708,7 +4708,8 @@ ${componentResults.map(c => {
             // Form state for Add Stock IN/OUT
             const [form, setForm] = useState({
                 itemCode: '', qty: '', reason: '', vendor: '', cost: '',
-                billNumber: '', reference: '', notes: ''
+                billNumber: '', reference: '', notes: '',
+                transactionDate: new Date().toISOString().split('T')[0]
             });
 
             // Production form
@@ -4764,10 +4765,11 @@ ${componentResults.map(c => {
                     billNumber: form.billNumber || '',
                     reference: form.reference || '',
                     notes: form.notes || '',
+                    transactionDate: form.transactionDate || new Date().toISOString().split('T')[0],
                     collection: 'raw_materials'
                 });
 
-                setForm({ itemCode: '', qty: '', reason: '', vendor: '', cost: '', billNumber: '', reference: '', notes: '' });
+                setForm({ itemCode: '', qty: '', reason: '', vendor: '', cost: '', billNumber: '', reference: '', notes: '', transactionDate: new Date().toISOString().split('T')[0] });
                 setShowAddModal(false);
                 await refreshTransactions();
             };
@@ -4840,7 +4842,8 @@ ${componentResults.map(c => {
                     cost: txn.cost || '',
                     billNumber: txn.billNumber || '',
                     reference: txn.reference || '',
-                    notes: txn.notes || ''
+                    notes: txn.notes || '',
+                    transactionDate: txn.transactionDate || (txn.createdAt ? txn.createdAt.split('T')[0] : new Date().toISOString().split('T')[0])
                 });
                 setShowAddModal(true);
             };
@@ -4855,13 +4858,14 @@ ${componentResults.map(c => {
                     cost: Number(form.cost) || 0,
                     billNumber: form.billNumber || '',
                     reference: form.reference || '',
-                    notes: form.notes || ''
+                    notes: form.notes || '',
+                    transactionDate: form.transactionDate || new Date().toISOString().split('T')[0]
                 };
                 await FirebaseInventory.updateTransaction(editingTxn.id, updates);
                 await refreshTransactions();
                 setShowAddModal(false);
                 setEditingTxn(null);
-                setForm({ itemCode: '', qty: '', reason: '', vendor: '', cost: '', billNumber: '', reference: '', notes: '' });
+                setForm({ itemCode: '', qty: '', reason: '', vendor: '', cost: '', billNumber: '', reference: '', notes: '', transactionDate: new Date().toISOString().split('T')[0] });
             };
 
             // Filtered transactions for history tab
@@ -5010,7 +5014,12 @@ ${componentResults.map(c => {
                                     </div>
                                     {filteredTxns.map(txn => (
                                         <div key={txn.id} className="txn-row">
-                                            <span style={{ fontSize: '12px' }}>{txn.createdAt ? formatDate(txn.createdAt) : '-'}</span>
+                                            <span style={{ fontSize: '12px' }}>
+                                                <div>{txn.transactionDate ? formatDate(txn.transactionDate) : (txn.createdAt ? formatDate(txn.createdAt) : '-')}</div>
+                                                {txn.transactionDate && txn.createdAt && txn.transactionDate !== txn.createdAt?.split?.('T')?.[0] && (
+                                                    <div style={{ fontSize: '10px', color: '#F59E0B' }} title="Entry date differs from transaction date">✎ backdated</div>
+                                                )}
+                                            </span>
                                             <span className={`txn-badge ${txn.type === 'IN' ? 'in' : 'out'}`}>{txn.type}</span>
                                             <span style={{ fontWeight: 700 }}>{txn.qty}</span>
                                             <span>
@@ -5041,7 +5050,7 @@ ${componentResults.map(c => {
                     )}
 
                     {/* Add / Edit Stock Modal */}
-                    <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setEditingTxn(null); setForm({ itemCode: '', qty: '', reason: '', vendor: '', cost: '', billNumber: '', reference: '', notes: '' }); }}
+                    <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setEditingTxn(null); setForm({ itemCode: '', qty: '', reason: '', vendor: '', cost: '', billNumber: '', reference: '', notes: '', transactionDate: new Date().toISOString().split('T')[0] }); }}
                         title={editingTxn ? `Edit Transaction (${addType === 'IN' ? 'Stock In' : 'Stock Out'})` : addType === 'IN' ? 'Stock In' : 'Stock Out'} size=""
                         footer={editingTxn
                             ? <button className="btn btn-primary" onClick={handleSaveEdit} disabled={!form.qty || !form.reason}>Save Changes</button>
@@ -5069,6 +5078,11 @@ ${componentResults.map(c => {
                                 <label className="form-label">Quantity *</label>
                                 <input type="number" className="form-input" min="1" value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })}
                                     placeholder={addType === 'OUT' && form.itemCode ? `Max: ${stock[form.itemCode]?.current || 0}` : 'Qty'} />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Transaction Date</label>
+                                <input type="date" className="form-input" value={form.transactionDate} max={new Date().toISOString().split('T')[0]}
+                                    onChange={e => setForm({ ...form, transactionDate: e.target.value })} />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Reason *</label>
