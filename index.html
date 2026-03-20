@@ -1287,6 +1287,13 @@
                 localStorage.setItem('mvs_inventory', JSON.stringify(cached.filter(t => t.id !== id)));
             },
 
+            // Edit a transaction
+            async updateTransaction(id, data) {
+                await db.collection('inventory_transactions').doc(id).update(data);
+                const cached = JSON.parse(localStorage.getItem('mvs_inventory') || '[]');
+                localStorage.setItem('mvs_inventory', JSON.stringify(cached.map(t => t.id === id ? { ...t, ...data } : t)));
+            },
+
             // Calculate stock for all items
             calculateStock(transactions) {
                 const stock = {};
@@ -4817,6 +4824,46 @@ ${componentResults.map(c => {
                 await refreshTransactions();
             };
 
+            const [editingTxn, setEditingTxn] = useState(null);
+
+            const handleOpenEdit = (txn) => {
+                const pwd = prompt('Enter admin password to edit this transaction:');
+                if (!pwd) return;
+                if (pwd !== 'admin123') { alert('Incorrect password.'); return; }
+                setEditingTxn(txn);
+                setAddType(txn.type);
+                setForm({
+                    itemCode: txn.itemCode,
+                    qty: txn.qty,
+                    reason: txn.reason,
+                    vendor: txn.vendor || '',
+                    cost: txn.cost || '',
+                    billNumber: txn.billNumber || '',
+                    reference: txn.reference || '',
+                    notes: txn.notes || ''
+                });
+                setShowAddModal(true);
+            };
+
+            const handleSaveEdit = async () => {
+                if (!editingTxn) return;
+                if (!form.qty || !form.reason) { alert('Quantity and reason are required.'); return; }
+                const updates = {
+                    qty: Number(form.qty),
+                    reason: form.reason,
+                    vendor: form.vendor || '',
+                    cost: Number(form.cost) || 0,
+                    billNumber: form.billNumber || '',
+                    reference: form.reference || '',
+                    notes: form.notes || ''
+                };
+                await FirebaseInventory.updateTransaction(editingTxn.id, updates);
+                await refreshTransactions();
+                setShowAddModal(false);
+                setEditingTxn(null);
+                setForm({ itemCode: '', qty: '', reason: '', vendor: '', cost: '', billNumber: '', reference: '', notes: '' });
+            };
+
             // Filtered transactions for history tab
             const filteredTxns = useMemo(() => {
                 let txns = transactions.filter(t => t.collection !== 'finished_goods');
@@ -4980,6 +5027,9 @@ ${componentResults.map(c => {
                                                 {txn.cost > 0 && <div>{formatCurrency(txn.cost)}/unit</div>}
                                                 {txn.notes && <div>{txn.notes}</div>}
                                             </span>
+                                            <button className="btn btn-secondary btn-sm btn-icon" onClick={() => handleOpenEdit(txn)} title="Edit" style={{ marginRight: '4px' }}>
+                                                <Icons.Edit />
+                                            </button>
                                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDeleteTxn(txn.id)} title="Delete">
                                                 <Icons.Trash />
                                             </button>
@@ -4990,22 +5040,30 @@ ${componentResults.map(c => {
                         </div>
                     )}
 
-                    {/* Add Stock IN/OUT Modal */}
-                    <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title={addType === 'IN' ? 'Stock In' : 'Stock Out'} size=""
-                        footer={<button className="btn btn-primary" onClick={handleAddTransaction} disabled={!form.itemCode || !form.qty || !form.reason}>Save</button>}>
+                    {/* Add / Edit Stock Modal */}
+                    <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setEditingTxn(null); setForm({ itemCode: '', qty: '', reason: '', vendor: '', cost: '', billNumber: '', reference: '', notes: '' }); }}
+                        title={editingTxn ? `Edit Transaction (${addType === 'IN' ? 'Stock In' : 'Stock Out'})` : addType === 'IN' ? 'Stock In' : 'Stock Out'} size=""
+                        footer={editingTxn
+                            ? <button className="btn btn-primary" onClick={handleSaveEdit} disabled={!form.qty || !form.reason}>Save Changes</button>
+                            : <button className="btn btn-primary" onClick={handleAddTransaction} disabled={!form.itemCode || !form.qty || !form.reason}>Save</button>
+                        }>
                         <div className="inv-form-grid">
                             <div className="form-group full-width">
                                 <label className="form-label">Item * (only registered items)</label>
-                                <SearchableSelect
-                                    options={items}
-                                    value={form.itemCode}
-                                    onChange={val => setForm({ ...form, itemCode: val })}
-                                    placeholder="Search items by name or code..."
-                                    renderOption={(i) => {
-                                        const avail = stock[i.code]?.current || 0;
-                                        return `${i.code} - ${i.name}${addType === 'OUT' ? ` [Stock: ${avail}]` : ''}`;
-                                    }}
-                                />
+                                {editingTxn ? (
+                                    <input className="form-input" value={`${editingTxn.itemCode} — ${editingTxn.itemName}`} disabled style={{ background: 'var(--bg)', color: 'var(--text-muted)' }} />
+                                ) : (
+                                    <SearchableSelect
+                                        options={items}
+                                        value={form.itemCode}
+                                        onChange={val => setForm({ ...form, itemCode: val })}
+                                        placeholder="Search items by name or code..."
+                                        renderOption={(i) => {
+                                            const avail = stock[i.code]?.current || 0;
+                                            return `${i.code} - ${i.name}${addType === 'OUT' ? ` [Stock: ${avail}]` : ''}`;
+                                        }}
+                                    />
+                                )}
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Quantity *</label>
