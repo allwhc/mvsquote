@@ -864,7 +864,21 @@
             ITEM_CATEGORIES: ['Electronics', 'Mechanical', 'Sensors', 'Cables & Wires', 'Enclosure', 'PCB', 'Packaging', 'Hardware', 'Other'],
             // Password hash (SHA-256 of actual password) - Change this hash by running: 
             // crypto.subtle.digest('SHA-256', new TextEncoder().encode('YOUR_PASSWORD')).then(h => console.log(Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('')))
-            ADMIN_HASH: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f' // Default: "password123"
+            ADMIN_HASH: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // Default: "password123"
+            STANDARD_TERMS: [
+                { id: 'payment', category: 'Payment', text: '100% advance payment required to confirm the order. Accepted modes: Bank Transfer / UPI.' },
+                { id: 'delivery', category: 'Delivery & Installation', text: 'Estimated delivery: 7–10 working days from order confirmation.' },
+                { id: 'installation', category: 'Delivery & Installation', text: 'Basic installation guidance provided remotely (video call / documentation). On-site installation quoted separately.' },
+                { id: 'warranty_hw', category: 'Warranty', text: 'Hardware warranty: 1 year from the date of delivery.' },
+                { id: 'warranty_covers', category: 'Warranty', text: 'Warranty covers manufacturing defects and component failures under normal operating conditions.' },
+                { id: 'warranty_excludes', category: 'Warranty', text: 'Warranty does not cover: physical damage, improper installation, power surges, misuse, unauthorised modifications, or natural calamities.' },
+                { id: 'warranty_sensor', category: 'Warranty', text: 'Sensor degradation under harsh water chemistry (alkaline, acidic, or chemically treated water) is not covered under warranty.' },
+                { id: 'warranty_void', category: 'Warranty', text: 'Warranty is void if the device is opened, tampered with, or serviced by unauthorised personnel.' },
+                { id: 'warranty_amc', category: 'Warranty', text: 'Post-warranty support and Annual Maintenance Contract (AMC) plans available on request.' },
+                { id: 'prices_tax', category: 'General', text: 'All prices are inclusive of applicable taxes.' },
+                { id: 'validity', category: 'General', text: 'This quotation is valid for 30 days from the date of issue.' },
+                { id: 'support', category: 'General', text: 'Technical support available via phone and email during business hours (Mon–Sat, 10 AM – 7 PM).' }
+            ]
         };
 
         // ============ FIREBASE INITIALIZATION ============
@@ -3232,9 +3246,30 @@
             const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
             const [quoteItems, setQuoteItems] = useState([]);
             const [notes, setNotes] = useState('');
+            const [selectedTerms, setSelectedTerms] = useState([]);
+            const [customTerm, setCustomTerm] = useState('');
             const [selectedProduct, setSelectedProduct] = useState('');
             const [selectedBrand, setSelectedBrand] = useState('MV Solutions');
             const [includeGST, setIncludeGST] = useState(true);
+
+            const toggleTerm = (term) => {
+                setSelectedTerms(prev => {
+                    const exists = prev.find(t => t.id === term.id);
+                    if (exists) return prev.filter(t => t.id !== term.id);
+                    return [...prev, { id: term.id, text: term.text }];
+                });
+            };
+            const updateTermText = (id, newText) => {
+                setSelectedTerms(prev => prev.map(t => t.id === id ? { ...t, text: newText } : t));
+            };
+            const addCustomTerm = () => {
+                if (!customTerm.trim()) return;
+                setSelectedTerms(prev => [...prev, { id: 'custom_' + Date.now(), text: customTerm.trim() }]);
+                setCustomTerm('');
+            };
+            const removeTermById = (id) => {
+                setSelectedTerms(prev => prev.filter(t => t.id !== id));
+            };
 
             const addItem = () => {
                 if (!selectedProduct) return;
@@ -3455,9 +3490,13 @@
                     summaryOffset = 14;
                 }
 
-                // Notes - placed below the summary block with bullet points
+                // Terms & Conditions - combine selected standard terms + free-text notes
+                const allTermLines = [
+                    ...selectedTerms.map(t => t.text),
+                    ...(notes ? notes.split('\n').filter(l => l.trim()) : [])
+                ];
                 let notesEndY = finalY + summaryOffset;
-                if (notes) {
+                if (allTermLines.length > 0) {
                     const notesStartY = finalY + summaryOffset + 4;
                     doc.setTextColor(...brandColor);
                     doc.setFont('helvetica', 'bold');
@@ -3466,9 +3505,9 @@
                     doc.setFont('helvetica', 'normal');
                     doc.setFontSize(9);
                     doc.setTextColor(60);
-                    const bulletLines = notes.split('\n').filter(l => l.trim());
                     let bulletY = notesStartY + 7;
-                    bulletLines.forEach(line => {
+                    allTermLines.forEach(line => {
+                        if (bulletY > 270) { doc.addPage(); bulletY = 20; }
                         const wrapped = doc.splitTextToSize(line.trim(), 165);
                         doc.text('\u2022', 17, bulletY);
                         doc.text(wrapped, 22, bulletY);
@@ -3528,6 +3567,7 @@
                     grandTotal,
                     includeGST,
                     notes,
+                    terms: selectedTerms,
                     status: 'sent'
                 };
 
@@ -3670,7 +3710,46 @@
 
                                     <div className="form-group" style={{ marginTop: '16px' }}>
                                         <label className="form-label">Terms & Conditions</label>
-                                        <textarea className="form-textarea" rows="2" placeholder="e.g., Warranty 1 year, Delivery within 7 days..." value={notes} onChange={e => setNotes(e.target.value)} />
+                                        {/* Standard clause selector grouped by category */}
+                                        <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', marginBottom: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                                            {Object.entries(CONFIG.STANDARD_TERMS.reduce((acc, t) => { (acc[t.category] = acc[t.category] || []).push(t); return acc; }, {})).map(([cat, terms]) => (
+                                                <div key={cat} style={{ marginBottom: '8px' }}>
+                                                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>{cat}</div>
+                                                    {terms.map(term => {
+                                                        const isSelected = selectedTerms.some(t => t.id === term.id);
+                                                        return (
+                                                            <label key={term.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '4px 0', cursor: 'pointer', fontSize: '13px', color: isSelected ? 'var(--text)' : 'var(--text-muted)' }}>
+                                                                <input type="checkbox" checked={isSelected} onChange={() => toggleTerm(term)} style={{ marginTop: '2px', flexShrink: 0 }} />
+                                                                <span>{term.text}</span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {/* Selected terms - editable */}
+                                        {selectedTerms.length > 0 && (
+                                            <div style={{ marginBottom: '8px' }}>
+                                                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>SELECTED ({selectedTerms.length}) — click to edit</div>
+                                                {selectedTerms.map((t, idx) => (
+                                                    <div key={t.id} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', marginBottom: '4px' }}>
+                                                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', flexShrink: 0 }}>{idx + 1}.</span>
+                                                        <textarea className="form-textarea" rows="1" value={t.text} onChange={e => updateTermText(t.id, e.target.value)}
+                                                            style={{ fontSize: '12px', flex: 1, resize: 'vertical', minHeight: '30px' }} />
+                                                        <button type="button" onClick={() => removeTermById(t.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '16px', flexShrink: 0, padding: '4px' }}>×</button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {/* Custom term */}
+                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                            <input className="form-input" value={customTerm} onChange={e => setCustomTerm(e.target.value)} placeholder="Add custom condition..."
+                                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomTerm(); } }}
+                                                style={{ flex: 1, fontSize: '12px' }} />
+                                            <button type="button" className="btn btn-sm" onClick={addCustomTerm} style={{ flexShrink: 0 }}>+ Add</button>
+                                        </div>
+                                        {/* Legacy free-text notes */}
+                                        <textarea className="form-textarea" rows="2" placeholder="Additional notes (optional)..." value={notes} onChange={e => setNotes(e.target.value)} style={{ marginTop: '8px', fontSize: '12px' }} />
                                     </div>
                                 </div>
                             </div>
@@ -3923,9 +4002,13 @@
                     summaryOffset = 14;
                 }
 
-                // Notes - placed below the summary block with bullet points
+                // Terms & Conditions - combine saved terms + free-text notes
+                const docTermLines = [
+                    ...(doc.terms ? doc.terms.map(t => t.text) : []),
+                    ...(doc.notes ? doc.notes.split('\n').filter(l => l.trim()) : [])
+                ];
                 let notesEndY = finalY + summaryOffset;
-                if (doc.notes) {
+                if (docTermLines.length > 0) {
                     const notesStartY = finalY + summaryOffset + 4;
                     pdf.setTextColor(...brandColor);
                     pdf.setFont('helvetica', 'bold');
@@ -3934,9 +4017,9 @@
                     pdf.setFont('helvetica', 'normal');
                     pdf.setFontSize(9);
                     pdf.setTextColor(60);
-                    const bulletLines = doc.notes.split('\n').filter(l => l.trim());
                     let bulletY = notesStartY + 7;
-                    bulletLines.forEach(line => {
+                    docTermLines.forEach(line => {
+                        if (bulletY > 270) { pdf.addPage(); bulletY = 20; }
                         const wrapped = pdf.splitTextToSize(line.trim(), 165);
                         pdf.text('\u2022', 17, bulletY);
                         pdf.text(wrapped, 22, bulletY);
