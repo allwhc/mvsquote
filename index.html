@@ -946,6 +946,20 @@
                 await db.collection('quotations').doc(firebaseId).delete();
             },
 
+            // Update an existing quotation (for edit feature)
+            async updateQuotation(firebaseId, quotation) {
+                try {
+                    await db.collection('quotations').doc(firebaseId).update({
+                        ...quotation,
+                        lastEditedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return true;
+                } catch (e) {
+                    console.error('Firebase quotation update failed:', e);
+                    return false;
+                }
+            },
+
             // Update quotation status
             async updateStatus(firebaseId, newStatus) {
                 try {
@@ -3242,7 +3256,7 @@
         };
 
         // ============ QUOTATION BUILDER ============
-        const QuotationBuilder = ({ products, items, quotations, setQuotations, bom, subProducts }) => {
+        const QuotationBuilder = ({ products, items, quotations, setQuotations, bom, subProducts, editingDoc, setEditingDoc }) => {
             const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
             const [quoteItems, setQuoteItems] = useState([]);
             const [notes, setNotes] = useState('');
@@ -3251,6 +3265,30 @@
             const [selectedProduct, setSelectedProduct] = useState('');
             const [selectedBrand, setSelectedBrand] = useState('MV Solutions');
             const [includeGST, setIncludeGST] = useState(true);
+            const [discountEnabled, setDiscountEnabled] = useState(false);
+            const [discountType, setDiscountType] = useState('percentage');
+            const [discountValue, setDiscountValue] = useState(0);
+
+            // Load editingDoc data when set
+            React.useEffect(() => {
+                if (editingDoc) {
+                    setCustomer(editingDoc.customer || { name: '', phone: '', address: '' });
+                    setQuoteItems(editingDoc.items || []);
+                    setNotes(editingDoc.notes || '');
+                    setSelectedTerms(editingDoc.terms || []);
+                    setSelectedBrand(editingDoc.brand || 'MV Solutions');
+                    setIncludeGST(editingDoc.includeGST !== false);
+                    if (editingDoc.discount && editingDoc.discount.value > 0) {
+                        setDiscountEnabled(true);
+                        setDiscountType(editingDoc.discount.type || 'percentage');
+                        setDiscountValue(editingDoc.discount.value || 0);
+                    } else {
+                        setDiscountEnabled(false);
+                        setDiscountType('percentage');
+                        setDiscountValue(0);
+                    }
+                }
+            }, [editingDoc]);
 
             const toggleTerm = (term) => {
                 setSelectedTerms(prev => {
@@ -3325,7 +3363,11 @@
             }, 0);
 
             const gst = includeGST ? calculateGST(subtotal) : 0;
-            const grandTotal = subtotal + gst;
+            const grossTotal = subtotal + gst;
+            const discountAmount = discountEnabled && discountValue > 0
+                ? (discountType === 'percentage' ? Math.round(grossTotal * discountValue / 100) : Math.round(Number(discountValue)))
+                : 0;
+            const grandTotal = grossTotal - discountAmount;
 
             // Check if any item is below selling price
             const hasWarning = quoteItems.some(item => calculateNetPrice(item) < item.minPrice);
@@ -3382,8 +3424,8 @@
                 doc.text(contactLine, 15, 43);
 
                 // Document Info
-                const docNumber = generateDocNumber(brand.prefix + (type === 'quotation' ? 'QT' : 'INV'), quotations.length);
-                const today = formatDate(new Date());
+                const docNumber = editingDoc ? editingDoc.number : generateDocNumber(brand.prefix + (type === 'quotation' ? 'QT' : 'INV'), quotations.length);
+                const today = editingDoc ? formatDate(editingDoc.date) : formatDate(new Date());
 
                 doc.setTextColor(...brandColor);
                 doc.setFontSize(18);
@@ -3465,29 +3507,70 @@
                     doc.setFont('helvetica', 'bold');
                     doc.text(formatCurrencyPDF(gst), 195, finalY + 8, { align: 'right' });
 
+                    let totalLineY = finalY + 13;
+                    let totalLabelY = finalY + 20;
+
+                    if (discountAmount > 0) {
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(11);
+                        doc.setTextColor(80);
+                        doc.text('Gross Total:', 135, finalY + 16);
+                        doc.setTextColor(30);
+                        doc.setFont('helvetica', 'bold');
+                        doc.text(formatCurrencyPDF(grossTotal), 195, finalY + 16, { align: 'right' });
+
+                        doc.setFont('helvetica', 'normal');
+                        doc.setTextColor(220, 38, 38);
+                        const discLabel = discountType === 'percentage' ? 'Discount (' + discountValue + '%):' : 'Discount:';
+                        doc.text(discLabel, 135, finalY + 24);
+                        doc.setFont('helvetica', 'bold');
+                        doc.text('- ' + formatCurrencyPDF(discountAmount), 195, finalY + 24, { align: 'right' });
+
+                        totalLineY = finalY + 29;
+                        totalLabelY = finalY + 36;
+                    }
+
                     doc.setDrawColor(...brandColor);
                     doc.setLineWidth(0.5);
-                    doc.line(120, finalY + 13, 195, finalY + 13);
+                    doc.line(120, totalLineY, 195, totalLineY);
 
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(14);
                     doc.setTextColor(...brandColor);
-                    doc.text('Grand Total:', 125, finalY + 20);
+                    doc.text(discountAmount > 0 ? 'Amount Payable:' : 'Grand Total:', 120, totalLabelY);
                     doc.setTextColor(16, 185, 129);
-                    doc.text(formatCurrencyPDF(grandTotal), 195, finalY + 20, { align: 'right' });
-                    summaryOffset = 28;
+                    doc.text(formatCurrencyPDF(grandTotal), 195, totalLabelY, { align: 'right' });
+                    summaryOffset = (totalLabelY - finalY) + 8;
                 } else {
+                    let noGstOffset = 0;
+                    if (discountAmount > 0) {
+                        doc.setFontSize(11);
+                        doc.setTextColor(80);
+                        doc.text('Gross Total:', 135, finalY);
+                        doc.setTextColor(30);
+                        doc.setFont('helvetica', 'bold');
+                        doc.text(formatCurrencyPDF(grossTotal), 195, finalY, { align: 'right' });
+
+                        doc.setFont('helvetica', 'normal');
+                        doc.setTextColor(220, 38, 38);
+                        const discLabel = discountType === 'percentage' ? 'Discount (' + discountValue + '%):' : 'Discount:';
+                        doc.text(discLabel, 135, finalY + 8);
+                        doc.setFont('helvetica', 'bold');
+                        doc.text('- ' + formatCurrencyPDF(discountAmount), 195, finalY + 8, { align: 'right' });
+                        noGstOffset = 16;
+                    }
+
                     doc.setDrawColor(...brandColor);
                     doc.setLineWidth(0.5);
-                    doc.line(120, finalY - 2, 195, finalY - 2);
+                    doc.line(120, finalY + noGstOffset - 2, 195, finalY + noGstOffset - 2);
 
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(14);
                     doc.setTextColor(...brandColor);
-                    doc.text('Total:', 140, finalY + 6);
+                    doc.text(discountAmount > 0 ? 'Amount Payable:' : 'Total:', 125, finalY + noGstOffset + 6);
                     doc.setTextColor(16, 185, 129);
-                    doc.text(formatCurrencyPDF(grandTotal), 195, finalY + 6, { align: 'right' });
-                    summaryOffset = 14;
+                    doc.text(formatCurrencyPDF(grandTotal), 195, finalY + noGstOffset + 6, { align: 'right' });
+                    summaryOffset = noGstOffset + 14;
                 }
 
                 // Terms & Conditions - combine selected standard terms + free-text notes
@@ -3554,11 +3637,13 @@
                 doc.save(`${type}-${docNumber}.pdf`);
 
                 // Save quotation to Firebase immediately (tamper-proof)
+                const isEditing = editingDoc && editingDoc.firebaseId;
+
                 const quotation = {
-                    id: Date.now(),
-                    number: docNumber,
+                    id: isEditing ? editingDoc.id : Date.now(),
+                    number: isEditing ? editingDoc.number : docNumber,
                     type: type,
-                    date: new Date().toISOString(),
+                    date: isEditing ? editingDoc.date : new Date().toISOString(),
                     customer,
                     brand: selectedBrand,
                     items: quoteItems,
@@ -3568,19 +3653,37 @@
                     includeGST,
                     notes,
                     terms: selectedTerms,
-                    status: 'sent'
+                    status: isEditing ? editingDoc.status : 'sent',
+                    discount: discountAmount > 0 ? { type: discountType, value: Number(discountValue), amount: discountAmount } : null
                 };
 
-                const firebaseId = await FirebaseQuotations.saveQuotation(quotation);
-                if (firebaseId) {
-                    quotation.firebaseId = firebaseId;
-                }
-                setQuotations([quotation, ...quotations]);
-
-                if (firebaseId) {
-                    alert(`${type === 'quotation' ? 'Quotation' : 'Invoice'} ${docNumber} saved & synced to cloud!`);
+                if (isEditing) {
+                    // Update existing record
+                    const updateData = { ...quotation };
+                    delete updateData.firebaseId;
+                    const success = await FirebaseQuotations.updateQuotation(editingDoc.firebaseId, updateData);
+                    if (success) {
+                        quotation.firebaseId = editingDoc.firebaseId;
+                        quotation.lastEditedAt = new Date().toISOString();
+                        setQuotations(quotations.map(q => q.id === editingDoc.id ? quotation : q));
+                        alert(`${type === 'quotation' ? 'Quotation' : 'Invoice'} ${quotation.number} updated successfully!`);
+                    } else {
+                        alert('Failed to update document in cloud. Try again.');
+                    }
+                    setEditingDoc(null);
                 } else {
-                    alert(`${type === 'quotation' ? 'Quotation' : 'Invoice'} ${docNumber} saved locally. Cloud sync failed — push to cloud manually.`);
+                    // Create new record
+                    const firebaseId = await FirebaseQuotations.saveQuotation(quotation);
+                    if (firebaseId) {
+                        quotation.firebaseId = firebaseId;
+                    }
+                    setQuotations([quotation, ...quotations]);
+
+                    if (firebaseId) {
+                        alert(`${type === 'quotation' ? 'Quotation' : 'Invoice'} ${docNumber} saved & synced to cloud!`);
+                    } else {
+                        alert(`${type === 'quotation' ? 'Quotation' : 'Invoice'} ${docNumber} saved locally. Cloud sync failed — push to cloud manually.`);
+                    }
                 }
             };
 
@@ -3588,9 +3691,23 @@
                 <div>
                     <div className="page-header">
                         <div>
-                            <h1 className="page-title">Create Quotation / Invoice</h1>
-                            <p className="page-subtitle">Build quotation with MRP, Discount & generate PDF</p>
+                            <h1 className="page-title">{editingDoc ? `Edit ${editingDoc.number}` : 'Create Quotation / Invoice'}</h1>
+                            <p className="page-subtitle">{editingDoc ? 'Editing saved document - save to update' : 'Build quotation with MRP, Discount & generate PDF'}</p>
                         </div>
+                        {editingDoc && (
+                            <button className="btn btn-secondary" onClick={() => {
+                                setEditingDoc(null);
+                                setCustomer({ name: '', phone: '', address: '' });
+                                setQuoteItems([]);
+                                setNotes('');
+                                setSelectedTerms([]);
+                                setSelectedBrand('MV Solutions');
+                                setIncludeGST(true);
+                                setDiscountEnabled(false);
+                                setDiscountType('percentage');
+                                setDiscountValue(0);
+                            }}>Cancel Edit</button>
+                        )}
                     </div>
 
                     <div className="quote-builder">
@@ -3787,8 +3904,45 @@
                                         </label>
                                         <span className="value">{formatCurrency(gst)}</span>
                                     </div>
+                                    {/* Overall Discount */}
+                                    <div className="summary-row" style={{ alignItems: 'center' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--text-muted)' }}>
+                                            <span style={{
+                                                width: '36px', height: '20px', borderRadius: '10px',
+                                                background: discountEnabled ? 'var(--warning, #F59E0B)' : 'var(--border)',
+                                                position: 'relative', display: 'inline-block', transition: 'background 0.2s', cursor: 'pointer'
+                                            }} onClick={() => { setDiscountEnabled(!discountEnabled); if (discountEnabled) setDiscountValue(0); }}>
+                                                <span style={{
+                                                    width: '16px', height: '16px', borderRadius: '50%', background: 'white',
+                                                    position: 'absolute', top: '2px', left: discountEnabled ? '18px' : '2px',
+                                                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                                }}></span>
+                                            </span>
+                                            <span onClick={() => { setDiscountEnabled(!discountEnabled); if (discountEnabled) setDiscountValue(0); }}>Discount</span>
+                                        </label>
+                                        {discountEnabled && <span className="value" style={{ color: '#DC2626' }}>- {formatCurrency(discountAmount)}</span>}
+                                    </div>
+                                    {discountEnabled && (
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', paddingLeft: '4px' }}>
+                                            <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                                <button onClick={() => setDiscountType('percentage')} style={{
+                                                    padding: '4px 10px', fontSize: '12px', fontWeight: '600', border: 'none', cursor: 'pointer',
+                                                    background: discountType === 'percentage' ? 'var(--primary)' : 'var(--bg)',
+                                                    color: discountType === 'percentage' ? 'white' : 'var(--text-muted)'
+                                                }}>%</button>
+                                                <button onClick={() => setDiscountType('fixed')} style={{
+                                                    padding: '4px 10px', fontSize: '12px', fontWeight: '600', border: 'none', cursor: 'pointer',
+                                                    background: discountType === 'fixed' ? 'var(--primary)' : 'var(--bg)',
+                                                    color: discountType === 'fixed' ? 'white' : 'var(--text-muted)'
+                                                }}>&#8377;</button>
+                                            </div>
+                                            <input type="number" min="0" value={discountValue || ''} onChange={e => setDiscountValue(e.target.value)}
+                                                placeholder={discountType === 'percentage' ? 'e.g. 5' : 'e.g. 500'}
+                                                style={{ width: '80px', padding: '4px 8px', fontSize: '13px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                                        </div>
+                                    )}
                                     <div className="summary-row total">
-                                        <span className="label">{includeGST ? 'Grand Total' : 'Total'}</span>
+                                        <span className="label">{discountAmount > 0 ? 'Amount Payable' : (includeGST ? 'Grand Total' : 'Total')}</span>
                                         <span className="value" style={{ color: 'var(--success)' }}>{formatCurrency(grandTotal)}</span>
                                     </div>
 
@@ -3809,7 +3963,7 @@
         };
 
         // ============ SAVED DOCUMENTS ============
-        const SavedDocuments = ({ quotations, setQuotations, products, items, bom, subProducts }) => {
+        const SavedDocuments = ({ quotations, setQuotations, products, items, bom, subProducts, setEditingDoc, navigate }) => {
             const [selectedDoc, setSelectedDoc] = useState(null);
             const [showModal, setShowModal] = useState(false);
 
@@ -3834,6 +3988,14 @@
                     }
                 }
                 setQuotations(quotations.filter(q => q.id !== id));
+            };
+
+            const editDocument = (doc) => {
+                const pwd = prompt('Enter admin password to edit this document:');
+                if (!pwd) return;
+                if (pwd !== 'admin123') { alert('Incorrect password.'); return; }
+                setEditingDoc(doc);
+                navigate('quotation');
             };
 
             const updateStatus = async (id, newStatus) => {
@@ -3962,6 +4124,9 @@
 
                 let summaryOffset = 0;
 
+                const docDiscount = doc.discount || null;
+                const docDiscountAmt = docDiscount ? (docDiscount.amount || 0) : 0;
+
                 if (docIncludeGST) {
                     pdf.setFontSize(11);
                     pdf.setTextColor(80);
@@ -3977,29 +4142,72 @@
                     pdf.setFont('helvetica', 'bold');
                     pdf.text(formatCurrencyPDF(doc.gst), 195, finalY + 8, { align: 'right' });
 
+                    let totalLineY = finalY + 13;
+                    let totalLabelY = finalY + 20;
+
+                    if (docDiscountAmt > 0) {
+                        const docGross = doc.subtotal + doc.gst;
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setFontSize(11);
+                        pdf.setTextColor(80);
+                        pdf.text('Gross Total:', 135, finalY + 16);
+                        pdf.setTextColor(30);
+                        pdf.setFont('helvetica', 'bold');
+                        pdf.text(formatCurrencyPDF(docGross), 195, finalY + 16, { align: 'right' });
+
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setTextColor(220, 38, 38);
+                        const discLabel = docDiscount.type === 'percentage' ? 'Discount (' + docDiscount.value + '%):' : 'Discount:';
+                        pdf.text(discLabel, 135, finalY + 24);
+                        pdf.setFont('helvetica', 'bold');
+                        pdf.text('- ' + formatCurrencyPDF(docDiscountAmt), 195, finalY + 24, { align: 'right' });
+
+                        totalLineY = finalY + 29;
+                        totalLabelY = finalY + 36;
+                    }
+
                     pdf.setDrawColor(...brandColor);
                     pdf.setLineWidth(0.5);
-                    pdf.line(120, finalY + 13, 195, finalY + 13);
+                    pdf.line(120, totalLineY, 195, totalLineY);
 
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(14);
                     pdf.setTextColor(...brandColor);
-                    pdf.text('Grand Total:', 120, finalY + 20);
+                    pdf.text(docDiscountAmt > 0 ? 'Amount Payable:' : 'Grand Total:', 120, totalLabelY);
                     pdf.setTextColor(16, 185, 129);
-                    pdf.text(formatCurrencyPDF(doc.grandTotal), 195, finalY + 20, { align: 'right' });
-                    summaryOffset = 28;
+                    pdf.text(formatCurrencyPDF(doc.grandTotal), 195, totalLabelY, { align: 'right' });
+                    summaryOffset = (totalLabelY - finalY) + 8;
                 } else {
+                    let noGstOffset = 0;
+                    if (docDiscountAmt > 0) {
+                        const docGross = doc.subtotal;
+                        pdf.setFontSize(11);
+                        pdf.setTextColor(80);
+                        pdf.text('Gross Total:', 135, finalY);
+                        pdf.setTextColor(30);
+                        pdf.setFont('helvetica', 'bold');
+                        pdf.text(formatCurrencyPDF(docGross), 195, finalY, { align: 'right' });
+
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setTextColor(220, 38, 38);
+                        const discLabel = docDiscount.type === 'percentage' ? 'Discount (' + docDiscount.value + '%):' : 'Discount:';
+                        pdf.text(discLabel, 135, finalY + 8);
+                        pdf.setFont('helvetica', 'bold');
+                        pdf.text('- ' + formatCurrencyPDF(docDiscountAmt), 195, finalY + 8, { align: 'right' });
+                        noGstOffset = 16;
+                    }
+
                     pdf.setDrawColor(...brandColor);
                     pdf.setLineWidth(0.5);
-                    pdf.line(120, finalY - 2, 195, finalY - 2);
+                    pdf.line(120, finalY + noGstOffset - 2, 195, finalY + noGstOffset - 2);
 
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(14);
                     pdf.setTextColor(...brandColor);
-                    pdf.text('Total:', 140, finalY + 6);
+                    pdf.text(docDiscountAmt > 0 ? 'Amount Payable:' : 'Total:', 125, finalY + noGstOffset + 6);
                     pdf.setTextColor(16, 185, 129);
-                    pdf.text(formatCurrencyPDF(doc.grandTotal), 195, finalY + 6, { align: 'right' });
-                    summaryOffset = 14;
+                    pdf.text(formatCurrencyPDF(doc.grandTotal), 195, finalY + noGstOffset + 6, { align: 'right' });
+                    summaryOffset = noGstOffset + 14;
                 }
 
                 // Terms & Conditions - combine saved terms + free-text notes
@@ -4132,6 +4340,9 @@
                                                     <button className="btn btn-secondary btn-sm btn-icon" onClick={() => viewDocument(doc)} title="View Details">
                                                         <Icons.Eye />
                                                     </button>
+                                                    <button className="btn btn-secondary btn-sm btn-icon" onClick={() => editDocument(doc)} title="Edit">
+                                                        <Icons.Edit />
+                                                    </button>
                                                     <button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteDocument(doc.id)} title="Delete">
                                                         <Icons.Trash />
                                                     </button>
@@ -4228,8 +4439,20 @@
                                         <span style={{ color: 'var(--text-muted)' }}>GST ({CONFIG.GST_RATE}%)</span>
                                         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: '600' }}>{formatCurrency(selectedDoc.gst)}</span>
                                     </div>
+                                    {selectedDoc.discount && selectedDoc.discount.amount > 0 && (
+                                        <>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                                <span style={{ color: 'var(--text-muted)' }}>Gross Total</span>
+                                                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: '600' }}>{formatCurrency(selectedDoc.subtotal + selectedDoc.gst)}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                <span style={{ color: '#DC2626' }}>{selectedDoc.discount.type === 'percentage' ? `Discount (${selectedDoc.discount.value}%)` : 'Discount'}</span>
+                                                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: '600', color: '#DC2626' }}>- {formatCurrency(selectedDoc.discount.amount)}</span>
+                                            </div>
+                                        </>
+                                    )}
                                     <div style={{ borderTop: '2px solid var(--primary)', paddingTop: '12px', marginTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ fontSize: '16px', fontWeight: '700', color: 'var(--primary)' }}>Grand Total</span>
+                                        <span style={{ fontSize: '16px', fontWeight: '700', color: 'var(--primary)' }}>{selectedDoc.discount && selectedDoc.discount.amount > 0 ? 'Amount Payable' : 'Grand Total'}</span>
                                         <span style={{ fontSize: '18px', fontWeight: '700', color: 'var(--success)', fontFamily: 'JetBrains Mono, monospace' }}>{formatCurrency(selectedDoc.grandTotal)}</span>
                                     </div>
                                 </div>
@@ -4243,8 +4466,9 @@
                                 )}
 
                                 {/* Document Info */}
-                                <div style={{ marginTop: '16px', display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                <div style={{ marginTop: '16px', display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                                     <span>Created: {new Date(selectedDoc.date).toLocaleString('en-IN')}</span>
+                                    {selectedDoc.lastEditedAt && <span>Edited: {new Date(selectedDoc.lastEditedAt).toLocaleString('en-IN')}</span>}
                                     <span>Status: <strong style={{ color: 'var(--text)' }}>{selectedDoc.status}</strong></span>
                                 </div>
                             </div>
@@ -7025,6 +7249,9 @@ ${componentResults.map(c => {
             const [subProducts, setSubProducts] = useState([]);
             const [quotations, setQuotations] = useState([]);
             
+            // Editing document state (for edit feature)
+            const [editingDoc, setEditingDoc] = useState(null);
+
             // Loading & Sync states
             const [isLoading, setIsLoading] = useState(true);
             const [loadingMessage, setLoadingMessage] = useState('Connecting to Google Sheets...');
@@ -7435,8 +7662,8 @@ ${componentResults.map(c => {
                     case 'dashboard': return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                     case 'items': return <ItemsMaster items={items} setItems={setItems} />;
                     case 'products': return <ProductsPage products={products} setProducts={setProducts} items={items} bom={bom} setBom={setBom} subProducts={subProducts} setSubProducts={setSubProducts} />;
-                    case 'quotation': return <QuotationBuilder products={products} items={items} quotations={quotations} setQuotations={setQuotations} bom={bom} subProducts={subProducts} />;
-                    case 'documents': return <SavedDocuments quotations={quotations} setQuotations={setQuotations} products={products} items={items} bom={bom} subProducts={subProducts} />;
+                    case 'quotation': return <QuotationBuilder products={products} items={items} quotations={quotations} setQuotations={setQuotations} bom={bom} subProducts={subProducts} editingDoc={editingDoc} setEditingDoc={setEditingDoc} />;
+                    case 'documents': return <SavedDocuments quotations={quotations} setQuotations={setQuotations} products={products} items={items} bom={bom} subProducts={subProducts} setEditingDoc={setEditingDoc} navigate={navigate} />;
                     case 'estimator': return <ComponentEstimator products={products} items={items} bom={bom} subProducts={subProducts} />;
                     case 'inventory': return <InventoryManagement items={items} products={products} bom={bom} subProducts={subProducts} />;
                     case 'inspection': return <SiteInspection products={products} />;
