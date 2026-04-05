@@ -3390,15 +3390,17 @@
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
-                        const recoloredLogo = await recolorLogoBackground(brand.logo, ...brandColor);
                         const logoSize = 26;
-                        const logoPad = 4;
+                        const logoPad = 5;
                         const logoX = 13;
                         const logoY = 6;
-                        doc.setFillColor(...brandColor);
-                        doc.roundedRect(logoX - logoPad, logoY - logoPad, logoSize + logoPad * 2, logoSize + logoPad * 2, 3, 3, 'F');
-                        doc.addImage(recoloredLogo, 'PNG', logoX, logoY, logoSize, logoSize);
-                        headerStartX = logoX + logoSize + logoPad + 4;
+                        const circleCenterX = logoX + logoSize / 2;
+                        const circleCenterY = logoY + logoSize / 2;
+                        const circleRadius = logoSize / 2 + logoPad;
+                        doc.setFillColor(255, 255, 255);
+                        doc.circle(circleCenterX, circleCenterY, circleRadius, 'F');
+                        doc.addImage(brand.logo, 'PNG', logoX, logoY, logoSize, logoSize);
+                        headerStartX = logoX + logoSize + logoPad + 6;
                     } catch(e) {}
                 }
 
@@ -4024,15 +4026,17 @@
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
-                        const recoloredLogo = await recolorLogoBackground(brand.logo, ...brandColor);
                         const logoSize = 26;
-                        const logoPad = 4;
+                        const logoPad = 5;
                         const logoX = 13;
                         const logoY = 6;
-                        pdf.setFillColor(...brandColor);
-                        pdf.roundedRect(logoX - logoPad, logoY - logoPad, logoSize + logoPad * 2, logoSize + logoPad * 2, 3, 3, 'F');
-                        pdf.addImage(recoloredLogo, 'PNG', logoX, logoY, logoSize, logoSize);
-                        headerStartX = logoX + logoSize + logoPad + 4;
+                        const circleCenterX = logoX + logoSize / 2;
+                        const circleCenterY = logoY + logoSize / 2;
+                        const circleRadius = logoSize / 2 + logoPad;
+                        pdf.setFillColor(255, 255, 255);
+                        pdf.circle(circleCenterX, circleCenterY, circleRadius, 'F');
+                        pdf.addImage(brand.logo, 'PNG', logoX, logoY, logoSize, logoSize);
+                        headerStartX = logoX + logoSize + logoPad + 6;
                     } catch(e) {}
                 }
 
