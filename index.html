@@ -3390,14 +3390,13 @@
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
-                        const recoloredLogo = await recolorLogoBackground(brand.logo, ...brandColor);
                         const logoSize = 26;
                         const logoPad = 4;
                         const logoX = 13;
                         const logoY = 6;
-                        doc.setFillColor(...brandColor);
+                        doc.setFillColor(255, 255, 255);
                         doc.roundedRect(logoX - logoPad, logoY - logoPad, logoSize + logoPad * 2, logoSize + logoPad * 2, 3, 3, 'F');
-                        doc.addImage(recoloredLogo, 'PNG', logoX, logoY, logoSize, logoSize);
+                        doc.addImage(brand.logo, 'PNG', logoX, logoY, logoSize, logoSize);
                         headerStartX = logoX + logoSize + logoPad + 4;
                     } catch(e) {}
                 }
@@ -4024,14 +4023,13 @@
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
-                        const recoloredLogo = await recolorLogoBackground(brand.logo, ...brandColor);
                         const logoSize = 26;
                         const logoPad = 4;
                         const logoX = 13;
                         const logoY = 6;
-                        pdf.setFillColor(...brandColor);
+                        pdf.setFillColor(255, 255, 255);
                         pdf.roundedRect(logoX - logoPad, logoY - logoPad, logoSize + logoPad * 2, logoSize + logoPad * 2, 3, 3, 'F');
-                        pdf.addImage(recoloredLogo, 'PNG', logoX, logoY, logoSize, logoSize);
+                        pdf.addImage(brand.logo, 'PNG', logoX, logoY, logoSize, logoSize);
                         headerStartX = logoX + logoSize + logoPad + 4;
                     } catch(e) {}
                 }
