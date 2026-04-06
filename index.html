@@ -3638,11 +3638,11 @@
                     doc.setTextColor(60);
                     doc.text('Bank: ' + CONFIG.BANK.name + ', ' + CONFIG.BANK.branch, 15, footerY + 5);
                     doc.text('A/C No: ' + CONFIG.BANK.account + '  |  IFSC: ' + CONFIG.BANK.ifsc, 15, footerY + 10);
-                    doc.text('UPI: ' + CONFIG.UPI_ID, 23, footerY + 15);
-                    try { doc.addImage(CONFIG.UPI_LOGO, 'PNG', 15, footerY + 12, 4, 4); } catch(e) {}
+                    doc.text('UPI: ' + CONFIG.UPI_ID, 15, footerY + 15);
 
-                    // QR code on the right
+                    // UPI logo + QR code on the right
                     try {
+                        doc.addImage(CONFIG.UPI_LOGO, 'PNG', 148, footerY + 2, 12, 12);
                         const qrDataUrl = generateUPIQR(grandTotal, brand.name);
                         doc.addImage(qrDataUrl, 'PNG', 163, footerY - 2, 30, 30);
                         doc.setFontSize(7);
@@ -4294,11 +4294,11 @@
                     pdf.setTextColor(60);
                     pdf.text('Bank: ' + CONFIG.BANK.name + ', ' + CONFIG.BANK.branch, 15, footerY + 5);
                     pdf.text('A/C No: ' + CONFIG.BANK.account + '  |  IFSC: ' + CONFIG.BANK.ifsc, 15, footerY + 10);
-                    pdf.text('UPI: ' + CONFIG.UPI_ID, 23, footerY + 15);
-                    try { pdf.addImage(CONFIG.UPI_LOGO, 'PNG', 15, footerY + 12, 4, 4); } catch(e) {}
+                    pdf.text('UPI: ' + CONFIG.UPI_ID, 15, footerY + 15);
 
-                    // QR code on the right
+                    // UPI logo + QR code on the right
                     try {
+                        pdf.addImage(CONFIG.UPI_LOGO, 'PNG', 148, footerY + 2, 12, 12);
                         const qrDataUrl = generateUPIQR(doc.grandTotal, brand.name);
                         pdf.addImage(qrDataUrl, 'PNG', 163, footerY - 2, 30, 30);
                         pdf.setFontSize(7);
