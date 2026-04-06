@@ -3390,17 +3390,17 @@
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
-                        const logoSize = 22;
-                        const logoPad = 3;
-                        const logoX = 14;
-                        const logoY = 8;
-                        const circleCenterX = logoX + logoSize / 2;
-                        const circleCenterY = logoY + logoSize / 2;
-                        const circleRadius = logoSize / 2 + logoPad;
+                        const logoW = 16;
+                        const logoH = 20;
+                        const circleR = 13;
+                        const circleCX = 24;
+                        const circleCY = 19;
+                        const logoX = circleCX - logoW / 2;
+                        const logoY = circleCY - logoH / 2;
                         doc.setFillColor(255, 255, 255);
-                        doc.circle(circleCenterX, circleCenterY, circleRadius, 'F');
-                        doc.addImage(brand.logo, 'PNG', logoX, logoY, logoSize, logoSize);
-                        headerStartX = logoX + logoSize + logoPad + 6;
+                        doc.circle(circleCX, circleCY, circleR, 'F');
+                        doc.addImage(brand.logo, 'PNG', logoX, logoY, logoW, logoH);
+                        headerStartX = circleCX + circleR + 4;
                     } catch(e) {}
                 }
 
