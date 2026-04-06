@@ -3383,7 +3383,9 @@
                 const brand = CONFIG.BRANDS[selectedBrand];
                 const brandColor = brand.color;
 
-                // Header - white background with dark blue text
+                // Header - light gray background with dark blue text
+                doc.setFillColor(245, 245, 245);
+                doc.rect(0, 0, 210, 44, 'F');
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
@@ -4019,7 +4021,9 @@
                 const brandColor = brand.color;
                 const docIncludeGST = doc.includeGST !== false;
 
-                // Header - white background with dark blue text
+                // Header - light gray background with dark blue text
+                doc.setFillColor(245, 245, 245);
+                doc.rect(0, 0, 210, 44, 'F');
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
