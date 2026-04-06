@@ -3383,47 +3383,47 @@
                 const brand = CONFIG.BRANDS[selectedBrand];
                 const brandColor = brand.color;
 
-                // Header
-                doc.setFillColor(...brandColor);
-                doc.rect(0, 0, 210, 48, 'F');
-
+                // Header - white background with dark blue text
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
-                        const logoW = 16;
-                        const logoH = 20;
-                        const circleR = 13;
-                        const circleCX = 24;
-                        const circleCY = 19;
-                        const logoX = circleCX - logoW / 2;
-                        const logoY = circleCY - logoH / 2;
-                        doc.setFillColor(255, 255, 255);
-                        doc.circle(circleCX, circleCY, circleR, 'F');
+                        const logoW = 14;
+                        const logoH = 18;
+                        const logoX = 15;
+                        const logoY = 6;
                         doc.addImage(brand.logo, 'PNG', logoX, logoY, logoW, logoH);
-                        headerStartX = circleCX + circleR + 4;
+                        headerStartX = logoX + logoW + 4;
                     } catch(e) {}
                 }
 
-                doc.setTextColor(255, 255, 255);
+                doc.setTextColor(...brandColor);
                 doc.setFontSize(22);
                 doc.setFont('helvetica', 'bold');
                 doc.text(brand.name, headerStartX, 14);
 
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'italic');
+                doc.setTextColor(80, 80, 80);
                 doc.text(brand.tagline, headerStartX, 22);
 
                 if (brand.subtitle) {
                     doc.setFontSize(8);
                     doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(120, 120, 120);
                     doc.text(brand.subtitle, headerStartX, 28);
                 }
 
                 doc.setFont('helvetica', 'normal');
-                doc.setFontSize(9);
-                doc.text(CONFIG.COMPANY.address + ' | ' + CONFIG.COMPANY.city, 15, 37);
+                doc.setFontSize(8);
+                doc.setTextColor(80, 80, 80);
+                doc.text(CONFIG.COMPANY.address + ' | ' + CONFIG.COMPANY.city, 15, 35);
                 const contactLine = 'Email: ' + brand.email + (brand.website ? ' | Web: ' + brand.website : '') + ' | Phone: ' + CONFIG.COMPANY.phone + ' | GSTIN: ' + CONFIG.COMPANY.gst;
-                doc.text(contactLine, 15, 43);
+                doc.text(contactLine, 15, 41);
+
+                // Separator line
+                doc.setDrawColor(...brandColor);
+                doc.setLineWidth(1);
+                doc.line(15, 45, 195, 45);
 
                 // Document Info
                 const docNumber = editingDoc ? editingDoc.number : generateDocNumber(brand.prefix + (type === 'quotation' ? 'QT' : 'INV'), quotations.length);
@@ -4019,47 +4019,47 @@
                 const brandColor = brand.color;
                 const docIncludeGST = doc.includeGST !== false;
 
-                // Header
-                pdf.setFillColor(...brandColor);
-                pdf.rect(0, 0, 210, 48, 'F');
-
+                // Header - white background with dark blue text
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
-                        const logoSize = 22;
-                        const logoPad = 3;
-                        const logoX = 14;
-                        const logoY = 8;
-                        const circleCenterX = logoX + logoSize / 2;
-                        const circleCenterY = logoY + logoSize / 2;
-                        const circleRadius = logoSize / 2 + logoPad;
-                        pdf.setFillColor(255, 255, 255);
-                        pdf.circle(circleCenterX, circleCenterY, circleRadius, 'F');
-                        pdf.addImage(brand.logo, 'PNG', logoX, logoY, logoSize, logoSize);
-                        headerStartX = logoX + logoSize + logoPad + 6;
+                        const logoW = 14;
+                        const logoH = 18;
+                        const logoX = 15;
+                        const logoY = 6;
+                        pdf.addImage(brand.logo, 'PNG', logoX, logoY, logoW, logoH);
+                        headerStartX = logoX + logoW + 4;
                     } catch(e) {}
                 }
 
-                pdf.setTextColor(255, 255, 255);
+                pdf.setTextColor(...brandColor);
                 pdf.setFont('helvetica', 'bold');
                 pdf.setFontSize(22);
                 pdf.text(brand.name, headerStartX, 14);
 
                 pdf.setFont('helvetica', 'italic');
                 pdf.setFontSize(10);
+                pdf.setTextColor(80, 80, 80);
                 pdf.text(brand.tagline, headerStartX, 22);
 
                 if (brand.subtitle) {
                     pdf.setFontSize(8);
                     pdf.setFont('helvetica', 'normal');
+                    pdf.setTextColor(120, 120, 120);
                     pdf.text(brand.subtitle, headerStartX, 28);
                 }
 
                 pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(9);
-                pdf.text(CONFIG.COMPANY.address + ' | ' + CONFIG.COMPANY.city, 15, 37);
+                pdf.setFontSize(8);
+                pdf.setTextColor(80, 80, 80);
+                pdf.text(CONFIG.COMPANY.address + ' | ' + CONFIG.COMPANY.city, 15, 35);
                 const contactLine2 = 'Email: ' + brand.email + (brand.website ? ' | Web: ' + brand.website : '') + ' | Phone: ' + CONFIG.COMPANY.phone + ' | GSTIN: ' + CONFIG.COMPANY.gst;
-                pdf.text(contactLine2, 15, 43);
+                pdf.text(contactLine2, 15, 41);
+
+                // Separator line
+                pdf.setDrawColor(...brandColor);
+                pdf.setLineWidth(1);
+                pdf.line(15, 45, 195, 45);
 
                 // Document Type & Number
                 pdf.setTextColor(...brandColor);
