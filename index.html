@@ -11,6 +11,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -821,6 +822,8 @@
                 phone: '+91 8097412355',
                 gst: '27ALDPJ5310J1ZA'
             },
+            UPI_ID: '9867738509@axl',
+            UPI_LOGO: 'data:image/png;base64,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',
             BANK: {
                 name: 'State Bank of India',
                 branch: 'M.G. Road, Borivali (E)',
@@ -1456,6 +1459,21 @@
         // PDF-safe currency format (jsPDF doesn't support ₹ symbol)
         const formatCurrencyPDF = (num) => 'Rs. ' + Number(num || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
         const formatDate = (d) => { const dt = new Date(d); const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return String(dt.getDate()).padStart(2,'0') + '-' + months[dt.getMonth()] + '-' + dt.getFullYear(); };
+
+        // ============ UPI QR CODE GENERATOR ============
+        const generateUPIQR = (amount, payeeName) => {
+            const upiId = CONFIG.UPI_ID;
+            let upiString;
+            if (amount && amount <= 100000) {
+                upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR`;
+            } else {
+                upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&cu=INR`;
+            }
+            const qr = qrcode(0, 'M');
+            qr.addData(upiString);
+            qr.make();
+            return qr.createDataURL(4, 0);
+        };
 
         // ============ PASSWORD UTILITIES ============
         // Hash password using SHA-256 (async)
@@ -3620,7 +3638,22 @@
                     doc.setTextColor(60);
                     doc.text('Bank: ' + CONFIG.BANK.name + ', ' + CONFIG.BANK.branch, 15, footerY + 5);
                     doc.text('A/C No: ' + CONFIG.BANK.account + '  |  IFSC: ' + CONFIG.BANK.ifsc, 15, footerY + 10);
-                    footerY += 16;
+                    doc.text('UPI: ' + CONFIG.UPI_ID, 23, footerY + 15);
+                    try { doc.addImage(CONFIG.UPI_LOGO, 'PNG', 15, footerY + 12, 4, 4); } catch(e) {}
+
+                    // QR code on the right
+                    try {
+                        const qrDataUrl = generateUPIQR(grandTotal, brand.name);
+                        doc.addImage(qrDataUrl, 'PNG', 163, footerY - 2, 30, 30);
+                        doc.setFontSize(7);
+                        doc.setTextColor(100);
+                        const scanText = grandTotal && grandTotal <= 100000
+                            ? 'Scan to Pay Rs. ' + Number(grandTotal).toLocaleString('en-IN')
+                            : 'Scan to Pay';
+                        doc.text(scanText, 178, footerY + 30, { align: 'center' });
+                    } catch(e) {}
+
+                    footerY += 34;
                 }
 
                 // Brand of MV Solutions line - for sub-brands
@@ -4261,7 +4294,22 @@
                     pdf.setTextColor(60);
                     pdf.text('Bank: ' + CONFIG.BANK.name + ', ' + CONFIG.BANK.branch, 15, footerY + 5);
                     pdf.text('A/C No: ' + CONFIG.BANK.account + '  |  IFSC: ' + CONFIG.BANK.ifsc, 15, footerY + 10);
-                    footerY += 16;
+                    pdf.text('UPI: ' + CONFIG.UPI_ID, 23, footerY + 15);
+                    try { pdf.addImage(CONFIG.UPI_LOGO, 'PNG', 15, footerY + 12, 4, 4); } catch(e) {}
+
+                    // QR code on the right
+                    try {
+                        const qrDataUrl = generateUPIQR(doc.grandTotal, brand.name);
+                        pdf.addImage(qrDataUrl, 'PNG', 163, footerY - 2, 30, 30);
+                        pdf.setFontSize(7);
+                        pdf.setTextColor(100);
+                        const scanText = doc.grandTotal && doc.grandTotal <= 100000
+                            ? 'Scan to Pay Rs. ' + Number(doc.grandTotal).toLocaleString('en-IN')
+                            : 'Scan to Pay';
+                        pdf.text(scanText, 178, footerY + 30, { align: 'center' });
+                    } catch(e) {}
+
+                    footerY += 34;
                 }
 
                 // Brand of MV Solutions line - for sub-brands
