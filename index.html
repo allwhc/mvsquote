@@ -3902,7 +3902,7 @@
                                                         <div className="quote-item-row1">
                                                             <div className="quote-item-name">
                                                                 <textarea className="form-textarea" value={item.name} placeholder="Enter product name..." onChange={e => updateItem(index, 'name', e.target.value)} rows="2" style={{ fontSize: '14px', padding: '8px 10px', width: '100%', fontWeight: '500', resize: 'vertical', minHeight: '44px' }} />
-                                                                <input className="form-input" value={item.description || ''} placeholder="Description (optional)" onChange={e => updateItem(index, 'description', e.target.value)} style={{ fontSize: '12px', padding: '4px 10px', marginTop: '4px', color: 'var(--text-muted)' }} />
+                                                                <textarea className="form-textarea" value={item.description || ''} placeholder="Description (optional) — e.g., features, specs, included items..." onChange={e => updateItem(index, 'description', e.target.value)} rows="2" style={{ fontSize: '12px', padding: '6px 10px', marginTop: '4px', color: 'var(--text-muted)', resize: 'vertical', minHeight: '36px' }} />
                                                                 <small>{item.sku !== 'CUSTOM' ? (item.sku + ' | Min: ' + formatCurrency(item.minPrice)) : 'Custom Item'}</small>
                                                             </div>
                                                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeItem(index)} style={{ marginTop: '4px' }}><Icons.X /></button>
