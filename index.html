@@ -3348,6 +3348,7 @@
                 setQuoteItems([...quoteItems, {
                     sku: product.sku,
                     name: product.name,
+                    description: '',
                     mrp: mrp,
                     minPrice: sellingPrice,
                     qty: 1,
@@ -3360,6 +3361,7 @@
                 setQuoteItems([...quoteItems, {
                     sku: 'CUSTOM',
                     name: '',
+                    description: '',
                     mrp: 0,
                     minPrice: 0,
                     qty: 1,
@@ -3369,7 +3371,7 @@
 
             const updateItem = (index, field, value) => {
                 const updated = [...quoteItems];
-                if (field === 'name') {
+                if (field === 'name' || field === 'description') {
                     updated[index][field] = value;
                 } else {
                     updated[index][field] = Number(value);
@@ -3507,18 +3509,19 @@
                 const hasDiscount = quoteItems.some(item => item.discount > 0);
 
                 let tableHead, tableData, colStyles;
+                const productLabel = (item) => item.description ? item.name + '\n' + item.description : item.name;
                 if (hasDiscount) {
                     tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
                     tableData = quoteItems.map(item => {
                         const netPrice = calculateNetPrice(item);
-                        return [item.name, item.qty.toString(), formatCurrencyPDF(item.mrp), item.discount + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        return [productLabel(item), item.qty.toString(), formatCurrencyPDF(item.mrp), item.discount + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
                 } else {
                     tableHead = [['Product', 'Qty', 'Price', 'Total']];
                     tableData = quoteItems.map(item => {
                         const netPrice = calculateNetPrice(item);
-                        return [item.name, item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        return [productLabel(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
                 }
@@ -3898,7 +3901,8 @@
                                                     <div className="quote-item" key={index} style={isBelowMin ? { background: '#FEE2E2' } : {}}>
                                                         <div className="quote-item-row1">
                                                             <div className="quote-item-name">
-                                                                <textarea className="form-textarea" value={item.name} placeholder="Enter product description..." onChange={e => updateItem(index, 'name', e.target.value)} rows="2" style={{ fontSize: '14px', padding: '8px 10px', width: '100%', fontWeight: '500', resize: 'vertical', minHeight: '44px' }} />
+                                                                <textarea className="form-textarea" value={item.name} placeholder="Enter product name..." onChange={e => updateItem(index, 'name', e.target.value)} rows="2" style={{ fontSize: '14px', padding: '8px 10px', width: '100%', fontWeight: '500', resize: 'vertical', minHeight: '44px' }} />
+                                                                <input className="form-input" value={item.description || ''} placeholder="Description (optional)" onChange={e => updateItem(index, 'description', e.target.value)} style={{ fontSize: '12px', padding: '4px 10px', marginTop: '4px', color: 'var(--text-muted)' }} />
                                                                 <small>{item.sku !== 'CUSTOM' ? (item.sku + ' | Min: ' + formatCurrency(item.minPrice)) : 'Custom Item'}</small>
                                                             </div>
                                                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeItem(index)} style={{ marginTop: '4px' }}><Icons.X /></button>
@@ -4204,18 +4208,19 @@
                 const hasDiscount = doc.items.some(item => (item.discount || 0) > 0);
 
                 let tableHead, tableData, colStyles;
+                const docProductLabel = (item) => item.description ? item.name + '\n' + item.description : item.name;
                 if (hasDiscount) {
                     tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
                     tableData = doc.items.map(item => {
                         const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
-                        return [item.name, item.qty.toString(), formatCurrencyPDF(item.mrp), (item.discount || 0) + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        return [docProductLabel(item), item.qty.toString(), formatCurrencyPDF(item.mrp), (item.discount || 0) + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
                 } else {
                     tableHead = [['Product', 'Qty', 'Price', 'Total']];
                     tableData = doc.items.map(item => {
                         const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
-                        return [item.name, item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        return [docProductLabel(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
                 }
