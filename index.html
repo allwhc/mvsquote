@@ -3510,9 +3510,13 @@
 
                 let tableHead, tableData, colStyles;
                 const itemsRef = quoteItems;
+                // Build product cell: name bold, description smaller gray below
                 const productCell = (item) => {
-                    if (!item.description) return { content: item.name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
-                    return { content: item.name + '\n' + item.description, styles: { textColor: [30, 30, 30] } };
+                    const name = item.name || '';
+                    const desc = item.description || '';
+                    if (!desc) return { content: name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
+                    // Use content with name + \n + desc for height calculation, custom draw handles styling
+                    return { content: name + '\n' + desc, styles: { textColor: [30, 30, 30], fontSize: 8 } };
                 };
                 if (hasDiscount) {
                     tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
@@ -3540,29 +3544,35 @@
                     columnStyles: colStyles,
                     tableWidth: 180,
                     margin: { left: 15, right: 15 },
+                    willDrawCell: (data) => {
+                        // For product cells with description, prevent default text draw
+                        if (data.section === 'body' && data.column.index === 0) {
+                            const item = itemsRef[data.row.index];
+                            if (item && item.description) {
+                                data.cell.text = []; // prevent default rendering
+                            }
+                        }
+                    },
                     didDrawCell: (data) => {
                         if (data.section === 'body' && data.column.index === 0) {
                             const item = itemsRef[data.row.index];
                             if (item && item.description) {
-                                // Overdraw the description part in smaller gray font
                                 const cellX = data.cell.x + 4;
                                 const cellW = data.cell.width - 8;
+                                let curY = data.cell.y + 7;
+                                // Draw name: bold, black, 9pt
                                 doc.setFont('helvetica', 'bold');
                                 doc.setFontSize(9);
+                                doc.setTextColor(30, 30, 30);
                                 const nameLines = doc.splitTextToSize(item.name, cellW);
-                                const nameH = nameLines.length * 4.5;
-                                // Draw gray background over the description area
-                                const descY = data.cell.y + 4 + nameH + 1;
-                                const descLines = doc.splitTextToSize(item.description, cellW);
-                                // Clear description area with cell background
-                                const bgColor = data.row.index % 2 === 0 ? [255, 255, 255] : [245, 245, 245];
-                                doc.setFillColor(...bgColor);
-                                doc.rect(cellX - 1, descY - 3, cellW + 2, descLines.length * 3.5 + 2, 'F');
-                                // Draw description
+                                doc.text(nameLines, cellX, curY);
+                                curY += nameLines.length * 4 + 2;
+                                // Draw description: normal, gray, 7.5pt
                                 doc.setFont('helvetica', 'normal');
                                 doc.setFontSize(7.5);
                                 doc.setTextColor(100, 100, 100);
-                                doc.text(descLines, cellX, descY);
+                                const descLines = doc.splitTextToSize(item.description, cellW);
+                                doc.text(descLines, cellX, curY);
                                 // Reset
                                 doc.setFont('helvetica', 'normal');
                                 doc.setFontSize(9);
@@ -4148,8 +4158,8 @@
                 const docIncludeGST = doc.includeGST !== false;
 
                 // Header - light gray background with dark blue text
-                doc.setFillColor(245, 245, 245);
-                doc.rect(0, 0, 210, 44, 'F');
+                pdf.setFillColor(245, 245, 245);
+                pdf.rect(0, 0, 210, 44, 'F');
                 let headerStartX = 15;
                 if (brand.logo) {
                     try {
@@ -4244,8 +4254,10 @@
                 let tableHead, tableData, colStyles;
                 const docItemsRef = doc.items;
                 const docProductCell = (item) => {
-                    if (!item.description) return { content: item.name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
-                    return { content: item.name + '\n' + item.description, styles: { textColor: [30, 30, 30] } };
+                    const name = item.name || '';
+                    const desc = item.description || '';
+                    if (!desc) return { content: name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
+                    return { content: name + '\n' + desc, styles: { textColor: [30, 30, 30], fontSize: 8 } };
                 };
                 if (hasDiscount) {
                     tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
@@ -4273,25 +4285,32 @@
                     columnStyles: colStyles,
                     tableWidth: 180,
                     margin: { left: 15, right: 15 },
+                    willDrawCell: (data) => {
+                        if (data.section === 'body' && data.column.index === 0) {
+                            const item = docItemsRef[data.row.index];
+                            if (item && item.description) {
+                                data.cell.text = [];
+                            }
+                        }
+                    },
                     didDrawCell: (data) => {
                         if (data.section === 'body' && data.column.index === 0) {
                             const item = docItemsRef[data.row.index];
                             if (item && item.description) {
                                 const cellX = data.cell.x + 4;
                                 const cellW = data.cell.width - 8;
+                                let curY = data.cell.y + 7;
                                 pdf.setFont('helvetica', 'bold');
                                 pdf.setFontSize(9);
+                                pdf.setTextColor(30, 30, 30);
                                 const nameLines = pdf.splitTextToSize(item.name, cellW);
-                                const nameH = nameLines.length * 4.5;
-                                const descY = data.cell.y + 4 + nameH + 1;
-                                const descLines = pdf.splitTextToSize(item.description, cellW);
-                                const bgColor = data.row.index % 2 === 0 ? [255, 255, 255] : [245, 245, 245];
-                                pdf.setFillColor(...bgColor);
-                                pdf.rect(cellX - 1, descY - 3, cellW + 2, descLines.length * 3.5 + 2, 'F');
+                                pdf.text(nameLines, cellX, curY);
+                                curY += nameLines.length * 4 + 2;
                                 pdf.setFont('helvetica', 'normal');
                                 pdf.setFontSize(7.5);
                                 pdf.setTextColor(100, 100, 100);
-                                pdf.text(descLines, cellX, descY);
+                                const descLines = pdf.splitTextToSize(item.description, cellW);
+                                pdf.text(descLines, cellX, curY);
                                 pdf.setFont('helvetica', 'normal');
                                 pdf.setFontSize(9);
                                 pdf.setTextColor(0);
