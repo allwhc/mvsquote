@@ -3276,12 +3276,14 @@
         // ============ QUOTATION BUILDER ============
         const QuotationBuilder = ({ products, items, quotations, setQuotations, bom, subProducts, editingDoc, setEditingDoc }) => {
             const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
+            const [deliveryAddress, setDeliveryAddress] = useState({ name: '', phone: '', address: '' });
+            const [sameAsDelivery, setSameAsDelivery] = useState(true);
             const [quoteItems, setQuoteItems] = useState([]);
             const [notes, setNotes] = useState('');
             const [selectedTerms, setSelectedTerms] = useState([]);
             const [customTerm, setCustomTerm] = useState('');
             const [selectedProduct, setSelectedProduct] = useState('');
-            const [selectedBrand, setSelectedBrand] = useState('MV Solutions');
+            const [selectedBrand, setSelectedBrand] = useState('SenseFlow');
             const [includeGST, setIncludeGST] = useState(true);
             const [discountEnabled, setDiscountEnabled] = useState(false);
             const [discountType, setDiscountType] = useState('percentage');
@@ -3291,6 +3293,13 @@
             React.useEffect(() => {
                 if (editingDoc) {
                     setCustomer(editingDoc.customer || { name: '', phone: '', address: '' });
+                    if (editingDoc.deliveryAddress) {
+                        setSameAsDelivery(false);
+                        setDeliveryAddress(editingDoc.deliveryAddress);
+                    } else {
+                        setSameAsDelivery(true);
+                        setDeliveryAddress({ name: '', phone: '', address: '' });
+                    }
                     setQuoteItems(editingDoc.items || []);
                     setNotes(editingDoc.notes || '');
                     setSelectedTerms(editingDoc.terms || []);
@@ -3461,6 +3470,7 @@
                 doc.text(`Date: ${today}`, 160, 58);
 
                 // Customer
+                const hasShipTo = !sameAsDelivery && deliveryAddress && deliveryAddress.name;
                 doc.setFillColor(241, 245, 249);
                 doc.rect(15, 68, 180, 30, 'F');
 
@@ -3474,8 +3484,24 @@
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(9);
                 doc.setTextColor(100);
-                if (customer.phone) doc.text('Ph: ' + customer.phone, 100, 76);
-                if (customer.address) { const al = doc.splitTextToSize(customer.address, 85); doc.text(al, 100, 83); }
+                if (hasShipTo) {
+                    if (customer.phone) doc.text('Ph: ' + customer.phone, 20, 89);
+                    if (customer.address) { const al = doc.splitTextToSize(customer.address, 75); doc.text(al, 20, 94); }
+                    // SHIP TO column
+                    doc.text('SHIP TO:', 115, 76);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(11);
+                    doc.setTextColor(30);
+                    doc.text(deliveryAddress.name, 115, 83);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(100);
+                    if (deliveryAddress.phone) doc.text('Ph: ' + deliveryAddress.phone, 115, 89);
+                    if (deliveryAddress.address) { const al2 = doc.splitTextToSize(deliveryAddress.address, 75); doc.text(al2, 115, 94); }
+                } else {
+                    if (customer.phone) doc.text('Ph: ' + customer.phone, 100, 76);
+                    if (customer.address) { const al = doc.splitTextToSize(customer.address, 85); doc.text(al, 100, 83); }
+                }
 
                 // Table - smart columns based on discount usage
                 const hasDiscount = quoteItems.some(item => item.discount > 0);
@@ -3691,7 +3717,8 @@
                     notes,
                     terms: selectedTerms,
                     status: isEditing ? editingDoc.status : 'sent',
-                    discount: discountAmount > 0 ? { type: discountType, value: Number(discountValue), amount: discountAmount } : null
+                    discount: discountAmount > 0 ? { type: discountType, value: Number(discountValue), amount: discountAmount } : null,
+                    deliveryAddress: sameAsDelivery ? null : deliveryAddress
                 };
 
                 if (isEditing) {
@@ -3735,6 +3762,8 @@
                             <button className="btn btn-secondary" onClick={() => {
                                 setEditingDoc(null);
                                 setCustomer({ name: '', phone: '', address: '' });
+                                setDeliveryAddress({ name: '', phone: '', address: '' });
+                                setSameAsDelivery(true);
                                 setQuoteItems([]);
                                 setNotes('');
                                 setSelectedTerms([]);
@@ -3796,6 +3825,31 @@
                                         <label className="form-label">Address</label>
                                         <textarea className="form-textarea" rows="2" placeholder="Enter address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} />
                                     </div>
+                                    <div className="form-group" style={{ marginTop: '8px' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                                            <input type="checkbox" checked={sameAsDelivery} onChange={e => setSameAsDelivery(e.target.checked)} />
+                                            Delivery address same as billing
+                                        </label>
+                                    </div>
+                                    {!sameAsDelivery && (
+                                        <div style={{ marginTop: '12px', padding: '16px', background: 'var(--bg)', borderRadius: '8px', border: '1px dashed var(--border)' }}>
+                                            <h4 style={{ fontSize: '13px', color: 'var(--primary)', marginBottom: '12px' }}>Delivery / Shipping Address</h4>
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label className="form-label">Delivery Name</label>
+                                                    <input type="text" className="form-input" placeholder="Recipient name" value={deliveryAddress.name} onChange={e => setDeliveryAddress({ ...deliveryAddress, name: e.target.value })} />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label className="form-label">Delivery Phone</label>
+                                                    <input type="text" className="form-input" placeholder="Recipient phone" value={deliveryAddress.phone} onChange={e => setDeliveryAddress({ ...deliveryAddress, phone: e.target.value })} />
+                                                </div>
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="form-label">Delivery Address</label>
+                                                <textarea className="form-textarea" rows="2" placeholder="Enter delivery address" value={deliveryAddress.address} onChange={e => setDeliveryAddress({ ...deliveryAddress, address: e.target.value })} />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -4003,6 +4057,7 @@
         const SavedDocuments = ({ quotations, setQuotations, products, items, bom, subProducts, setEditingDoc, navigate }) => {
             const [selectedDoc, setSelectedDoc] = useState(null);
             const [showModal, setShowModal] = useState(false);
+            const [selectedForLabels, setSelectedForLabels] = useState([]);
 
             const viewDocument = (doc) => {
                 setSelectedDoc(doc);
@@ -4111,6 +4166,7 @@
                 pdf.text('Date: ' + formatDate(doc.date), 160, 59);
 
                 // Customer Info
+                const hasShipTo2 = doc.deliveryAddress && doc.deliveryAddress.name;
                 pdf.setFillColor(241, 245, 249);
                 pdf.rect(15, 68, 180, 30, 'F');
 
@@ -4125,8 +4181,24 @@
                 pdf.setFont('helvetica', 'normal');
                 pdf.setFontSize(9);
                 pdf.setTextColor(100);
-                if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 100, 76);
-                if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 85); pdf.text(al, 100, 83); }
+                if (hasShipTo2) {
+                    if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 20, 89);
+                    if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 75); pdf.text(al, 20, 94); }
+                    // SHIP TO column
+                    pdf.text('SHIP TO:', 115, 76);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(11);
+                    pdf.setTextColor(30);
+                    pdf.text(doc.deliveryAddress.name, 115, 83);
+                    pdf.setFont('helvetica', 'normal');
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(100);
+                    if (doc.deliveryAddress.phone) pdf.text('Ph: ' + doc.deliveryAddress.phone, 115, 89);
+                    if (doc.deliveryAddress.address) { const al2 = pdf.splitTextToSize(doc.deliveryAddress.address, 75); pdf.text(al2, 115, 94); }
+                } else {
+                    if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 100, 76);
+                    if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 85); pdf.text(al, 100, 83); }
+                }
 
                 // Table - smart columns based on discount usage
                 const hasDiscount = doc.items.some(item => (item.discount || 0) > 0);
@@ -4332,6 +4404,111 @@
                 pdf.save(filename);
             };
 
+            const toggleLabelSelect = (doc) => {
+                setSelectedForLabels(prev => {
+                    const exists = prev.find(d => d.id === doc.id);
+                    if (exists) return prev.filter(d => d.id !== doc.id);
+                    return [...prev, doc];
+                });
+            };
+
+            const printLabels = () => {
+                if (selectedForLabels.length === 0) return;
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF();
+                const pageH = 297;
+                const labelH = (pageH - 20) / 2; // 2 labels per page, 10mm margin top/bottom
+                const marginLeft = 15;
+                const contentW = 180;
+
+                selectedForLabels.forEach((doc, idx) => {
+                    const labelIdx = idx % 2; // 0 or 1
+                    if (idx > 0 && labelIdx === 0) pdf.addPage();
+
+                    const yStart = 10 + labelIdx * labelH;
+                    const brandKey = doc.brand || 'MV Solutions';
+                    const brand = CONFIG.BRANDS[brandKey] || CONFIG.BRANDS['MV Solutions'];
+
+                    // Determine TO address
+                    const toAddr = doc.deliveryAddress && doc.deliveryAddress.name ? doc.deliveryAddress : doc.customer;
+
+                    // Border for label
+                    pdf.setDrawColor(180);
+                    pdf.setLineWidth(0.5);
+                    pdf.rect(marginLeft, yStart, contentW, labelH - 10);
+
+                    // TO section
+                    let y = yStart + 10;
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(100);
+                    pdf.text('TO:', marginLeft + 5, y);
+
+                    // Invoice number on right
+                    pdf.setFont('helvetica', 'normal');
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(120);
+                    pdf.text('Invoice: ' + (doc.number || ''), marginLeft + contentW - 5, y, { align: 'right' });
+
+                    y += 8;
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(16);
+                    pdf.setTextColor(30);
+                    pdf.text(toAddr.name || 'N/A', marginLeft + 5, y);
+
+                    y += 8;
+                    pdf.setFont('helvetica', 'normal');
+                    pdf.setFontSize(12);
+                    pdf.setTextColor(50);
+                    if (toAddr.address) {
+                        const addrLines = pdf.splitTextToSize(toAddr.address, contentW - 15);
+                        pdf.text(addrLines, marginLeft + 5, y);
+                        y += addrLines.length * 6;
+                    }
+
+                    y += 2;
+                    pdf.setFontSize(11);
+                    if (toAddr.phone) pdf.text('Ph: ' + toAddr.phone, marginLeft + 5, y);
+
+                    // FROM section
+                    y += 14;
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(100);
+                    pdf.text('FROM:', marginLeft + 5, y);
+
+                    y += 7;
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(50);
+                    pdf.text(brand.name || CONFIG.COMPANY.name, marginLeft + 5, y);
+
+                    y += 5;
+                    pdf.setFont('helvetica', 'normal');
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(80);
+                    pdf.text(CONFIG.COMPANY.address + ', ' + CONFIG.COMPANY.city, marginLeft + 5, y);
+
+                    y += 5;
+                    pdf.text('Ph: ' + CONFIG.COMPANY.phone, marginLeft + 5, y);
+
+                    // Dashed cut line between labels (after first label on page)
+                    if (labelIdx === 0) {
+                        const cutY = yStart + labelH - 5;
+                        pdf.setDrawColor(150);
+                        pdf.setLineWidth(0.3);
+                        const dashLen = 3;
+                        const gapLen = 3;
+                        for (let x = marginLeft; x < marginLeft + contentW; x += dashLen + gapLen) {
+                            pdf.line(x, cutY, Math.min(x + dashLen, marginLeft + contentW), cutY);
+                        }
+                    }
+                });
+
+                pdf.save('courier-labels.pdf');
+                setSelectedForLabels([]);
+            };
+
             return (
                 <div>
                     <div className="page-header">
@@ -4346,6 +4523,7 @@
                             <table>
                                 <thead>
                                     <tr>
+                                        <th style={{ width: '30px' }}></th>
                                         <th>Document #</th>
                                         <th>Brand</th>
                                         <th>Date</th>
@@ -4359,7 +4537,7 @@
                                 <tbody>
                                     {quotations.length === 0 ? (
                                         <tr>
-                                            <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                                            <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                                                 No documents yet. Create a quotation to get started.
                                             </td>
                                         </tr>
@@ -4369,6 +4547,7 @@
                                             const bi = CONFIG.BRANDS[bk] || CONFIG.BRANDS['MV Solutions'];
                                             return (
                                             <tr key={doc.id}>
+                                                <td><input type="checkbox" checked={!!selectedForLabels.find(d => d.id === doc.id)} onChange={() => toggleLabelSelect(doc)} /></td>
                                                 <td><span className="code-badge">{doc.number}</span></td>
                                                 <td><span style={{ padding: '2px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', color: 'rgb(' + bi.color.join(',') + ')', background: 'rgba(' + bi.color.join(',') + ', 0.1)', border: '1px solid rgba(' + bi.color.join(',') + ', 0.3)', whiteSpace: 'nowrap' }}>{bk}</span></td>
                                                 <td>{formatDate(doc.date)}</td>
@@ -4530,6 +4709,16 @@
                             </div>
                         )}
                     </Modal>
+
+                    {selectedForLabels.length > 0 && (
+                        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--primary)', color: 'white', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1000, boxShadow: '0 -2px 10px rgba(0,0,0,0.2)' }}>
+                            <span>{selectedForLabels.length} invoice(s) selected</span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="btn" style={{ background: 'white', color: 'var(--primary)' }} onClick={printLabels}>Print Labels</button>
+                                <button className="btn" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }} onClick={() => setSelectedForLabels([])}>Clear</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
