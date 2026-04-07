@@ -3526,7 +3526,7 @@
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
                 } else {
-                    tableHead = [['Product', 'Qty', 'Price', 'Total']];
+                    tableHead = [['Product', 'Qty', 'Unit Price', 'Total']];
                     tableData = quoteItems.map(item => {
                         const netPrice = calculateNetPrice(item);
                         return [productCell(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
@@ -4267,7 +4267,7 @@
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
                 } else {
-                    tableHead = [['Product', 'Qty', 'Price', 'Total']];
+                    tableHead = [['Product', 'Qty', 'Unit Price', 'Total']];
                     tableData = doc.items.map(item => {
                         const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
                         return [docProductCell(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
