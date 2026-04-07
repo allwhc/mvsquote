@@ -3509,19 +3509,23 @@
                 const hasDiscount = quoteItems.some(item => item.discount > 0);
 
                 let tableHead, tableData, colStyles;
-                const productLabel = (item) => item.description ? item.name + '\n' + item.description : item.name;
+                const itemsRef = quoteItems;
+                const productCell = (item) => {
+                    if (!item.description) return { content: item.name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
+                    return { content: item.name + '\n' + item.description, styles: { textColor: [30, 30, 30] } };
+                };
                 if (hasDiscount) {
                     tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
                     tableData = quoteItems.map(item => {
                         const netPrice = calculateNetPrice(item);
-                        return [productLabel(item), item.qty.toString(), formatCurrencyPDF(item.mrp), item.discount + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        return [productCell(item), item.qty.toString(), formatCurrencyPDF(item.mrp), item.discount + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
                 } else {
                     tableHead = [['Product', 'Qty', 'Price', 'Total']];
                     tableData = quoteItems.map(item => {
                         const netPrice = calculateNetPrice(item);
-                        return [productLabel(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        return [productCell(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
                 }
@@ -3535,7 +3539,37 @@
                     bodyStyles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak' },
                     columnStyles: colStyles,
                     tableWidth: 180,
-                    margin: { left: 15, right: 15 }
+                    margin: { left: 15, right: 15 },
+                    didDrawCell: (data) => {
+                        if (data.section === 'body' && data.column.index === 0) {
+                            const item = itemsRef[data.row.index];
+                            if (item && item.description) {
+                                // Overdraw the description part in smaller gray font
+                                const cellX = data.cell.x + 4;
+                                const cellW = data.cell.width - 8;
+                                doc.setFont('helvetica', 'bold');
+                                doc.setFontSize(9);
+                                const nameLines = doc.splitTextToSize(item.name, cellW);
+                                const nameH = nameLines.length * 4.5;
+                                // Draw gray background over the description area
+                                const descY = data.cell.y + 4 + nameH + 1;
+                                const descLines = doc.splitTextToSize(item.description, cellW);
+                                // Clear description area with cell background
+                                const bgColor = data.row.index % 2 === 0 ? [255, 255, 255] : [245, 245, 245];
+                                doc.setFillColor(...bgColor);
+                                doc.rect(cellX - 1, descY - 3, cellW + 2, descLines.length * 3.5 + 2, 'F');
+                                // Draw description
+                                doc.setFont('helvetica', 'normal');
+                                doc.setFontSize(7.5);
+                                doc.setTextColor(100, 100, 100);
+                                doc.text(descLines, cellX, descY);
+                                // Reset
+                                doc.setFont('helvetica', 'normal');
+                                doc.setFontSize(9);
+                                doc.setTextColor(0);
+                            }
+                        }
+                    }
                 });
 
                 // Summary
@@ -4208,19 +4242,23 @@
                 const hasDiscount = doc.items.some(item => (item.discount || 0) > 0);
 
                 let tableHead, tableData, colStyles;
-                const docProductLabel = (item) => item.description ? item.name + '\n' + item.description : item.name;
+                const docItemsRef = doc.items;
+                const docProductCell = (item) => {
+                    if (!item.description) return { content: item.name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
+                    return { content: item.name + '\n' + item.description, styles: { textColor: [30, 30, 30] } };
+                };
                 if (hasDiscount) {
                     tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
                     tableData = doc.items.map(item => {
                         const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
-                        return [docProductLabel(item), item.qty.toString(), formatCurrencyPDF(item.mrp), (item.discount || 0) + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        return [docProductCell(item), item.qty.toString(), formatCurrencyPDF(item.mrp), (item.discount || 0) + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
                 } else {
                     tableHead = [['Product', 'Qty', 'Price', 'Total']];
                     tableData = doc.items.map(item => {
                         const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
-                        return [docProductLabel(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        return [docProductCell(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
                     });
                     colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
                 }
@@ -4234,7 +4272,32 @@
                     bodyStyles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak' },
                     columnStyles: colStyles,
                     tableWidth: 180,
-                    margin: { left: 15, right: 15 }
+                    margin: { left: 15, right: 15 },
+                    didDrawCell: (data) => {
+                        if (data.section === 'body' && data.column.index === 0) {
+                            const item = docItemsRef[data.row.index];
+                            if (item && item.description) {
+                                const cellX = data.cell.x + 4;
+                                const cellW = data.cell.width - 8;
+                                pdf.setFont('helvetica', 'bold');
+                                pdf.setFontSize(9);
+                                const nameLines = pdf.splitTextToSize(item.name, cellW);
+                                const nameH = nameLines.length * 4.5;
+                                const descY = data.cell.y + 4 + nameH + 1;
+                                const descLines = pdf.splitTextToSize(item.description, cellW);
+                                const bgColor = data.row.index % 2 === 0 ? [255, 255, 255] : [245, 245, 245];
+                                pdf.setFillColor(...bgColor);
+                                pdf.rect(cellX - 1, descY - 3, cellW + 2, descLines.length * 3.5 + 2, 'F');
+                                pdf.setFont('helvetica', 'normal');
+                                pdf.setFontSize(7.5);
+                                pdf.setTextColor(100, 100, 100);
+                                pdf.text(descLines, cellX, descY);
+                                pdf.setFont('helvetica', 'normal');
+                                pdf.setFontSize(9);
+                                pdf.setTextColor(0);
+                            }
+                        }
+                    }
                 });
 
                 // Summary
