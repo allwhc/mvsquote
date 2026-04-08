@@ -3275,7 +3275,7 @@
 
         // ============ QUOTATION BUILDER ============
         const QuotationBuilder = ({ products, items, quotations, setQuotations, bom, subProducts, editingDoc, setEditingDoc }) => {
-            const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
+            const [customer, setCustomer] = useState({ name: '', phone: '', address: '', gst: '' });
             const [deliveryAddress, setDeliveryAddress] = useState({ name: '', phone: '', address: '' });
             const [sameAsDelivery, setSameAsDelivery] = useState(true);
             const [quoteItems, setQuoteItems] = useState([]);
@@ -3292,7 +3292,7 @@
             // Load editingDoc data when set
             React.useEffect(() => {
                 if (editingDoc) {
-                    setCustomer(editingDoc.customer || { name: '', phone: '', address: '' });
+                    setCustomer(editingDoc.customer || { name: '', phone: '', address: '', gst: '' });
                     if (editingDoc.deliveryAddress) {
                         setSameAsDelivery(false);
                         setDeliveryAddress(editingDoc.deliveryAddress);
@@ -3488,7 +3488,9 @@
                 doc.setTextColor(100);
                 if (hasShipTo) {
                     if (customer.phone) doc.text('Ph: ' + customer.phone, 20, 89);
-                    if (customer.address) { const al = doc.splitTextToSize(customer.address, 75); doc.text(al, 20, 94); }
+                    let billY = 94;
+                    if (customer.address) { const al = doc.splitTextToSize(customer.address, 75); doc.text(al, 20, billY); billY += al.length * 4; }
+                    if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 20, billY + 1); doc.setFontSize(9); }
                     // SHIP TO column
                     doc.text('SHIP TO:', 115, 76);
                     doc.setFont('helvetica', 'bold');
@@ -3502,7 +3504,9 @@
                     if (deliveryAddress.address) { const al2 = doc.splitTextToSize(deliveryAddress.address, 75); doc.text(al2, 115, 94); }
                 } else {
                     if (customer.phone) doc.text('Ph: ' + customer.phone, 100, 76);
-                    if (customer.address) { const al = doc.splitTextToSize(customer.address, 85); doc.text(al, 100, 83); }
+                    let billY2 = 83;
+                    if (customer.address) { const al = doc.splitTextToSize(customer.address, 85); doc.text(al, 100, billY2); billY2 += al.length * 4; }
+                    if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 100, billY2 + 1); doc.setFontSize(9); }
                 }
 
                 // Table - smart columns based on discount usage
@@ -3872,6 +3876,10 @@
                                         <label className="form-label">Address</label>
                                         <textarea className="form-textarea" rows="2" placeholder="Enter address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} />
                                     </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Customer GSTIN <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                                        <input type="text" className="form-input" placeholder="e.g., 27ABCDE1234F1Z5" value={customer.gst || ''} onChange={e => setCustomer({ ...customer, gst: e.target.value })} style={{ textTransform: 'uppercase' }} />
+                                    </div>
                                     <div className="form-group" style={{ marginTop: '8px' }}>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
                                             <input type="checkbox" checked={sameAsDelivery} onChange={e => setSameAsDelivery(e.target.checked)} />
@@ -4231,7 +4239,9 @@
                 pdf.setTextColor(100);
                 if (hasShipTo2) {
                     if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 20, 89);
-                    if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 75); pdf.text(al, 20, 94); }
+                    let billY3 = 94;
+                    if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 75); pdf.text(al, 20, billY3); billY3 += al.length * 4; }
+                    if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 20, billY3 + 1); pdf.setFontSize(9); }
                     // SHIP TO column
                     pdf.text('SHIP TO:', 115, 76);
                     pdf.setFont('helvetica', 'bold');
@@ -4245,7 +4255,9 @@
                     if (doc.deliveryAddress.address) { const al2 = pdf.splitTextToSize(doc.deliveryAddress.address, 75); pdf.text(al2, 115, 94); }
                 } else {
                     if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 100, 76);
-                    if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 85); pdf.text(al, 100, 83); }
+                    let billY4 = 83;
+                    if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 85); pdf.text(al, 100, billY4); billY4 += al.length * 4; }
+                    if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 100, billY4 + 1); pdf.setFontSize(9); }
                 }
 
                 // Table - smart columns based on discount usage
