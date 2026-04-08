@@ -3744,6 +3744,14 @@
                     footerY += 6;
                 }
 
+                if (type === 'invoice') {
+                    doc.setTextColor(160);
+                    doc.setFontSize(7);
+                    doc.setFont('helvetica', 'italic');
+                    doc.text('This is a computer-generated invoice and does not require a physical signature or stamp.', 105, Math.min(footerY + 2, 288), { align: 'center' });
+                    doc.setFont('helvetica', 'normal');
+                    footerY += 6;
+                }
                 doc.setTextColor(150);
                 doc.setFontSize(8);
                 doc.text('Thank you for your business!', 105, Math.min(footerY + 4, 292), { align: 'center' });
@@ -4494,6 +4502,14 @@
                     footerY += 6;
                 }
 
+                if (type === 'invoice') {
+                    pdf.setTextColor(160);
+                    pdf.setFontSize(7);
+                    pdf.setFont('helvetica', 'italic');
+                    pdf.text('This is a computer-generated invoice and does not require a physical signature or stamp.', 105, Math.min(footerY + 2, 288), { align: 'center' });
+                    pdf.setFont('helvetica', 'normal');
+                    footerY += 6;
+                }
                 pdf.setTextColor(150);
                 pdf.setFontSize(8);
                 pdf.text('Thank you for your business!', 105, Math.min(footerY + 4, 292), { align: 'center' });
