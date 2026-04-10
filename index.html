@@ -8737,6 +8737,30 @@ ${componentResults.map(c => {
                 return () => { if (firebaseSyncTimer.current) clearTimeout(firebaseSyncTimer.current); };
             }, [items, products, bom, subProducts, isLoading]);
 
+            // Manual save to Firebase (no debounce)
+            const [firebaseSaveStatus, setFirebaseSaveStatus] = useState('idle'); // idle, saving, saved, error
+            const saveToFirebaseNow = async () => {
+                if (items.length === 0 && products.length === 0) return;
+                setFirebaseSaveStatus('saving');
+                try {
+                    await Promise.all([
+                        FirebaseCatalog.saveItems(items),
+                        FirebaseCatalog.saveProducts(products),
+                        FirebaseCatalog.saveBom(bom),
+                        FirebaseCatalog.saveSubProducts(subProducts)
+                    ]);
+                    // Update prev ref so auto-save doesn't re-save
+                    firebaseSyncPrev.current = { items: [...items], products: [...products], bom: [...bom], subProducts: [...subProducts] };
+                    setFirebaseSaveStatus('saved');
+                    console.log('Firebase manual save complete');
+                    setTimeout(() => setFirebaseSaveStatus('idle'), 3000);
+                } catch(e) {
+                    console.error('Firebase manual save failed:', e);
+                    setFirebaseSaveStatus('error');
+                    setTimeout(() => setFirebaseSaveStatus('idle'), 3000);
+                }
+            };
+
             // Auto-sync to Google Sheets in background after catalog changes (backup, 10s debounce)
             const autoSyncTimer = React.useRef(null);
             useEffect(() => {
@@ -8926,6 +8950,23 @@ ${componentResults.map(c => {
                             {/* Always show last sync time */}
                             <div style={{ padding: '4px 14px', fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>
                                 Last sync: {formatLastSync()}
+                            </div>
+
+                            {/* Save to Firebase - always visible */}
+                            <div
+                                className="nav-item"
+                                onClick={saveToFirebaseNow}
+                                style={{
+                                    background: firebaseSaveStatus === 'saving' ? 'rgba(245, 158, 11, 0.2)' :
+                                               firebaseSaveStatus === 'saved' ? 'rgba(16, 185, 129, 0.2)' :
+                                               firebaseSaveStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : '',
+                                    pointerEvents: firebaseSaveStatus === 'saving' ? 'none' : 'auto'
+                                }}
+                            >
+                                {firebaseSaveStatus === 'saving' ? <SyncIcons.Refresh /> : <SyncIcons.Upload />}
+                                {firebaseSaveStatus === 'saving' ? 'Saving...' :
+                                 firebaseSaveStatus === 'saved' ? '✓ Saved to Firebase' :
+                                 firebaseSaveStatus === 'error' ? '✕ Save Failed' : 'Save to Firebase'}
                             </div>
 
                             {syncExpanded && (
