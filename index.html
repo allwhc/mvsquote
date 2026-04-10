@@ -3598,7 +3598,7 @@
                     const desc = item.description || '';
                     if (!desc) return { content: name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
                     // Use content with name + \n + desc for height calculation, custom draw handles styling
-                    return { content: name + '\n' + desc, styles: { textColor: [30, 30, 30], fontSize: 8 } };
+                    return { content: name + '\n' + desc, styles: { fontStyle: 'normal', textColor: [30, 30, 30], fontSize: 8 } };
                 };
                 if (hasDiscount) {
                     tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
@@ -4364,7 +4364,7 @@
                     const name = item.name || '';
                     const desc = item.description || '';
                     if (!desc) return { content: name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
-                    return { content: name + '\n' + desc, styles: { textColor: [30, 30, 30], fontSize: 8 } };
+                    return { content: name + '\n' + desc, styles: { fontStyle: 'normal', textColor: [30, 30, 30], fontSize: 8 } };
                 };
                 if (hasDiscount) {
                     tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
