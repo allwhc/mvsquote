@@ -4825,14 +4825,17 @@
                                 <button className="btn btn-success" onClick={() => generatePDFFromDoc(selectedDoc, 'invoice')}>
                                     <Icons.Download /> Invoice PDF
                                 </button>
-                                <button className="btn" onClick={() => {
+                                <button className="btn" onClick={async () => {
                                         const doc = selectedDoc;
                                         const brandName = doc.brand || 'SenseFlow';
                                         const docType = doc.type === 'invoice' ? 'Invoice' : 'Quotation';
+                                        // Auto-download PDF first
+                                        await generatePDFFromDoc(doc, docType.toLowerCase());
+                                        // Then open Gmail compose
                                         const subject = `${brandName} - ${docType} ${doc.number}`;
-                                        const body = `Dear ${doc.customer.name},\n\nPlease find the ${docType} ${doc.number} dated ${new Date(doc.date).toLocaleDateString('en-IN')}.\n\nPlease let us know when we can hear back or if there are any requirements we can support.\n\nRegards,\n${brandName}`;
+                                        const body = `Dear ${doc.customer.name},\n\nPlease find attached the ${docType} ${doc.number} dated ${new Date(doc.date).toLocaleDateString('en-IN')}.\n\nPlease let us know when we can hear back or if there are any requirements we can support.\n\nRegards,\n${brandName}`;
                                         const toEmail = doc.customer?.email && doc.customer.email !== 'N/A' ? doc.customer.email : '';
-                                        window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                                        window.open(`https://mail.google.com/mail/?view=cm&fs=1&from=senseflow.in@gmail.com&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
                                     }} style={{ background: '#EA4335', color: 'white' }}>
                                         ✉ Send via Gmail
                                 </button>
