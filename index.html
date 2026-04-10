@@ -4836,7 +4836,9 @@
                                         const docDate = new Date(doc.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
                                         const body = `Dear ${doc.customer.name},\n\nI hope this message finds you well.\n\nPlease find attached ${docType} ${doc.number} dated ${docDate} for your reference.\n\nFor any clarifications or to discuss further, please feel free to connect with us.\n\nWarm regards,\n${brandName} Team\ninfo@senseflow.in | +91 836 973 4597 | www.SenseFlow.in`;
                                         const toEmail = doc.customer?.email && doc.customer.email !== 'N/A' ? doc.customer.email : '';
-                                        window.open(`https://mail.google.com/mail/?authuser=senseflow.in@gmail.com&view=cm&fs=1&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                                        const ccEmails = (doc.additionalContacts || []).map(c => c.email).filter(Boolean).join(',');
+                                        const ccParam = ccEmails ? `&cc=${encodeURIComponent(ccEmails)}` : '';
+                                        window.open(`https://mail.google.com/mail/?authuser=senseflow.in@gmail.com&view=cm&fs=1&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}${ccParam}`, '_blank');
                                     }} style={{ background: '#EA4335', color: 'white' }}>
                                         ✉ Send via Gmail
                                 </button>
@@ -7741,7 +7743,8 @@ ${componentResults.map(c => {
                 source: 'Website', brand: 'SenseFlow', status: 'New', priority: 'Warm',
                 productsInterested: '', customization: '',
                 assignedTo: '', nextFollowUp: '', expectedValue: '',
-                quotationId: '', invoiceId: '', notes: ''
+                quotationId: '', invoiceId: '', notes: '',
+                additionalContacts: []
             };
             const [form, setForm] = useState(emptyForm);
 
@@ -7784,7 +7787,8 @@ ${componentResults.map(c => {
                     productsInterested: enq.productsInterested || '', customization: enq.customization || '',
                     assignedTo: enq.assignedTo || '', nextFollowUp: enq.nextFollowUp || '',
                     expectedValue: enq.expectedValue || '', quotationId: enq.quotationId || '',
-                    invoiceId: enq.invoiceId || '', notes: enq.notes || ''
+                    invoiceId: enq.invoiceId || '', notes: enq.notes || '',
+                    additionalContacts: enq.additionalContacts || []
                 });
                 setEditingId(enq.firebaseId);
                 setView('form');
@@ -7824,9 +7828,12 @@ ${componentResults.map(c => {
 
             const openEmail = (enq) => {
                 if (!enq.email) return alert('No email available');
-                const subject = `${enq.brand || 'SenseFlow'} - Regarding your enquiry`;
-                const body = `Dear ${enq.customerName},\n\nThank you for your interest${enq.productsInterested ? ' in ' + enq.productsInterested : ''}.\n\nPlease let us know if there are any requirements we can support.\n\nRegards,\n${enq.brand || 'SenseFlow'}`;
-                window.open(`https://mail.google.com/mail/?authuser=senseflow.in@gmail.com&view=cm&to=${encodeURIComponent(enq.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                const brandName = enq.brand || 'SenseFlow';
+                const subject = `${brandName} - Regarding your enquiry`;
+                const body = `Dear ${enq.customerName},\n\nThank you for your interest${enq.productsInterested ? ' in ' + enq.productsInterested : ''}.\n\nFor any clarifications or to discuss further, please feel free to connect with us.\n\nWarm regards,\n${brandName} Team\ninfo@senseflow.in | +91 836 973 4597 | www.SenseFlow.in`;
+                const ccEmails = (enq.additionalContacts || []).map(c => c.email).filter(Boolean).join(',');
+                const ccParam = ccEmails ? `&cc=${encodeURIComponent(ccEmails)}` : '';
+                window.open(`https://mail.google.com/mail/?authuser=senseflow.in@gmail.com&view=cm&to=${encodeURIComponent(enq.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}${ccParam}`, '_blank');
             };
 
             const handleCreateQuote = (enq) => {
@@ -7835,6 +7842,7 @@ ${componentResults.map(c => {
                     brand: enq.brand || 'SenseFlow',
                     items: [], notes: '', terms: [], includeGST: true,
                     discount: { type: 'percentage', value: 0 },
+                    additionalContacts: enq.additionalContacts || [],
                     _fromEnquiry: true
                 });
                 navigate('quotation');
@@ -7911,6 +7919,33 @@ ${componentResults.map(c => {
                                     ENQUIRY_SOURCES.map(s => <option key={s} value={s}>{s}</option>)
                                 )}
                             </div>
+                        </div>
+
+                        {/* Additional Contacts */}
+                        <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #E5E7EB' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: '#6B7280' }}>Additional Contacts (CC in emails)</span>
+                                <button type="button" onClick={() => setForm({...form, additionalContacts: [...(form.additionalContacts || []), { name: '', phone: '', email: '' }]})}
+                                    style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid #3B82F6', background: 'white', color: '#3B82F6', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Add Contact</button>
+                            </div>
+                            {(form.additionalContacts || []).map((c, i) => (
+                                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, marginBottom: 8, alignItems: 'end' }}>
+                                    <div>
+                                        {i === 0 && <span style={{ fontSize: 10, color: '#9CA3AF', display: 'block', marginBottom: 4 }}>Name / Role</span>}
+                                        {fieldInput({ value: c.name, onChange: e => { const arr = [...form.additionalContacts]; arr[i] = {...arr[i], name: e.target.value}; setForm({...form, additionalContacts: arr}); }, placeholder: 'e.g. Secretary' })}
+                                    </div>
+                                    <div>
+                                        {i === 0 && <span style={{ fontSize: 10, color: '#9CA3AF', display: 'block', marginBottom: 4 }}>Phone</span>}
+                                        {fieldInput({ value: c.phone, onChange: e => { const arr = [...form.additionalContacts]; arr[i] = {...arr[i], phone: e.target.value}; setForm({...form, additionalContacts: arr}); }, placeholder: 'Phone', type: 'tel' })}
+                                    </div>
+                                    <div>
+                                        {i === 0 && <span style={{ fontSize: 10, color: '#9CA3AF', display: 'block', marginBottom: 4 }}>Email</span>}
+                                        {fieldInput({ value: c.email, onChange: e => { const arr = [...form.additionalContacts]; arr[i] = {...arr[i], email: e.target.value}; setForm({...form, additionalContacts: arr}); }, placeholder: 'Email', type: 'email' })}
+                                    </div>
+                                    <button type="button" onClick={() => { const arr = form.additionalContacts.filter((_, idx) => idx !== i); setForm({...form, additionalContacts: arr}); }}
+                                        style={{ padding: '8px 10px', borderRadius: 6, border: 'none', background: '#FEE2E2', color: '#EF4444', cursor: 'pointer', fontSize: 14, height: 40 }}>✕</button>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
@@ -8045,6 +8080,18 @@ ${componentResults.map(c => {
                                 {enq.company && <div style={{ fontSize: 13, marginBottom: 6 }}>🏢 {enq.company}</div>}
                                 <div style={{ fontSize: 13, marginBottom: 6 }}>📋 Source: {enq.source}</div>
                                 <div style={{ fontSize: 13 }}>🏷 Brand: {enq.brand}</div>
+                                {(enq.additionalContacts || []).length > 0 && (
+                                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #E5E7EB' }}>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6 }}>Additional Contacts</div>
+                                        {enq.additionalContacts.map((c, i) => (
+                                            <div key={i} style={{ fontSize: 12, marginBottom: 4, padding: '4px 8px', background: '#F9FAFB', borderRadius: 4 }}>
+                                                <strong>{c.name || 'Contact ' + (i+1)}</strong>
+                                                {c.phone && <span> · 📞 {c.phone}</span>}
+                                                {c.email && <span> · ✉ {c.email}</span>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <div style={{ background: 'white', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#1E3A8A' }}>Details</div>
