@@ -4825,18 +4825,17 @@
                                 <button className="btn btn-success" onClick={() => generatePDFFromDoc(selectedDoc, 'invoice')}>
                                     <Icons.Download /> Invoice PDF
                                 </button>
-                                {selectedDoc?.customer?.email && (
-                                    <button className="btn" onClick={() => {
+                                <button className="btn" onClick={() => {
                                         const doc = selectedDoc;
                                         const brandName = doc.brand || 'SenseFlow';
                                         const docType = doc.type === 'invoice' ? 'Invoice' : 'Quotation';
                                         const subject = `${brandName} - ${docType} ${doc.number}`;
                                         const body = `Dear ${doc.customer.name},\n\nPlease find the ${docType} ${doc.number} dated ${new Date(doc.date).toLocaleDateString('en-IN')}.\n\nPlease let us know when we can hear back or if there are any requirements we can support.\n\nRegards,\n${brandName}`;
-                                        window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(doc.customer.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                                        const toEmail = doc.customer?.email && doc.customer.email !== 'N/A' ? doc.customer.email : '';
+                                        window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
                                     }} style={{ background: '#EA4335', color: 'white' }}>
                                         ✉ Send via Gmail
-                                    </button>
-                                )}
+                                </button>
                             </>
                         }
                     >
