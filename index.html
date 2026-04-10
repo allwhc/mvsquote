@@ -7739,7 +7739,7 @@ ${componentResults.map(c => {
 
             // Form state
             const emptyForm = {
-                customerName: '', phone: '', email: '', company: '',
+                customerName: '', phone: '', email: '', company: '', location: '',
                 source: 'Website', brand: 'SenseFlow', status: 'New', priority: 'Warm',
                 productsInterested: '', customization: '',
                 assignedTo: '', nextFollowUp: '', expectedValue: '',
@@ -7782,7 +7782,7 @@ ${componentResults.map(c => {
             const handleEdit = (enq) => {
                 setForm({
                     customerName: enq.customerName || '', phone: enq.phone || '', email: enq.email || '',
-                    company: enq.company || '', source: enq.source || 'Website', brand: enq.brand || 'SenseFlow',
+                    company: enq.company || '', location: enq.location || '', source: enq.source || 'Website', brand: enq.brand || 'SenseFlow',
                     status: enq.status || 'New', priority: enq.priority || 'Warm',
                     productsInterested: enq.productsInterested || '', customization: enq.customization || '',
                     assignedTo: enq.assignedTo || '', nextFollowUp: enq.nextFollowUp || '',
@@ -7912,6 +7912,10 @@ ${componentResults.map(c => {
                             <div>
                                 {fieldLabel('Company')}
                                 {fieldInput({ value: form.company, onChange: e => setForm({...form, company: e.target.value}), placeholder: 'Company / Organization' })}
+                            </div>
+                            <div>
+                                {fieldLabel('Location')}
+                                {fieldInput({ value: form.location, onChange: e => setForm({...form, location: e.target.value}), placeholder: 'City, State' })}
                             </div>
                             <div>
                                 {fieldLabel('Source')}
@@ -8078,6 +8082,7 @@ ${componentResults.map(c => {
                                 {enq.phone && <div style={{ fontSize: 13, marginBottom: 6 }}>📞 {enq.phone}</div>}
                                 {enq.email && <div style={{ fontSize: 13, marginBottom: 6 }}>✉ {enq.email}</div>}
                                 {enq.company && <div style={{ fontSize: 13, marginBottom: 6 }}>🏢 {enq.company}</div>}
+                                {enq.location && <div style={{ fontSize: 13, marginBottom: 6 }}>📍 {enq.location}</div>}
                                 <div style={{ fontSize: 13, marginBottom: 6 }}>📋 Source: {enq.source}</div>
                                 <div style={{ fontSize: 13 }}>🏷 Brand: {enq.brand}</div>
                                 {(enq.additionalContacts || []).length > 0 && (
