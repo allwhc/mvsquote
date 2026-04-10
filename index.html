@@ -8847,6 +8847,23 @@ ${componentResults.map(c => {
                                 <Icons.Folder /> Projects
                             </div>
 
+                            {/* Save to Firebase - easy access */}
+                            <div
+                                className="nav-item"
+                                onClick={saveToFirebaseNow}
+                                style={{
+                                    background: firebaseSaveStatus === 'saving' ? 'rgba(245, 158, 11, 0.2)' :
+                                               firebaseSaveStatus === 'saved' ? 'rgba(16, 185, 129, 0.2)' :
+                                               firebaseSaveStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : '',
+                                    pointerEvents: firebaseSaveStatus === 'saving' ? 'none' : 'auto'
+                                }}
+                            >
+                                {firebaseSaveStatus === 'saving' ? <SyncIcons.Refresh /> : <SyncIcons.Upload />}
+                                {firebaseSaveStatus === 'saving' ? 'Saving...' :
+                                 firebaseSaveStatus === 'saved' ? '✓ Saved to Firebase' :
+                                 firebaseSaveStatus === 'error' ? '✕ Save Failed' : 'Save to Firebase'}
+                            </div>
+
                             {/* Admin Section - Password Protected */}
                             <div className="nav-divider"></div>
                             <div
@@ -8950,23 +8967,6 @@ ${componentResults.map(c => {
                             {/* Always show last sync time */}
                             <div style={{ padding: '4px 14px', fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>
                                 Last sync: {formatLastSync()}
-                            </div>
-
-                            {/* Save to Firebase - always visible */}
-                            <div
-                                className="nav-item"
-                                onClick={saveToFirebaseNow}
-                                style={{
-                                    background: firebaseSaveStatus === 'saving' ? 'rgba(245, 158, 11, 0.2)' :
-                                               firebaseSaveStatus === 'saved' ? 'rgba(16, 185, 129, 0.2)' :
-                                               firebaseSaveStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : '',
-                                    pointerEvents: firebaseSaveStatus === 'saving' ? 'none' : 'auto'
-                                }}
-                            >
-                                {firebaseSaveStatus === 'saving' ? <SyncIcons.Refresh /> : <SyncIcons.Upload />}
-                                {firebaseSaveStatus === 'saving' ? 'Saving...' :
-                                 firebaseSaveStatus === 'saved' ? '✓ Saved to Firebase' :
-                                 firebaseSaveStatus === 'error' ? '✕ Save Failed' : 'Save to Firebase'}
                             </div>
 
                             {syncExpanded && (
