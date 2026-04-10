@@ -4834,7 +4834,7 @@
                                         // Then open Gmail compose
                                         const subject = `${brandName} - ${docType} ${doc.number}`;
                                         const docDate = new Date(doc.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-                                        const body = `Dear ${doc.customer.name},\n\nI hope this message finds you well.\n\nPlease find attached ${docType} ${doc.number} dated ${docDate} for your reference.\n\nFor any clarifications or to discuss further, please feel free to connect with us.\n\nBest regards,\n${brandName}`;
+                                        const body = `Dear ${doc.customer.name},\n\nI hope this message finds you well.\n\nPlease find attached ${docType} ${doc.number} dated ${docDate} for your reference.\n\nFor any clarifications or to discuss further, please feel free to connect with us.\n\nWarm regards,\n${brandName} Team\ninfo@senseflow.in | +91 836 973 4597 | www.SenseFlow.in`;
                                         const toEmail = doc.customer?.email && doc.customer.email !== 'N/A' ? doc.customer.email : '';
                                         window.open(`https://mail.google.com/mail/?authuser=senseflow.in@gmail.com&view=cm&fs=1&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
                                     }} style={{ background: '#EA4335', color: 'white' }}>
