@@ -1009,64 +1009,46 @@
                 } catch(e) { console.error('FirebaseCatalog.getSubProducts failed:', e); return null; }
             },
 
-            async saveItems(items) {
+            // Helper: chunked batch write (delete old + write new, respects 400-op batch limit)
+            async _saveCollection(collectionName, dataArray, stripFields = ['_fbId']) {
                 try {
-                    const batch = db.batch();
-                    const existing = await db.collection('catalog_items').get();
-                    existing.docs.forEach(d => batch.delete(d.ref));
-                    items.forEach(item => {
-                        const { _fbId, ...data } = item;
-                        const ref = db.collection('catalog_items').doc();
-                        batch.set(ref, data);
-                    });
-                    await batch.commit();
+                    const existing = await db.collection(collectionName).get();
+                    // Delete old docs in batches
+                    let batch = db.batch();
+                    let count = 0;
+                    for (const doc of existing.docs) {
+                        batch.delete(doc.ref);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    // Write new docs in same/continuing batch
+                    for (const entry of dataArray) {
+                        const data = { ...entry };
+                        stripFields.forEach(f => delete data[f]);
+                        delete data.vendors; // parsed runtime field, not stored
+                        batch.set(db.collection(collectionName).doc(), data);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    if (count > 0) await batch.commit();
                     return true;
-                } catch(e) { console.error('FirebaseCatalog.saveItems failed:', e); return false; }
+                } catch(e) { console.error(`FirebaseCatalog.save ${collectionName} failed:`, e); return false; }
+            },
+
+            async saveItems(items) {
+                return this._saveCollection('catalog_items', items);
             },
 
             async saveProducts(products) {
-                try {
-                    const batch = db.batch();
-                    const existing = await db.collection('catalog_products').get();
-                    existing.docs.forEach(d => batch.delete(d.ref));
-                    products.forEach(product => {
-                        const { _fbId, ...data } = product;
-                        const ref = db.collection('catalog_products').doc();
-                        batch.set(ref, data);
-                    });
-                    await batch.commit();
-                    return true;
-                } catch(e) { console.error('FirebaseCatalog.saveProducts failed:', e); return false; }
+                return this._saveCollection('catalog_products', products);
             },
 
             async saveBom(bom) {
-                try {
-                    const batch = db.batch();
-                    const existing = await db.collection('catalog_bom').get();
-                    existing.docs.forEach(d => batch.delete(d.ref));
-                    bom.forEach(entry => {
-                        const { _fbId, ...data } = entry;
-                        const ref = db.collection('catalog_bom').doc();
-                        batch.set(ref, data);
-                    });
-                    await batch.commit();
-                    return true;
-                } catch(e) { console.error('FirebaseCatalog.saveBom failed:', e); return false; }
+                return this._saveCollection('catalog_bom', bom);
             },
 
             async saveSubProducts(subProducts) {
-                try {
-                    const batch = db.batch();
-                    const existing = await db.collection('catalog_subproducts').get();
-                    existing.docs.forEach(d => batch.delete(d.ref));
-                    subProducts.forEach(sp => {
-                        const { _fbId, ...data } = sp;
-                        const ref = db.collection('catalog_subproducts').doc();
-                        batch.set(ref, data);
-                    });
-                    await batch.commit();
-                    return true;
-                } catch(e) { console.error('FirebaseCatalog.saveSubProducts failed:', e); return false; }
+                return this._saveCollection('catalog_subproducts', subProducts);
             },
 
             async updateItem(item) {
@@ -1280,6 +1262,98 @@
 
             async deleteInspection(firebaseId) {
                 await db.collection('site_inspections').doc(firebaseId).delete();
+            }
+        };
+
+        // ============ FIREBASE ENQUIRIES HELPERS ============
+        const ENQUIRY_STATUSES = ['New', 'Follow-up', 'Quote Sent', 'Negotiation', 'Converted', 'Invoice Sent', 'Paid', 'Lost'];
+        const ENQUIRY_SOURCES = ['Website', 'ChatGPT / AI', 'Google Search', 'Referral', 'IndiaMart', 'JustDial', 'WhatsApp', 'Call', 'Walk-in', 'Other'];
+        const ENQUIRY_PRIORITIES = ['Hot', 'Warm', 'Cold'];
+
+        const FirebaseEnquiries = {
+            async getAll() {
+                try {
+                    const snap = await db.collection('enquiries').orderBy('createdAt', 'desc').get();
+                    return snap.docs.map(d => {
+                        const data = d.data();
+                        return {
+                            ...data,
+                            firebaseId: d.id,
+                            createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+                            updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
+                            nextFollowUp: data.nextFollowUp || null
+                        };
+                    });
+                } catch(e) { console.error('FirebaseEnquiries.getAll failed:', e); return []; }
+            },
+
+            async add(enquiry) {
+                try {
+                    const ref = await db.collection('enquiries').add({
+                        ...enquiry,
+                        status: enquiry.status || 'New',
+                        priority: enquiry.priority || 'Warm',
+                        brand: enquiry.brand || 'SenseFlow',
+                        followUps: [],
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return ref.id;
+                } catch(e) { console.error('FirebaseEnquiries.add failed:', e); return null; }
+            },
+
+            async update(id, data) {
+                try {
+                    await db.collection('enquiries').doc(id).update({
+                        ...data,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return true;
+                } catch(e) { console.error('FirebaseEnquiries.update failed:', e); return false; }
+            },
+
+            async delete(id) {
+                try { await db.collection('enquiries').doc(id).delete(); return true; }
+                catch(e) { console.error('FirebaseEnquiries.delete failed:', e); return false; }
+            },
+
+            async addFollowUp(enquiryId, followUp) {
+                try {
+                    const doc = await db.collection('enquiries').doc(enquiryId).get();
+                    const existing = doc.data().followUps || [];
+                    const newFollowUp = {
+                        ...followUp,
+                        id: Date.now().toString(),
+                        createdAt: new Date().toISOString()
+                    };
+                    existing.push(newFollowUp);
+                    await db.collection('enquiries').doc(enquiryId).update({
+                        followUps: existing,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        nextFollowUp: followUp.nextDate || null
+                    });
+                    return newFollowUp;
+                } catch(e) { console.error('FirebaseEnquiries.addFollowUp failed:', e); return null; }
+            },
+
+            async deleteFollowUp(enquiryId, followUpId) {
+                try {
+                    const doc = await db.collection('enquiries').doc(enquiryId).get();
+                    const existing = (doc.data().followUps || []).filter(f => f.id !== followUpId);
+                    await db.collection('enquiries').doc(enquiryId).update({
+                        followUps: existing,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return true;
+                } catch(e) { console.error(e); return false; }
+            },
+
+            getOverdueCount(enquiries) {
+                const today = new Date().toISOString().split('T')[0];
+                return enquiries.filter(e =>
+                    e.nextFollowUp && e.nextFollowUp < today &&
+                    !['Converted', 'Paid', 'Lost'].includes(e.status)
+                ).length;
             }
         };
 
@@ -1646,7 +1720,8 @@
             MapPin: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
             Camera: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
             CheckList: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
-            Folder: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            Folder: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,
+            Enquiry: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         };
 
         // ============ MODAL COMPONENT ============
@@ -7617,6 +7692,461 @@ ${componentResults.map(c => {
             );
         };
 
+        // ============ ENQUIRY TRACKER COMPONENT ============
+        const EnquiryTracker = ({ products }) => {
+            const [enquiries, setEnquiries] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [view, setView] = useState('list'); // list, form, detail
+            const [selectedEnquiry, setSelectedEnquiry] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterStatus, setFilterStatus] = useState('All');
+            const [filterPriority, setFilterPriority] = useState('All');
+            const [members, setMembers] = useState(() => JSON.parse(localStorage.getItem('mvs_team_members') || '[]'));
+            const [editingId, setEditingId] = useState(null);
+
+            // Form state
+            const emptyForm = {
+                customerName: '', phone: '', email: '', company: '',
+                source: 'Website', brand: 'SenseFlow', status: 'New', priority: 'Warm',
+                productsInterested: '', customization: '',
+                assignedTo: '', nextFollowUp: '', expectedValue: '',
+                quotationId: '', invoiceId: '', notes: ''
+            };
+            const [form, setForm] = useState(emptyForm);
+
+            // Follow-up form
+            const [followUpForm, setFollowUpForm] = useState({ type: 'Call', comment: '', nextDate: '' });
+
+            const loadData = async () => {
+                setLoading(true);
+                try {
+                    const [data, m] = await Promise.all([
+                        FirebaseEnquiries.getAll(),
+                        FirebaseTasks.getMembers()
+                    ]);
+                    setEnquiries(data);
+                    if (m.length) { setMembers(m); localStorage.setItem('mvs_team_members', JSON.stringify(m)); }
+                } catch(e) { console.error(e); }
+                setLoading(false);
+            };
+
+            useEffect(() => { loadData(); }, []);
+
+            const handleSubmit = async () => {
+                if (!form.customerName.trim()) return alert('Customer name is required');
+                if (editingId) {
+                    await FirebaseEnquiries.update(editingId, form);
+                } else {
+                    await FirebaseEnquiries.add(form);
+                }
+                setForm(emptyForm);
+                setEditingId(null);
+                setView('list');
+                await loadData();
+            };
+
+            const handleEdit = (enq) => {
+                setForm({
+                    customerName: enq.customerName || '', phone: enq.phone || '', email: enq.email || '',
+                    company: enq.company || '', source: enq.source || 'Website', brand: enq.brand || 'SenseFlow',
+                    status: enq.status || 'New', priority: enq.priority || 'Warm',
+                    productsInterested: enq.productsInterested || '', customization: enq.customization || '',
+                    assignedTo: enq.assignedTo || '', nextFollowUp: enq.nextFollowUp || '',
+                    expectedValue: enq.expectedValue || '', quotationId: enq.quotationId || '',
+                    invoiceId: enq.invoiceId || '', notes: enq.notes || ''
+                });
+                setEditingId(enq.firebaseId);
+                setView('form');
+            };
+
+            const handleDelete = async (id) => {
+                if (!confirm('Delete this enquiry?')) return;
+                await FirebaseEnquiries.delete(id);
+                if (selectedEnquiry?.firebaseId === id) { setSelectedEnquiry(null); setView('list'); }
+                await loadData();
+            };
+
+            const handleStatusChange = async (enq, newStatus) => {
+                await FirebaseEnquiries.update(enq.firebaseId, { status: newStatus });
+                await loadData();
+                if (selectedEnquiry?.firebaseId === enq.firebaseId) {
+                    setSelectedEnquiry(prev => ({ ...prev, status: newStatus }));
+                }
+            };
+
+            const handleAddFollowUp = async () => {
+                if (!followUpForm.comment.trim()) return alert('Add a comment');
+                await FirebaseEnquiries.addFollowUp(selectedEnquiry.firebaseId, followUpForm);
+                setFollowUpForm({ type: 'Call', comment: '', nextDate: '' });
+                await loadData();
+                // Refresh selected enquiry
+                const updated = (await FirebaseEnquiries.getAll()).find(e => e.firebaseId === selectedEnquiry.firebaseId);
+                if (updated) setSelectedEnquiry(updated);
+            };
+
+            const today = new Date().toISOString().split('T')[0];
+
+            const filtered = enquiries.filter(e => {
+                const matchSearch = !searchTerm ||
+                    (e.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (e.company || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (e.phone || '').includes(searchTerm);
+                const matchStatus = filterStatus === 'All' || e.status === filterStatus;
+                const matchPriority = filterPriority === 'All' || e.priority === filterPriority;
+                return matchSearch && matchStatus && matchPriority;
+            });
+
+            const priorityColor = (p) => p === 'Hot' ? '#EF4444' : p === 'Warm' ? '#F59E0B' : '#6B7280';
+            const statusColor = (s) => {
+                const map = { 'New': '#3B82F6', 'Follow-up': '#8B5CF6', 'Quote Sent': '#F59E0B', 'Negotiation': '#EC4899',
+                    'Converted': '#10B981', 'Invoice Sent': '#06B6D4', 'Paid': '#059669', 'Lost': '#6B7280' };
+                return map[s] || '#6B7280';
+            };
+
+            const overdueCount = FirebaseEnquiries.getOverdueCount(enquiries);
+            const todayFollowUps = enquiries.filter(e => e.nextFollowUp === today && !['Converted','Paid','Lost'].includes(e.status));
+
+            // ---- RENDER FORM ----
+            const renderForm = () => (
+                <div style={{ maxWidth: 700, margin: '0 auto' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                        <h2 style={{ margin: 0 }}>{editingId ? 'Edit Enquiry' : 'New Enquiry'}</h2>
+                        <button className="btn" onClick={() => { setView('list'); setEditingId(null); setForm(emptyForm); }} style={{ background: '#6B7280' }}>← Back</button>
+                    </div>
+                    <div style={{ background: 'white', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                            <div style={{ gridColumn: '1/-1' }}>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Customer Name *</label>
+                                <input className="input" value={form.customerName} onChange={e => setForm({...form, customerName: e.target.value})} placeholder="Customer name" />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Phone</label>
+                                <input className="input" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="Phone number" />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Email</label>
+                                <input className="input" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Company</label>
+                                <input className="input" value={form.company} onChange={e => setForm({...form, company: e.target.value})} placeholder="Company name" />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Source</label>
+                                <select className="input" value={form.source} onChange={e => setForm({...form, source: e.target.value})}>
+                                    {ENQUIRY_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Brand</label>
+                                <select className="input" value={form.brand} onChange={e => setForm({...form, brand: e.target.value})}>
+                                    {Object.keys(CONFIG.BRANDS).map(b => <option key={b} value={b}>{b}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Status</label>
+                                <select className="input" value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
+                                    {ENQUIRY_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Priority</label>
+                                <select className="input" value={form.priority} onChange={e => setForm({...form, priority: e.target.value})}>
+                                    {ENQUIRY_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Assigned To</label>
+                                <select className="input" value={form.assignedTo} onChange={e => setForm({...form, assignedTo: e.target.value})}>
+                                    <option value="">Unassigned</option>
+                                    {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Next Follow-up Date</label>
+                                <input className="input" type="date" value={form.nextFollowUp} onChange={e => setForm({...form, nextFollowUp: e.target.value})} />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Expected Value (₹)</label>
+                                <input className="input" type="number" value={form.expectedValue} onChange={e => setForm({...form, expectedValue: e.target.value})} placeholder="Amount" />
+                            </div>
+                            <div style={{ gridColumn: '1/-1' }}>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Products Interested In</label>
+                                <input className="input" value={form.productsInterested} onChange={e => setForm({...form, productsInterested: e.target.value})} placeholder="Product names or SKUs (comma separated)" />
+                            </div>
+                            <div style={{ gridColumn: '1/-1' }}>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Customization Requirements</label>
+                                <textarea className="input" rows={2} value={form.customization} onChange={e => setForm({...form, customization: e.target.value})} placeholder="Any customization needed..." style={{ resize: 'vertical' }} />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Quotation ID (manual link)</label>
+                                <input className="input" value={form.quotationId} onChange={e => setForm({...form, quotationId: e.target.value})} placeholder="e.g. SF-Q-2026-042" />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Invoice ID (manual link)</label>
+                                <input className="input" value={form.invoiceId} onChange={e => setForm({...form, invoiceId: e.target.value})} placeholder="e.g. SF-I-2026-042" />
+                            </div>
+                            <div style={{ gridColumn: '1/-1' }}>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Notes</label>
+                                <textarea className="input" rows={3} value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Additional notes..." style={{ resize: 'vertical' }} />
+                            </div>
+                        </div>
+                        <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
+                            <button className="btn btn-primary" onClick={handleSubmit} style={{ flex: 1 }}>{editingId ? 'Update Enquiry' : 'Add Enquiry'}</button>
+                            <button className="btn" onClick={() => { setView('list'); setEditingId(null); setForm(emptyForm); }} style={{ background: '#6B7280', color: 'white' }}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // ---- RENDER DETAIL ----
+            const renderDetail = () => {
+                if (!selectedEnquiry) return null;
+                const enq = selectedEnquiry;
+                const followUps = (enq.followUps || []).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+                const isOverdue = enq.nextFollowUp && enq.nextFollowUp < today && !['Converted','Paid','Lost'].includes(enq.status);
+
+                return (
+                    <div style={{ maxWidth: 800, margin: '0 auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <h2 style={{ margin: 0 }}>{enq.customerName}</h2>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn" onClick={() => handleEdit(enq)} style={{ background: '#3B82F6', color: 'white', fontSize: 12 }}>✎ Edit</button>
+                                <button className="btn" onClick={() => { setSelectedEnquiry(null); setView('list'); }} style={{ background: '#6B7280', fontSize: 12 }}>← Back</button>
+                            </div>
+                        </div>
+
+                        {/* Info Cards */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
+                            <div style={{ background: 'white', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Status</div>
+                                <select className="input" value={enq.status} onChange={e => handleStatusChange(enq, e.target.value)} style={{ fontWeight: 600, color: statusColor(enq.status), border: `2px solid ${statusColor(enq.status)}20`, background: `${statusColor(enq.status)}10` }}>
+                                    {ENQUIRY_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                            <div style={{ background: 'white', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Priority</div>
+                                <span style={{ fontWeight: 700, color: priorityColor(enq.priority), fontSize: 18 }}>● {enq.priority}</span>
+                            </div>
+                            <div style={{ background: 'white', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Next Follow-up</div>
+                                <span style={{ fontWeight: 600, color: isOverdue ? '#EF4444' : '#374151', fontSize: 14 }}>
+                                    {enq.nextFollowUp || 'Not set'} {isOverdue && '⚠ OVERDUE'}
+                                </span>
+                            </div>
+                            <div style={{ background: 'white', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Expected Value</div>
+                                <span style={{ fontWeight: 600, fontSize: 18 }}>{enq.expectedValue ? `₹${Number(enq.expectedValue).toLocaleString('en-IN')}` : '—'}</span>
+                            </div>
+                        </div>
+
+                        {/* Contact & Details */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+                            <div style={{ background: 'white', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#1E3A8A' }}>Contact Details</div>
+                                {enq.phone && <div style={{ fontSize: 13, marginBottom: 6 }}>📞 {enq.phone}</div>}
+                                {enq.email && <div style={{ fontSize: 13, marginBottom: 6 }}>✉ {enq.email}</div>}
+                                {enq.company && <div style={{ fontSize: 13, marginBottom: 6 }}>🏢 {enq.company}</div>}
+                                <div style={{ fontSize: 13, marginBottom: 6 }}>📋 Source: {enq.source}</div>
+                                <div style={{ fontSize: 13 }}>🏷 Brand: {enq.brand}</div>
+                            </div>
+                            <div style={{ background: 'white', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: '#1E3A8A' }}>Details</div>
+                                {enq.productsInterested && <div style={{ fontSize: 13, marginBottom: 6 }}>Products: {enq.productsInterested}</div>}
+                                {enq.customization && <div style={{ fontSize: 13, marginBottom: 6 }}>Customization: {enq.customization}</div>}
+                                {enq.assignedTo && <div style={{ fontSize: 13, marginBottom: 6 }}>Assigned: {enq.assignedTo}</div>}
+                                {enq.quotationId && <div style={{ fontSize: 13, marginBottom: 6 }}>Quote: {enq.quotationId}</div>}
+                                {enq.invoiceId && <div style={{ fontSize: 13, marginBottom: 6 }}>Invoice: {enq.invoiceId}</div>}
+                                {enq.notes && <div style={{ fontSize: 13, marginTop: 8, padding: 8, background: '#F3F4F6', borderRadius: 6 }}>{enq.notes}</div>}
+                            </div>
+                        </div>
+
+                        {/* Add Follow-up */}
+                        <div style={{ background: 'white', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: 20 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: '#1E3A8A' }}>Add Follow-up / Activity</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 150px auto', gap: 10, alignItems: 'end' }}>
+                                <div>
+                                    <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Type</label>
+                                    <select className="input" value={followUpForm.type} onChange={e => setFollowUpForm({...followUpForm, type: e.target.value})}>
+                                        {['Call', 'WhatsApp', 'Email', 'Meeting', 'Note', 'Status Change'].map(t => <option key={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Comment *</label>
+                                    <input className="input" value={followUpForm.comment} onChange={e => setFollowUpForm({...followUpForm, comment: e.target.value})} placeholder="What happened?" />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Next Follow-up</label>
+                                    <input className="input" type="date" value={followUpForm.nextDate} onChange={e => setFollowUpForm({...followUpForm, nextDate: e.target.value})} />
+                                </div>
+                                <button className="btn btn-primary" onClick={handleAddFollowUp} style={{ height: 38 }}>Add</button>
+                            </div>
+                        </div>
+
+                        {/* Follow-up Timeline */}
+                        <div style={{ background: 'white', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: '#1E3A8A' }}>Follow-up History ({followUps.length})</div>
+                            {followUps.length === 0 ? (
+                                <div style={{ color: '#9CA3AF', textAlign: 'center', padding: 20, fontSize: 13 }}>No follow-ups yet</div>
+                            ) : (
+                                <div style={{ position: 'relative' }}>
+                                    {followUps.map((f, i) => {
+                                        const typeIcon = { Call: '📞', WhatsApp: '💬', Email: '✉️', Meeting: '🤝', Note: '📝', 'Status Change': '🔄' };
+                                        return (
+                                            <div key={f.id} style={{ display: 'flex', gap: 12, marginBottom: 16, paddingLeft: 20, borderLeft: i < followUps.length - 1 ? '2px solid #E5E7EB' : '2px solid transparent', position: 'relative' }}>
+                                                <div style={{ position: 'absolute', left: -7, top: 0, width: 12, height: 12, borderRadius: '50%', background: '#3B82F6', border: '2px solid white' }}></div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <span style={{ fontWeight: 600, fontSize: 13 }}>{typeIcon[f.type] || '📋'} {f.type}</span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <span style={{ fontSize: 11, color: '#9CA3AF' }}>{new Date(f.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                                            <button onClick={() => { FirebaseEnquiries.deleteFollowUp(enq.firebaseId, f.id).then(() => loadData().then(() => FirebaseEnquiries.getAll().then(all => { const u = all.find(x => x.firebaseId === enq.firebaseId); if(u) setSelectedEnquiry(u); }))); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 12 }} title="Delete">✕</button>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ fontSize: 13, color: '#374151', marginTop: 4 }}>{f.comment}</div>
+                                                    {f.nextDate && <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 4 }}>↳ Next follow-up: {f.nextDate}</div>}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // ---- RENDER LIST ----
+            const renderList = () => (
+                <div>
+                    {/* Summary Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
+                        <div style={{ background: 'white', borderRadius: 10, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+                            <div style={{ fontSize: 24, fontWeight: 700, color: '#3B82F6' }}>{enquiries.length}</div>
+                            <div style={{ fontSize: 11, color: '#6B7280' }}>Total Enquiries</div>
+                        </div>
+                        <div style={{ background: 'white', borderRadius: 10, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+                            <div style={{ fontSize: 24, fontWeight: 700, color: '#EF4444' }}>{enquiries.filter(e => e.priority === 'Hot' && !['Converted','Paid','Lost'].includes(e.status)).length}</div>
+                            <div style={{ fontSize: 11, color: '#6B7280' }}>Hot Leads</div>
+                        </div>
+                        <div style={{ background: 'white', borderRadius: 10, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+                            <div style={{ fontSize: 24, fontWeight: 700, color: '#F59E0B' }}>{todayFollowUps.length}</div>
+                            <div style={{ fontSize: 11, color: '#6B7280' }}>Today's Follow-ups</div>
+                        </div>
+                        <div style={{ background: 'white', borderRadius: 10, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center', border: overdueCount > 0 ? '2px solid #EF4444' : 'none' }}>
+                            <div style={{ fontSize: 24, fontWeight: 700, color: overdueCount > 0 ? '#EF4444' : '#10B981' }}>{overdueCount}</div>
+                            <div style={{ fontSize: 11, color: '#6B7280' }}>Overdue</div>
+                        </div>
+                        <div style={{ background: 'white', borderRadius: 10, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+                            <div style={{ fontSize: 24, fontWeight: 700, color: '#10B981' }}>{enquiries.filter(e => e.status === 'Converted' || e.status === 'Paid').length}</div>
+                            <div style={{ fontSize: 11, color: '#6B7280' }}>Converted</div>
+                        </div>
+                    </div>
+
+                    {/* Filters */}
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div style={{ position: 'relative', flex: '1 1 200px' }}>
+                            <Icons.Search />
+                            <input className="input" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search name, company, phone..." style={{ paddingLeft: 32 }} />
+                        </div>
+                        <select className="input" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ width: 150 }}>
+                            <option value="All">All Status</option>
+                            {ENQUIRY_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <select className="input" value={filterPriority} onChange={e => setFilterPriority(e.target.value)} style={{ width: 130 }}>
+                            <option value="All">All Priority</option>
+                            {ENQUIRY_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                        <button className="btn btn-primary" onClick={() => { setForm(emptyForm); setEditingId(null); setView('form'); }}>+ New Enquiry</button>
+                    </div>
+
+                    {/* Today's Follow-ups Banner */}
+                    {todayFollowUps.length > 0 && (
+                        <div style={{ background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13 }}>
+                            <strong>📅 Today's Follow-ups:</strong>{' '}
+                            {todayFollowUps.map((e, i) => (
+                                <span key={e.firebaseId}>
+                                    <a href="#" onClick={(ev) => { ev.preventDefault(); setSelectedEnquiry(e); setView('detail'); }} style={{ color: '#92400E', fontWeight: 600 }}>{e.customerName}</a>
+                                    {i < todayFollowUps.length - 1 ? ', ' : ''}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Enquiry Table */}
+                    <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                            <thead>
+                                <tr style={{ background: '#F9FAFB', borderBottom: '2px solid #E5E7EB' }}>
+                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Customer</th>
+                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Contact</th>
+                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Source</th>
+                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Status</th>
+                                    <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Priority</th>
+                                    <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Follow-up</th>
+                                    <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Value</th>
+                                    <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 600, fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.length === 0 ? (
+                                    <tr><td colSpan="8" style={{ textAlign: 'center', padding: 40, color: '#9CA3AF' }}>
+                                        {enquiries.length === 0 ? 'No enquiries yet. Click "+ New Enquiry" to add one.' : 'No enquiries match your filters.'}
+                                    </td></tr>
+                                ) : filtered.map(enq => {
+                                    const isOverdue = enq.nextFollowUp && enq.nextFollowUp < today && !['Converted','Paid','Lost'].includes(enq.status);
+                                    const isToday = enq.nextFollowUp === today;
+                                    return (
+                                        <tr key={enq.firebaseId} style={{ borderBottom: '1px solid #F3F4F6', cursor: 'pointer', background: isOverdue ? '#FEF2F2' : 'transparent' }}
+                                            onClick={() => { setSelectedEnquiry(enq); setView('detail'); }}>
+                                            <td style={{ padding: '10px 12px' }}>
+                                                <div style={{ fontWeight: 600 }}>{enq.customerName}</div>
+                                                {enq.company && <div style={{ fontSize: 11, color: '#6B7280' }}>{enq.company}</div>}
+                                            </td>
+                                            <td style={{ padding: '10px 12px', fontSize: 12 }}>
+                                                {enq.phone && <div>{enq.phone}</div>}
+                                                {enq.email && <div style={{ color: '#6B7280' }}>{enq.email}</div>}
+                                            </td>
+                                            <td style={{ padding: '10px 12px' }}>{enq.source}</td>
+                                            <td style={{ padding: '10px 12px' }}>
+                                                <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: `${statusColor(enq.status)}18`, color: statusColor(enq.status) }}>{enq.status}</span>
+                                            </td>
+                                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                <span style={{ color: priorityColor(enq.priority), fontWeight: 700 }}>●</span> {enq.priority}
+                                            </td>
+                                            <td style={{ padding: '10px 12px', fontSize: 12, color: isOverdue ? '#EF4444' : isToday ? '#F59E0B' : '#374151', fontWeight: isOverdue || isToday ? 600 : 400 }}>
+                                                {enq.nextFollowUp || '—'} {isOverdue && '⚠'}
+                                            </td>
+                                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500 }}>
+                                                {enq.expectedValue ? `₹${Number(enq.expectedValue).toLocaleString('en-IN')}` : '—'}
+                                            </td>
+                                            <td style={{ padding: '10px 8px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                                                <button onClick={() => handleEdit(enq)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, fontSize: 14 }} title="Edit">✎</button>
+                                                <button onClick={() => handleDelete(enq.firebaseId)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, fontSize: 14, color: '#EF4444' }} title="Delete">🗑</button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+
+            if (loading) return <LoadingScreen message="Loading enquiries..." />;
+
+            return (
+                <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                        <h1 style={{ margin: 0, fontSize: 22 }}>Enquiries & Follow-ups</h1>
+                    </div>
+                    {view === 'list' && renderList()}
+                    {view === 'form' && renderForm()}
+                    {view === 'detail' && renderDetail()}
+                </div>
+            );
+        };
+
         // ============ MAIN APP ============
         const App = () => {
             const [page, setPage] = useState('dashboard');
@@ -7629,6 +8159,20 @@ ${componentResults.map(c => {
             
             // Editing document state (for edit feature)
             const [editingDoc, setEditingDoc] = useState(null);
+
+            // Enquiry overdue badge count
+            const [overdueEnquiries, setOverdueEnquiries] = useState(0);
+            useEffect(() => {
+                const loadOverdue = async () => {
+                    try {
+                        const all = await FirebaseEnquiries.getAll();
+                        setOverdueEnquiries(FirebaseEnquiries.getOverdueCount(all));
+                    } catch(e) {}
+                };
+                loadOverdue();
+                const interval = setInterval(loadOverdue, 60000); // refresh every minute
+                return () => clearInterval(interval);
+            }, [page]); // also refresh when navigating back
 
             // Loading & Sync states
             const [isLoading, setIsLoading] = useState(true);
@@ -8001,7 +8545,50 @@ ${componentResults.map(c => {
                 }
             };
 
-            // Auto-sync to Google Sheets in background after catalog changes
+            // Auto-save to Firebase on every change (priority, 2s debounce)
+            const firebaseSyncTimer = React.useRef(null);
+            const firebaseSyncPrev = React.useRef({ items: null, products: null, bom: null, subProducts: null });
+            useEffect(() => {
+                if (!FirebaseCatalog.isMigrated()) return;
+                if (isLoading) return;
+                if (items.length === 0 && products.length === 0) return;
+
+                if (firebaseSyncTimer.current) clearTimeout(firebaseSyncTimer.current);
+                firebaseSyncTimer.current = setTimeout(async () => {
+                    try {
+                        const prev = firebaseSyncPrev.current;
+                        const saves = [];
+                        if (prev.items !== null && JSON.stringify(items) !== JSON.stringify(prev.items)) {
+                            saves.push(FirebaseCatalog.saveItems(items));
+                        }
+                        if (prev.products !== null && JSON.stringify(products) !== JSON.stringify(prev.products)) {
+                            saves.push(FirebaseCatalog.saveProducts(products));
+                        }
+                        if (prev.bom !== null && JSON.stringify(bom) !== JSON.stringify(prev.bom)) {
+                            saves.push(FirebaseCatalog.saveBom(bom));
+                        }
+                        if (prev.subProducts !== null && JSON.stringify(subProducts) !== JSON.stringify(prev.subProducts)) {
+                            saves.push(FirebaseCatalog.saveSubProducts(subProducts));
+                        }
+                        if (saves.length > 0) {
+                            await Promise.all(saves);
+                            console.log('Firebase auto-save complete:', saves.length, 'collection(s)');
+                        }
+                    } catch(e) {
+                        console.error('Firebase auto-save failed:', e);
+                    }
+                    firebaseSyncPrev.current = { items: [...items], products: [...products], bom: [...bom], subProducts: [...subProducts] };
+                }, 2000);
+
+                // Set initial prev on first render (skip saving on initial load)
+                if (firebaseSyncPrev.current.items === null) {
+                    firebaseSyncPrev.current = { items: [...items], products: [...products], bom: [...bom], subProducts: [...subProducts] };
+                }
+
+                return () => { if (firebaseSyncTimer.current) clearTimeout(firebaseSyncTimer.current); };
+            }, [items, products, bom, subProducts, isLoading]);
+
+            // Auto-sync to Google Sheets in background after catalog changes (backup, 10s debounce)
             const autoSyncTimer = React.useRef(null);
             useEffect(() => {
                 if (!FirebaseCatalog.isMigrated()) return;
@@ -8047,6 +8634,7 @@ ${componentResults.map(c => {
                     case 'inspection': return <SiteInspection products={products} />;
                     case 'tasks': return <TeamTasks />;
                     case 'projects': return <Projects />;
+                    case 'enquiries': return <EnquiryTracker products={products} />;
                     default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                 }
             };
@@ -8084,6 +8672,12 @@ ${componentResults.map(c => {
                             </div>
                             <div className={`nav-item ${page === 'projects' ? 'active' : ''}`} onClick={() => navigate('projects')}>
                                 <Icons.Folder /> Projects
+                            </div>
+                            <div className={`nav-item ${page === 'enquiries' ? 'active' : ''}`} onClick={() => navigate('enquiries')} style={{ position: 'relative' }}>
+                                <Icons.Enquiry /> Enquiries
+                                {overdueEnquiries > 0 && (
+                                    <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: '#EF4444', color: 'white', borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700, minWidth: 18, textAlign: 'center' }}>{overdueEnquiries}</span>
+                                )}
                             </div>
 
                             {/* Admin Section - Password Protected */}
