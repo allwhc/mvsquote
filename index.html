@@ -3350,7 +3350,7 @@
 
         // ============ QUOTATION BUILDER ============
         const QuotationBuilder = ({ products, items, quotations, setQuotations, bom, subProducts, editingDoc, setEditingDoc }) => {
-            const [customer, setCustomer] = useState({ name: '', phone: '', address: '', gst: '' });
+            const [customer, setCustomer] = useState({ name: '', phone: '', email: '', address: '', gst: '' });
             const [deliveryAddress, setDeliveryAddress] = useState({ name: '', phone: '', address: '' });
             const [sameAsDelivery, setSameAsDelivery] = useState(true);
             const [quoteItems, setQuoteItems] = useState([]);
@@ -3367,7 +3367,7 @@
             // Load editingDoc data when set
             React.useEffect(() => {
                 if (editingDoc) {
-                    setCustomer(editingDoc.customer || { name: '', phone: '', address: '', gst: '' });
+                    setCustomer(editingDoc.customer || { name: '', phone: '', email: '', address: '', gst: '' });
                     if (editingDoc.deliveryAddress) {
                         setSameAsDelivery(false);
                         setDeliveryAddress(editingDoc.deliveryAddress);
@@ -3563,7 +3563,8 @@
                 doc.setTextColor(100);
                 if (hasShipTo) {
                     if (customer.phone) doc.text('Ph: ' + customer.phone, 20, 89);
-                    let billY = 94;
+                    let billY = customer.phone ? 93 : 89;
+                    if (customer.email) { doc.text('Email: ' + customer.email, 20, billY); billY += 4; }
                     if (customer.address) { const al = doc.splitTextToSize(customer.address, 75); doc.text(al, 20, billY); billY += al.length * 4; }
                     if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 20, billY + 1); doc.setFontSize(9); }
                     // SHIP TO column
@@ -3579,7 +3580,9 @@
                     if (deliveryAddress.address) { const al2 = doc.splitTextToSize(deliveryAddress.address, 75); doc.text(al2, 115, 94); }
                 } else {
                     if (customer.phone) doc.text('Ph: ' + customer.phone, 100, 76);
-                    let billY2 = 83;
+                    let billY2 = customer.phone ? 80 : 76;
+                    if (customer.email) { doc.text('Email: ' + customer.email, 100, billY2); billY2 += 4; }
+                    billY2 = Math.max(billY2, 83);
                     if (customer.address) { const al = doc.splitTextToSize(customer.address, 85); doc.text(al, 100, billY2); billY2 += al.length * 4; }
                     if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 100, billY2 + 1); doc.setFontSize(9); }
                 }
@@ -3955,6 +3958,12 @@
                                             <input type="text" className="form-input" placeholder="Enter phone" value={customer.phone} onChange={e => setCustomer({ ...customer, phone: e.target.value })} />
                                         </div>
                                     </div>
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label className="form-label">Email</label>
+                                            <input type="email" className="form-input" placeholder="Enter email" value={customer.email || ''} onChange={e => setCustomer({ ...customer, email: e.target.value })} />
+                                        </div>
+                                    </div>
                                     <div className="form-group">
                                         <label className="form-label">Address</label>
                                         <textarea className="form-textarea" rows="2" placeholder="Enter address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} />
@@ -4322,7 +4331,8 @@
                 pdf.setTextColor(100);
                 if (hasShipTo2) {
                     if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 20, 89);
-                    let billY3 = 94;
+                    let billY3 = doc.customer.phone ? 93 : 89;
+                    if (doc.customer.email) { pdf.text('Email: ' + doc.customer.email, 20, billY3); billY3 += 4; }
                     if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 75); pdf.text(al, 20, billY3); billY3 += al.length * 4; }
                     if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 20, billY3 + 1); pdf.setFontSize(9); }
                     // SHIP TO column
@@ -4338,7 +4348,9 @@
                     if (doc.deliveryAddress.address) { const al2 = pdf.splitTextToSize(doc.deliveryAddress.address, 75); pdf.text(al2, 115, 94); }
                 } else {
                     if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 100, 76);
-                    let billY4 = 83;
+                    let billY4 = doc.customer.phone ? 80 : 76;
+                    if (doc.customer.email) { pdf.text('Email: ' + doc.customer.email, 100, billY4); billY4 += 4; }
+                    billY4 = Math.max(billY4, 83);
                     if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 85); pdf.text(al, 100, billY4); billY4 += al.length * 4; }
                     if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 100, billY4 + 1); pdf.setFontSize(9); }
                 }
@@ -4813,6 +4825,18 @@
                                 <button className="btn btn-success" onClick={() => generatePDFFromDoc(selectedDoc, 'invoice')}>
                                     <Icons.Download /> Invoice PDF
                                 </button>
+                                {selectedDoc?.customer?.email && (
+                                    <button className="btn" onClick={() => {
+                                        const doc = selectedDoc;
+                                        const brandName = doc.brand || 'SenseFlow';
+                                        const docType = doc.type === 'invoice' ? 'Invoice' : 'Quotation';
+                                        const subject = `${brandName} - ${docType} ${doc.number}`;
+                                        const body = `Dear ${doc.customer.name},\n\nPlease find the ${docType} ${doc.number} dated ${new Date(doc.date).toLocaleDateString('en-IN')}.\n\nPlease let us know when we can hear back or if there are any requirements we can support.\n\nRegards,\n${brandName}`;
+                                        window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(doc.customer.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+                                    }} style={{ background: '#EA4335', color: 'white' }}>
+                                        ✉ Send via Gmail
+                                    </button>
+                                )}
                             </>
                         }
                     >
@@ -4829,6 +4853,10 @@
                                         <div>
                                             <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Phone</label>
                                             <div>{selectedDoc.customer.phone || 'N/A'}</div>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Email</label>
+                                            <div>{selectedDoc.customer.email || 'N/A'}</div>
                                         </div>
                                         <div style={{ gridColumn: 'span 2' }}>
                                             <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Address</label>
@@ -7693,7 +7721,7 @@ ${componentResults.map(c => {
         };
 
         // ============ ENQUIRY TRACKER COMPONENT ============
-        const EnquiryTracker = ({ products }) => {
+        const EnquiryTracker = ({ products, navigate, setEditingDoc }) => {
             const [enquiries, setEnquiries] = useState([]);
             const [loading, setLoading] = useState(true);
             const [view, setView] = useState('list'); // list, form, detail
@@ -7784,6 +7812,31 @@ ${componentResults.map(c => {
                 if (updated) setSelectedEnquiry(updated);
             };
 
+            const openWhatsApp = (enq) => {
+                const phone = (enq.phone || '').replace(/[^0-9]/g, '');
+                if (!phone) return alert('No phone number available');
+                const msg = `Hello ${enq.customerName}, this is from ${enq.brand || 'SenseFlow'}. Following up on your enquiry${enq.productsInterested ? ' about ' + enq.productsInterested : ''}. How can we help?`;
+                window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+            };
+
+            const openEmail = (enq) => {
+                if (!enq.email) return alert('No email available');
+                const subject = `${enq.brand || 'SenseFlow'} - Regarding your enquiry`;
+                const body = `Dear ${enq.customerName},\n\nThank you for your interest${enq.productsInterested ? ' in ' + enq.productsInterested : ''}.\n\nPlease let us know if there are any requirements we can support.\n\nRegards,\n${enq.brand || 'SenseFlow'}`;
+                window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(enq.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+            };
+
+            const handleCreateQuote = (enq) => {
+                setEditingDoc({
+                    customer: { name: enq.customerName || '', phone: enq.phone || '', email: enq.email || '', address: '', gst: '' },
+                    brand: enq.brand || 'SenseFlow',
+                    items: [], notes: '', terms: [], includeGST: true,
+                    discount: { type: 'percentage', value: 0 },
+                    _fromEnquiry: true
+                });
+                navigate('quotation');
+            };
+
             const today = new Date().toISOString().split('T')[0];
 
             const filtered = enquiries.filter(e => {
@@ -7807,94 +7860,127 @@ ${componentResults.map(c => {
             const todayFollowUps = enquiries.filter(e => e.nextFollowUp === today && !['Converted','Paid','Lost'].includes(e.status));
 
             // ---- RENDER FORM ----
+            const sectionStyle = { background: 'white', borderRadius: 12, padding: '20px 24px', marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' };
+            const sectionTitle = (icon, title, color) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, paddingBottom: 10, borderBottom: `2px solid ${color}20` }}>
+                    <span style={{ fontSize: 18 }}>{icon}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color }}>{title}</span>
+                </div>
+            );
+            const fieldLabel = (text) => <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 5 }}>{text}</label>;
+            const fieldInput = (props) => <input {...props} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14, outline: 'none', transition: 'border 0.2s', background: '#FAFAFA', ...(props.style || {}) }} />;
+            const fieldSelect = (props, children) => <select {...props} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14, outline: 'none', background: '#FAFAFA', cursor: 'pointer', ...(props.style || {}) }}>{children}</select>;
+            const fieldTextarea = (props) => <textarea {...props} style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14, outline: 'none', background: '#FAFAFA', resize: 'vertical', ...(props.style || {}) }} />;
+
             const renderForm = () => (
-                <div style={{ maxWidth: 700, margin: '0 auto' }}>
+                <div style={{ maxWidth: 720, margin: '0 auto' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                        <h2 style={{ margin: 0 }}>{editingId ? 'Edit Enquiry' : 'New Enquiry'}</h2>
-                        <button className="btn" onClick={() => { setView('list'); setEditingId(null); setForm(emptyForm); }} style={{ background: '#6B7280' }}>← Back</button>
+                        <div>
+                            <h2 style={{ margin: 0, fontSize: 20 }}>{editingId ? 'Edit Enquiry' : 'New Enquiry'}</h2>
+                            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6B7280' }}>{editingId ? 'Update enquiry details' : 'Fill in the details to create a new enquiry'}</p>
+                        </div>
+                        <button className="btn" onClick={() => { setView('list'); setEditingId(null); setForm(emptyForm); }} style={{ background: '#6B7280', color: 'white', borderRadius: 8 }}>← Back</button>
                     </div>
-                    <div style={{ background: 'white', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
+                    {/* Section 1: Contact Info */}
+                    <div style={sectionStyle}>
+                        {sectionTitle('👤', 'Contact Information', '#3B82F6')}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                             <div style={{ gridColumn: '1/-1' }}>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Customer Name *</label>
-                                <input className="input" value={form.customerName} onChange={e => setForm({...form, customerName: e.target.value})} placeholder="Customer name" />
+                                {fieldLabel('Customer Name *')}
+                                {fieldInput({ value: form.customerName, onChange: e => setForm({...form, customerName: e.target.value}), placeholder: 'Full name of the customer' })}
                             </div>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Phone</label>
-                                <input className="input" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="Phone number" />
+                                {fieldLabel('Phone')}
+                                {fieldInput({ value: form.phone, onChange: e => setForm({...form, phone: e.target.value}), placeholder: '+91 98765 43210', type: 'tel' })}
                             </div>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Email</label>
-                                <input className="input" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" />
+                                {fieldLabel('Email')}
+                                {fieldInput({ value: form.email, onChange: e => setForm({...form, email: e.target.value}), placeholder: 'customer@company.com', type: 'email' })}
                             </div>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Company</label>
-                                <input className="input" value={form.company} onChange={e => setForm({...form, company: e.target.value})} placeholder="Company name" />
+                                {fieldLabel('Company')}
+                                {fieldInput({ value: form.company, onChange: e => setForm({...form, company: e.target.value}), placeholder: 'Company / Organization' })}
                             </div>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Source</label>
-                                <select className="input" value={form.source} onChange={e => setForm({...form, source: e.target.value})}>
-                                    {ENQUIRY_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Brand</label>
-                                <select className="input" value={form.brand} onChange={e => setForm({...form, brand: e.target.value})}>
-                                    {Object.keys(CONFIG.BRANDS).map(b => <option key={b} value={b}>{b}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Status</label>
-                                <select className="input" value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
-                                    {ENQUIRY_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Priority</label>
-                                <select className="input" value={form.priority} onChange={e => setForm({...form, priority: e.target.value})}>
-                                    {ENQUIRY_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Assigned To</label>
-                                <select className="input" value={form.assignedTo} onChange={e => setForm({...form, assignedTo: e.target.value})}>
-                                    <option value="">Unassigned</option>
-                                    {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Next Follow-up Date</label>
-                                <input className="input" type="date" value={form.nextFollowUp} onChange={e => setForm({...form, nextFollowUp: e.target.value})} />
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Expected Value (₹)</label>
-                                <input className="input" type="number" value={form.expectedValue} onChange={e => setForm({...form, expectedValue: e.target.value})} placeholder="Amount" />
-                            </div>
-                            <div style={{ gridColumn: '1/-1' }}>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Products Interested In</label>
-                                <input className="input" value={form.productsInterested} onChange={e => setForm({...form, productsInterested: e.target.value})} placeholder="Product names or SKUs (comma separated)" />
-                            </div>
-                            <div style={{ gridColumn: '1/-1' }}>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Customization Requirements</label>
-                                <textarea className="input" rows={2} value={form.customization} onChange={e => setForm({...form, customization: e.target.value})} placeholder="Any customization needed..." style={{ resize: 'vertical' }} />
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Quotation ID (manual link)</label>
-                                <input className="input" value={form.quotationId} onChange={e => setForm({...form, quotationId: e.target.value})} placeholder="e.g. SF-Q-2026-042" />
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Invoice ID (manual link)</label>
-                                <input className="input" value={form.invoiceId} onChange={e => setForm({...form, invoiceId: e.target.value})} placeholder="e.g. SF-I-2026-042" />
-                            </div>
-                            <div style={{ gridColumn: '1/-1' }}>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Notes</label>
-                                <textarea className="input" rows={3} value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Additional notes..." style={{ resize: 'vertical' }} />
+                                {fieldLabel('Source')}
+                                {fieldSelect({ value: form.source, onChange: e => setForm({...form, source: e.target.value}) },
+                                    ENQUIRY_SOURCES.map(s => <option key={s} value={s}>{s}</option>)
+                                )}
                             </div>
                         </div>
-                        <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
-                            <button className="btn btn-primary" onClick={handleSubmit} style={{ flex: 1 }}>{editingId ? 'Update Enquiry' : 'Add Enquiry'}</button>
-                            <button className="btn" onClick={() => { setView('list'); setEditingId(null); setForm(emptyForm); }} style={{ background: '#6B7280', color: 'white' }}>Cancel</button>
+                    </div>
+
+                    {/* Section 2: Enquiry Details */}
+                    <div style={sectionStyle}>
+                        {sectionTitle('📋', 'Enquiry Details', '#8B5CF6')}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                            <div>
+                                {fieldLabel('Brand')}
+                                {fieldSelect({ value: form.brand, onChange: e => setForm({...form, brand: e.target.value}) },
+                                    Object.keys(CONFIG.BRANDS).map(b => <option key={b} value={b}>{b}</option>)
+                                )}
+                            </div>
+                            <div>
+                                {fieldLabel('Expected Value (₹)')}
+                                {fieldInput({ value: form.expectedValue, onChange: e => setForm({...form, expectedValue: e.target.value}), placeholder: '₹ Amount', type: 'number' })}
+                            </div>
+                            <div style={{ gridColumn: '1/-1' }}>
+                                {fieldLabel('Products Interested In')}
+                                {fieldInput({ value: form.productsInterested, onChange: e => setForm({...form, productsInterested: e.target.value}), placeholder: 'Product names or SKUs, comma separated' })}
+                            </div>
+                            <div style={{ gridColumn: '1/-1' }}>
+                                {fieldLabel('Customization Requirements')}
+                                {fieldTextarea({ value: form.customization, onChange: e => setForm({...form, customization: e.target.value}), placeholder: 'Describe any custom requirements...', rows: 2 })}
+                            </div>
+                            <div style={{ gridColumn: '1/-1' }}>
+                                {fieldLabel('Notes')}
+                                {fieldTextarea({ value: form.notes, onChange: e => setForm({...form, notes: e.target.value}), placeholder: 'Any additional notes or context...', rows: 2 })}
+                            </div>
                         </div>
+                    </div>
+
+                    {/* Section 3: Tracking */}
+                    <div style={sectionStyle}>
+                        {sectionTitle('📊', 'Tracking & Assignment', '#10B981')}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                            <div>
+                                {fieldLabel('Status')}
+                                {fieldSelect({ value: form.status, onChange: e => setForm({...form, status: e.target.value}) },
+                                    ENQUIRY_STATUSES.map(s => <option key={s} value={s}>{s}</option>)
+                                )}
+                            </div>
+                            <div>
+                                {fieldLabel('Priority')}
+                                {fieldSelect({ value: form.priority, onChange: e => setForm({...form, priority: e.target.value}) },
+                                    ENQUIRY_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)
+                                )}
+                            </div>
+                            <div>
+                                {fieldLabel('Assigned To')}
+                                {fieldSelect({ value: form.assignedTo, onChange: e => setForm({...form, assignedTo: e.target.value}) },
+                                    [<option key="" value="">Unassigned</option>, ...members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)]
+                                )}
+                            </div>
+                            <div>
+                                {fieldLabel('Next Follow-up Date')}
+                                {fieldInput({ value: form.nextFollowUp, onChange: e => setForm({...form, nextFollowUp: e.target.value}), type: 'date' })}
+                            </div>
+                            <div>
+                                {fieldLabel('Quotation ID (manual link)')}
+                                {fieldInput({ value: form.quotationId, onChange: e => setForm({...form, quotationId: e.target.value}), placeholder: 'e.g. SF-QT-2026-042' })}
+                            </div>
+                            <div>
+                                {fieldLabel('Invoice ID (manual link)')}
+                                {fieldInput({ value: form.invoiceId, onChange: e => setForm({...form, invoiceId: e.target.value}), placeholder: 'e.g. SF-INV-2026-042' })}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                        <button className="btn btn-primary" onClick={handleSubmit} style={{ flex: 1, padding: '12px 20px', borderRadius: 10, fontSize: 15, fontWeight: 600 }}>{editingId ? 'Update Enquiry' : 'Create Enquiry'}</button>
+                        <button className="btn" onClick={() => { setView('list'); setEditingId(null); setForm(emptyForm); }} style={{ background: '#E5E7EB', color: '#374151', padding: '12px 24px', borderRadius: 10, fontWeight: 600 }}>Cancel</button>
                     </div>
                 </div>
             );
@@ -7908,12 +7994,19 @@ ${componentResults.map(c => {
 
                 return (
                     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                            <h2 style={{ margin: 0 }}>{enq.customerName}</h2>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button className="btn" onClick={() => handleEdit(enq)} style={{ background: '#3B82F6', color: 'white', fontSize: 12 }}>✎ Edit</button>
-                                <button className="btn" onClick={() => { setSelectedEnquiry(null); setView('list'); }} style={{ background: '#6B7280', fontSize: 12 }}>← Back</button>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <div>
+                                <h2 style={{ margin: 0, fontSize: 20 }}>{enq.customerName}</h2>
+                                {enq.company && <span style={{ fontSize: 13, color: '#6B7280' }}>{enq.company}</span>}
                             </div>
+                            <button className="btn" onClick={() => { setSelectedEnquiry(null); setView('list'); }} style={{ background: '#6B7280', color: 'white', borderRadius: 8 }}>← Back</button>
+                        </div>
+                        {/* Quick Actions Bar */}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+                            {enq.phone && <button onClick={() => openWhatsApp(enq)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#25D366', color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>💬 WhatsApp</button>}
+                            {enq.email && <button onClick={() => openEmail(enq)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#EA4335', color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✉ Send Email</button>}
+                            <button onClick={() => handleCreateQuote(enq)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3B82F6', color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>📄 Create Quote</button>
+                            <button onClick={() => handleEdit(enq)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#F3F4F6', color: '#374151', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>✎ Edit</button>
                         </div>
 
                         {/* Info Cards */}
@@ -8634,7 +8727,7 @@ ${componentResults.map(c => {
                     case 'inspection': return <SiteInspection products={products} />;
                     case 'tasks': return <TeamTasks />;
                     case 'projects': return <Projects />;
-                    case 'enquiries': return <EnquiryTracker products={products} />;
+                    case 'enquiries': return <EnquiryTracker products={products} navigate={navigate} setEditingDoc={setEditingDoc} />;
                     default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                 }
             };
