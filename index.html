@@ -8326,6 +8326,7 @@ ${componentResults.map(c => {
 
             // Admin section states
             const [adminExpanded, setAdminExpanded] = useState(false);
+            const [syncExpanded, setSyncExpanded] = useState(false);
             const [adminUnlocked, setAdminUnlocked] = useState(isAdminAuthenticated());
             const [adminPassword, setAdminPassword] = useState('');
             const [adminError, setAdminError] = useState('');
@@ -8816,12 +8817,6 @@ ${componentResults.map(c => {
                             <div className={`nav-item ${page === 'projects' ? 'active' : ''}`} onClick={() => navigate('projects')}>
                                 <Icons.Folder /> Projects
                             </div>
-                            <div className={`nav-item ${page === 'enquiries' ? 'active' : ''}`} onClick={() => navigate('enquiries')} style={{ position: 'relative' }}>
-                                <Icons.Enquiry /> Enquiries
-                                {overdueEnquiries > 0 && (
-                                    <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: '#EF4444', color: 'white', borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700, minWidth: 18, textAlign: 'center' }}>{overdueEnquiries}</span>
-                                )}
-                            </div>
 
                             {/* Admin Section - Password Protected */}
                             <div className="nav-divider"></div>
@@ -8898,85 +8893,77 @@ ${componentResults.map(c => {
                                     <div className={`nav-item ${page === 'documents' ? 'active' : ''}`} onClick={() => navigate('documents')}>
                                         <Icons.History /> Saved Documents
                                     </div>
+                                    <div className={`nav-item ${page === 'enquiries' ? 'active' : ''}`} onClick={() => navigate('enquiries')} style={{ position: 'relative' }}>
+                                        <Icons.Enquiry /> Enquiries
+                                        {overdueEnquiries > 0 && (
+                                            <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: '#EF4444', color: 'white', borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700, minWidth: 18, textAlign: 'center' }}>{overdueEnquiries}</span>
+                                        )}
+                                    </div>
                                 </>
                             )}
 
-                            {/* Cloud Sync - Visible to all */}
+                            {/* Sync & Storage - Collapsible */}
                             <div className="nav-divider"></div>
-                            <div className="nav-label">Cloud Sync</div>
-
                             <div
-                                className="nav-item"
-                                onClick={syncToGoogleSheets}
-                                style={{
-                                    background: syncStatus === 'syncing' ? 'rgba(59, 130, 246, 0.2)' :
-                                               syncStatus === 'success' ? 'rgba(16, 185, 129, 0.2)' :
-                                               syncStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : '',
-                                    pointerEvents: syncStatus === 'syncing' ? 'none' : 'auto'
-                                }}
+                                className="nav-label"
+                                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }}
+                                onClick={() => setSyncExpanded(!syncExpanded)}
                             >
-                                {syncStatus === 'syncing' ? <SyncIcons.Refresh /> : <SyncIcons.Upload />}
-                                {syncStatus === 'syncing' ? 'Syncing...' : 'Push to Cloud'}
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    Sync & Storage
+                                    <span style={{
+                                        width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
+                                        background: syncStatus === 'success' ? '#10B981' : syncStatus === 'error' ? '#EF4444' : syncStatus === 'syncing' ? '#3B82F6' : '#6B7280'
+                                    }}></span>
+                                </span>
+                                <span style={{ fontSize: 10 }}>{syncExpanded ? '▼' : '▶'}</span>
+                            </div>
+                            {/* Always show last sync time */}
+                            <div style={{ padding: '4px 14px', fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>
+                                Last sync: {formatLastSync()}
                             </div>
 
-                            <div
-                                className="nav-item"
-                                onClick={loadFromGoogleSheets}
-                                style={{ pointerEvents: syncStatus === 'syncing' ? 'none' : 'auto' }}
-                            >
-                                <SyncIcons.Download /> Load from Cloud
-                            </div>
-
-                            {/* Data Storage - Firebase Migration */}
-                            {adminUnlocked && (
+                            {syncExpanded && (
                                 <>
-                                    <div className="nav-divider"></div>
-                                    <div className="nav-label">Data Storage</div>
-                                    {!FirebaseCatalog.isMigrated() ? (
-                                        <div
-                                            className="nav-item"
-                                            onClick={handleMigrate}
-                                            style={{ background: 'rgba(59,130,246,0.2)', pointerEvents: migrating ? 'none' : 'auto' }}
-                                        >
-                                            <SyncIcons.Upload /> {migrating ? 'Migrating...' : 'Migrate to Firebase'}
-                                        </div>
-                                    ) : (
-                                        <div style={{ padding: '8px 14px', fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
-                                            ✓ Firebase Primary<br/>
-                                            <span style={{ fontSize: '10px' }}>Migrated {localStorage.getItem('mvs_catalog_migrated_at') ? new Date(localStorage.getItem('mvs_catalog_migrated_at')).toLocaleDateString() : ''}</span>
-                                        </div>
-                                    )}
-                                    {FirebaseCatalog.isMigrated() && (
-                                        <div className="nav-item" onClick={handleReMigrate} style={{ fontSize: '12px', pointerEvents: migrating ? 'none' : 'auto' }}>
-                                            ↺ Re-sync from Sheets
-                                        </div>
+                                    <div
+                                        className="nav-item"
+                                        onClick={syncToGoogleSheets}
+                                        style={{
+                                            background: syncStatus === 'syncing' ? 'rgba(59, 130, 246, 0.2)' :
+                                                       syncStatus === 'success' ? 'rgba(16, 185, 129, 0.2)' :
+                                                       syncStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : '',
+                                            pointerEvents: syncStatus === 'syncing' ? 'none' : 'auto'
+                                        }}
+                                    >
+                                        {syncStatus === 'syncing' ? <SyncIcons.Refresh /> : <SyncIcons.Upload />}
+                                        {syncStatus === 'syncing' ? 'Syncing...' : 'Push to Cloud'}
+                                    </div>
+
+                                    <div
+                                        className="nav-item"
+                                        onClick={loadFromGoogleSheets}
+                                        style={{ pointerEvents: syncStatus === 'syncing' ? 'none' : 'auto' }}
+                                    >
+                                        <SyncIcons.Download /> Load from Cloud
+                                    </div>
+
+                                    {adminUnlocked && (
+                                        <>
+                                            {!FirebaseCatalog.isMigrated() ? (
+                                                <div className="nav-item" onClick={handleMigrate}
+                                                    style={{ background: 'rgba(59,130,246,0.2)', pointerEvents: migrating ? 'none' : 'auto' }}>
+                                                    <SyncIcons.Upload /> {migrating ? 'Migrating...' : 'Migrate to Firebase'}
+                                                </div>
+                                            ) : (
+                                                <div className="nav-item" onClick={handleReMigrate}
+                                                    style={{ fontSize: '12px', pointerEvents: migrating ? 'none' : 'auto' }}>
+                                                    ↺ Re-sync from Sheets
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </>
                             )}
-
-                            {/* Sync Status - Visible to all */}
-                            <div style={{
-                                padding: '12px 14px',
-                                fontSize: '11px',
-                                color: 'rgba(255,255,255,0.5)',
-                                borderTop: '1px solid rgba(255,255,255,0.1)',
-                                marginTop: '8px'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                                    <span style={{
-                                        width: '8px',
-                                        height: '8px',
-                                        borderRadius: '50%',
-                                        background: syncStatus === 'success' ? '#10B981' :
-                                                   syncStatus === 'error' ? '#EF4444' :
-                                                   syncStatus === 'syncing' ? '#3B82F6' : '#6B7280'
-                                    }}></span>
-                                    {syncStatus === 'syncing' ? 'Syncing...' :
-                                     syncStatus === 'success' ? 'Synced!' :
-                                     syncStatus === 'error' ? 'Sync Failed' : 'Ready'}
-                                </div>
-                                <div>Last: {formatLastSync()}</div>
-                            </div>
 
                             {/* Sync Message Toast */}
                             {syncMessage && (
