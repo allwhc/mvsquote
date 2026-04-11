@@ -2051,7 +2051,7 @@
         };
 
         // ============ ITEMS MASTER ============
-        const ItemsMaster = ({ items, setItems }) => {
+        const ItemsMaster = ({ items, setItems, refreshFromFirebase, refreshing }) => {
             const [search, setSearch] = useState('');
             const [categoryFilter, setCategoryFilter] = useState('');
             const [showModal, setShowModal] = useState(false);
@@ -2233,9 +2233,15 @@
                                 <h1 className="page-title">Items Master</h1>
                                 <p className="page-subtitle">Manage components with vendor details - changes auto-update product costs</p>
                             </div>
-                            <button className="btn btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
-                                <Icons.Plus /> Add Item
-                            </button>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn" onClick={refreshFromFirebase} disabled={refreshing}
+                                    style={{ background: refreshing ? '#F59E0B' : '#6B7280', color: 'white', fontSize: 12 }}>
+                                    {refreshing ? '↻ Refreshing...' : '↻ Refresh'}
+                                </button>
+                                <button className="btn btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
+                                    <Icons.Plus /> Add Item
+                                </button>
+                            </div>
                         </div>
 
                         <div className="card">
@@ -2783,7 +2789,7 @@
         };
 
         // ============ PRODUCTS PAGE ============
-        const ProductsPage = ({ products, setProducts, items, bom, setBom, subProducts, setSubProducts }) => {
+        const ProductsPage = ({ products, setProducts, items, bom, setBom, subProducts, setSubProducts, refreshFromFirebase, refreshing }) => {
             const [search, setSearch] = useState('');
             const [showModal, setShowModal] = useState(false);
             const [editProduct, setEditProduct] = useState(null);
@@ -3076,9 +3082,15 @@
                                 <h1 className="page-title">Products</h1>
                                 <p className="page-subtitle">Products with BOM - costs auto-update when component prices change</p>
                         </div>
-                        <button className="btn btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
-                            <Icons.Plus /> Add Product
-                        </button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="btn" onClick={refreshFromFirebase} disabled={refreshing}
+                                style={{ background: refreshing ? '#F59E0B' : '#6B7280', color: 'white', fontSize: 12 }}>
+                                {refreshing ? '↻ Refreshing...' : '↻ Refresh'}
+                            </button>
+                            <button className="btn btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
+                                <Icons.Plus /> Add Product
+                            </button>
+                        </div>
                     </div>
 
                     <div className="card">
@@ -8771,6 +8783,30 @@ ${componentResults.map(c => {
                 }
             };
 
+            // Refresh data from Firebase (for use in child components)
+            const [refreshing, setRefreshing] = useState(false);
+            const refreshFromFirebase = async () => {
+                setRefreshing(true);
+                try {
+                    const [fbItems, fbProducts, fbBom, fbSubProducts] = await Promise.all([
+                        FirebaseCatalog.getItems(),
+                        FirebaseCatalog.getProducts(),
+                        FirebaseCatalog.getBom(),
+                        FirebaseCatalog.getSubProducts()
+                    ]);
+                    if (fbItems) setItems(enrichItems(fbItems));
+                    if (fbProducts) setProducts(fbProducts);
+                    if (fbBom) setBom(fbBom);
+                    if (fbSubProducts) setSubProducts(fbSubProducts);
+                    // Update prev ref so auto-save doesn't re-save stale diff
+                    firebaseSyncPrev.current = { items: fbItems || [], products: fbProducts || [], bom: fbBom || [], subProducts: fbSubProducts || [] };
+                    console.log('Refreshed from Firebase');
+                } catch(e) {
+                    console.error('Refresh from Firebase failed:', e);
+                }
+                setRefreshing(false);
+            };
+
             // Auto-sync to Google Sheets in background after catalog changes (backup, 10s debounce)
             const autoSyncTimer = React.useRef(null);
             useEffect(() => {
@@ -8808,8 +8844,8 @@ ${componentResults.map(c => {
             const renderPage = () => {
                 switch (page) {
                     case 'dashboard': return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
-                    case 'items': return <ItemsMaster items={items} setItems={setItems} />;
-                    case 'products': return <ProductsPage products={products} setProducts={setProducts} items={items} bom={bom} setBom={setBom} subProducts={subProducts} setSubProducts={setSubProducts} />;
+                    case 'items': return <ItemsMaster items={items} setItems={setItems} refreshFromFirebase={refreshFromFirebase} refreshing={refreshing} />;
+                    case 'products': return <ProductsPage products={products} setProducts={setProducts} items={items} bom={bom} setBom={setBom} subProducts={subProducts} setSubProducts={setSubProducts} refreshFromFirebase={refreshFromFirebase} refreshing={refreshing} />;
                     case 'quotation': return <QuotationBuilder products={products} items={items} quotations={quotations} setQuotations={setQuotations} bom={bom} subProducts={subProducts} editingDoc={editingDoc} setEditingDoc={setEditingDoc} />;
                     case 'documents': return <SavedDocuments quotations={quotations} setQuotations={setQuotations} products={products} items={items} bom={bom} subProducts={subProducts} setEditingDoc={setEditingDoc} navigate={navigate} />;
                     case 'estimator': return <ComponentEstimator products={products} items={items} bom={bom} subProducts={subProducts} />;
