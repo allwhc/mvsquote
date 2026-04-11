@@ -3183,6 +3183,10 @@
                         size="large"
                         footer={
                             <>
+                                <button className="btn" onClick={refreshFromFirebase} disabled={refreshing}
+                                    style={{ background: refreshing ? '#F59E0B' : '#6B7280', color: 'white', fontSize: 12 }}>
+                                    {refreshing ? '↻ Refreshing...' : '↻ Refresh Items'}
+                                </button>
                                 <button className="btn btn-secondary" onClick={() => { setShowModal(false); resetForm(); }}>Cancel</button>
                                 <button className="btn btn-primary" onClick={handleSubmit}>{editProduct ? 'Update' : 'Add'} Product</button>
                             </>
