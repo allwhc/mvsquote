@@ -3183,10 +3183,6 @@
                         size="large"
                         footer={
                             <>
-                                <button className="btn" onClick={refreshFromFirebase} disabled={refreshing}
-                                    style={{ background: refreshing ? '#F59E0B' : '#6B7280', color: 'white', fontSize: 12 }}>
-                                    {refreshing ? '↻ Refreshing...' : '↻ Refresh Items'}
-                                </button>
                                 <button className="btn btn-secondary" onClick={() => { setShowModal(false); resetForm(); }}>Cancel</button>
                                 <button className="btn btn-primary" onClick={handleSubmit}>{editProduct ? 'Update' : 'Add'} Product</button>
                             </>
@@ -3226,6 +3222,10 @@
                         <div className="bom-section">
                             <div className="bom-header">
                                 <span className="bom-title">📦 Components (from Items)</span>
+                                <button onClick={refreshFromFirebase} disabled={refreshing}
+                                    style={{ padding: '4px 12px', borderRadius: 6, border: 'none', background: refreshing ? '#F59E0B' : '#3B82F6', color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                                    {refreshing ? '↻ Refreshing...' : '↻ Refresh Items'}
+                                </button>
                             </div>
 
                             <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'flex-end' }}>
