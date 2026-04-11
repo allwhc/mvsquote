@@ -8427,51 +8427,61 @@ ${componentResults.map(c => {
                 const loadData = async () => {
                     setIsLoading(true);
 
-                    if (FirebaseCatalog.isMigrated()) {
-                        // PRIMARY: Load from Firebase
-                        setLoadingMessage('Loading from Firebase...');
-                        try {
-                            const [fbItems, fbProducts, fbBom, fbSubProducts] = await Promise.all([
-                                FirebaseCatalog.getItems(),
-                                FirebaseCatalog.getProducts(),
-                                FirebaseCatalog.getBom(),
-                                FirebaseCatalog.getSubProducts()
-                            ]);
+                    // ALWAYS try Firebase first (regardless of migration flag)
+                    setLoadingMessage('Loading from Firebase...');
+                    try {
+                        const [fbItems, fbProducts, fbBom, fbSubProducts] = await Promise.all([
+                            FirebaseCatalog.getItems(),
+                            FirebaseCatalog.getProducts(),
+                            FirebaseCatalog.getBom(),
+                            FirebaseCatalog.getSubProducts()
+                        ]);
 
-                            if (fbItems && fbItems.length > 0) {
-                                setItems(enrichItems(fbItems));
-                                setProducts(fbProducts || []);
-                                setBom(fbBom || []);
-                                setSubProducts(fbSubProducts || []);
+                        if (fbItems && fbItems.length > 0) {
+                            setItems(enrichItems(fbItems));
+                            setProducts(fbProducts || []);
+                            setBom(fbBom || []);
+                            setSubProducts(fbSubProducts || []);
 
-                                // Cache locally
-                                const cacheData = { items: fbItems, products: fbProducts, bom: fbBom, subProducts: fbSubProducts };
-                                localStorage.setItem('mvs_data_v4', JSON.stringify(cacheData));
-
-                                setLoadingMessage('Loading quotations...');
-                                const firebaseQuotations = await FirebaseQuotations.getAllQuotations();
-                                if (firebaseQuotations && firebaseQuotations.length > 0) {
-                                    setQuotations(firebaseQuotations);
-                                }
-                                setLastSync(new Date().toISOString());
-                                setTimeout(() => setIsLoading(false), 500);
-
-                                // Background: sync from Sheets to keep state updated
-                                setTimeout(() => backgroundSyncFromSheets(), 3000);
-                                return;
+                            // Cache locally + set migration flag for this browser
+                            const cacheData = { items: fbItems, products: fbProducts, bom: fbBom, subProducts: fbSubProducts };
+                            localStorage.setItem('mvs_data_v4', JSON.stringify(cacheData));
+                            if (!FirebaseCatalog.isMigrated()) {
+                                localStorage.setItem('mvs_catalog_migrated', 'true');
+                                localStorage.setItem('mvs_catalog_migrated_at', new Date().toISOString());
                             }
-                        } catch(e) {
-                            console.error('Firebase load failed, falling back to cache:', e);
-                        }
 
-                        // Fallback to localStorage cache
-                        setLoadingMessage('Loading from local cache...');
-                        loadFromLocalStorage();
-                        setTimeout(() => setIsLoading(false), 500);
-                        return;
+                            setLoadingMessage('Loading quotations...');
+                            const firebaseQuotations = await FirebaseQuotations.getAllQuotations();
+                            if (firebaseQuotations && firebaseQuotations.length > 0) {
+                                setQuotations(firebaseQuotations);
+                            }
+                            setLastSync(new Date().toISOString());
+                            setTimeout(() => setIsLoading(false), 500);
+
+                            // Background: sync from Sheets to keep state updated
+                            setTimeout(() => backgroundSyncFromSheets(), 3000);
+                            return;
+                        }
+                    } catch(e) {
+                        console.error('Firebase load failed, falling back:', e);
                     }
 
-                    // NOT migrated — original Sheets flow
+                    // Fallback: try localStorage cache first
+                    const saved = localStorage.getItem('mvs_data_v4');
+                    if (saved) {
+                        try {
+                            const data = JSON.parse(saved);
+                            if (data.items && data.items.length > 0) {
+                                setLoadingMessage('Loading from local cache...');
+                                loadFromLocalStorage();
+                                setTimeout(() => setIsLoading(false), 500);
+                                return;
+                            }
+                        } catch(e) {}
+                    }
+
+                    // Final fallback: Google Sheets
                     setLoadingMessage('Connecting to Google Sheets...');
                     try {
                         // Try to load from Google Sheets first
