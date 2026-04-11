@@ -3548,8 +3548,9 @@
                 doc.line(15, 45, 195, 45);
 
                 // Document Info
-                const docNumber = editingDoc ? editingDoc.number : generateDocNumber(brand.prefix + (type === 'quotation' ? 'QT' : 'INV'), quotations.length);
-                const today = editingDoc ? formatDate(editingDoc.date) : formatDate(new Date());
+                const isRealEdit = editingDoc && editingDoc.firebaseId;
+                const docNumber = isRealEdit ? editingDoc.number : generateDocNumber(brand.prefix + (type === 'quotation' ? 'QT' : 'INV'), quotations.length);
+                const today = isRealEdit ? formatDate(editingDoc.date) : formatDate(new Date());
 
                 doc.setTextColor(...brandColor);
                 doc.setFontSize(18);
