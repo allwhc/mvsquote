@@ -4023,19 +4023,19 @@
                                     <h3 className="card-title">Products</h3>
                                 </div>
                                 <div className="card-body">
-                                    <div className="product-selector">
-                                        <select className="form-select" value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}>
-                                            <option value="">Select a product...</option>
-                                            {products.map(p => {
-                                                const makingCost = calculateMakingCost(p, items, products, bom, subProducts);
-                                                const mrp = getMRP(p, makingCost);
-                                                return (
-                                                    <option key={p.sku} value={p.sku}>
-                                                        {p.sku} - {p.name} (MRP: {formatCurrency(mrp)})
-                                                    </option>
-                                                );
-                                            })}
-                                        </select>
+                                    <div className="product-selector" style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <SearchableSelect
+                                                options={products.map(p => {
+                                                    const makingCost = calculateMakingCost(p, items, products, bom, subProducts);
+                                                    const mrp = getMRP(p, makingCost);
+                                                    return { value: p.sku, label: `${p.sku} — ${p.name} (MRP: ${formatCurrency(mrp)})` };
+                                                })}
+                                                value={selectedProduct}
+                                                onChange={setSelectedProduct}
+                                                placeholder="Search products by name or SKU..."
+                                            />
+                                        </div>
                                         <button className="btn btn-primary" onClick={addItem}><Icons.Plus /> Add</button>
                                         <button className="btn btn-secondary" onClick={addCustomItem} title="Add custom line item"><Icons.Plus /> Custom Item</button>
                                     </div>
