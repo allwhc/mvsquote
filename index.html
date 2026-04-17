@@ -6199,7 +6199,7 @@ ${componentResults.map(c => {
                     setForm(emptyForm());
                     setStep(0);
                     setView('list');
-                    alert('Inspection submitted to Firebase!');
+                    alert('Inspection submitted!');
                 } else {
                     alert('Submit failed. Check internet connection.\n\nYour data is still saved as a draft on this device.');
                 }
@@ -6438,7 +6438,7 @@ ${componentResults.map(c => {
                             <button className="btn btn-secondary btn-sm" onClick={handleManualSaveDraft}>💾 Save Draft</button>
                             {step === STEPS.length - 1 && (
                                 <button className="btn btn-success" onClick={handleSave} disabled={saving}>
-                                    {saving ? 'Submitting...' : '🚀 Submit to Firebase'}
+                                    {saving ? 'Submitting...' : 'Submit'}
                                 </button>
                             )}
                         </div>
@@ -7026,7 +7026,7 @@ ${componentResults.map(c => {
                             </button>
                         ) : (
                             <button className="btn btn-success" onClick={handleSave} disabled={saving}>
-                                {saving ? 'Submitting...' : '🚀 Submit to Firebase'}
+                                {saving ? 'Submitting...' : 'Submit'}
                             </button>
                         )}
                     </div>
