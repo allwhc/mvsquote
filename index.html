@@ -6008,6 +6008,15 @@ ${componentResults.map(c => {
         const INSPECTION_STATUSES = ['pending_quote', 'quoted', 'closed'];
 
         const emptyTank = () => ({ label: '', type: 'Overhead', material: 'Concrete', height: '', capacity: '', photos: [], wireRouting: '', wireNotes: '' });
+        const emptyPump = () => ({ label: '', phase: 'Single-phase', type: 'Submersible (normal)', capacity: '', panelType: 'Manual', capacitorType: 'N/A', tanksConnected: [], notes: '' });
+        const emptyValve = () => ({ pipeSize: '1"', pipeSizeOther: '', valveType: '', location: '', notes: '' });
+        const emptyFlowmeter = () => ({ count: 1, pipeSize: '1"', pipeSizeOther: '', location: '', notes: '' });
+        const PUMP_TYPES_SINGLE = ['Submersible (normal)', 'Submersible (prime)', 'Surface', 'Jet', 'Booster', 'Other'];
+        const PUMP_TYPES_THREE = ['Submersible (normal)', 'Submersible (prime)', 'Surface', 'Booster', 'Other'];
+        const PANEL_TYPES = ['Manual', 'Auto', 'Dual Start-Off (DOL)', 'Star-Delta', 'VFD', 'None'];
+        const CAPACITOR_TYPES = ['Running', 'Starting', 'Both', 'N/A'];
+        const PIPE_SIZES = ['0.5"', '0.75"', '1"', '1.25"', '1.5"', '2"', '3"', '4"', 'Other'];
+        const VALVE_TYPES = ['', 'Ball', 'Gate', 'Solenoid', 'Butterfly', 'Other'];
 
         const INSP_DRAFT_KEY = 'mvs_inspection_draft';
 
@@ -6025,18 +6034,28 @@ ${componentResults.map(c => {
                 customerName: '', contactPerson: '', phone: '',
                 gps: null, address: '',
                 propertyType: '', numBuildings: '', numFloors: '',
+                customerNotes: '',
                 tanks: [emptyTank()],
+                tanksInterconnected: 'No', tanksInterconnectedNotes: '',
+                tanksNotes: '',
                 clustered: 'Clustered (<50m)',
-                power: 'Yes', wifi: 'Yes',
+                power: 'Yes', wifi: 'Yes', wifiNotes: '',
+                rs485Wiring: 'Yes', rs485Notes: '',
                 controlRoomDistance: '',
                 siteConditionPhotos: [],
                 siteExtraDetails: '',
+                siteNotes: '',
+                pumps: [],
+                pumpsNotes: '',
                 monitoring: ['Water Level'],
                 alerts: ['Overflow', 'Low Level'],
-                valveControl: false, valveControlDesc: '',
+                cloudMonitoring: 'Yes', cloudMonitoringNotes: '',
+                valveControl: false, valveControlDesc: '', valves: [],
+                flowmeterRequired: false, flowmeters: [],
                 submersiblePumpControl: false, submersiblePumpDesc: '',
                 singlePhaseMotorControl: false, singlePhaseMotorDesc: '',
                 pumpAutomation: 'No', pumpCount: '',
+                monitoringNotes: '',
                 suggestedProducts: [],
                 notes: '',
                 nextAction: '', nextFollowupDate: '',
@@ -6207,7 +6226,7 @@ ${componentResults.map(c => {
             const statusLabel = s => ({ pending_quote: 'Pending Quote', quoted: 'Quoted', closed: 'Closed' }[s] || s);
             const statusClass = s => ({ pending_quote: 'insp-status-pending', quoted: 'insp-status-quoted', closed: 'insp-status-closed' }[s] || '');
 
-            const STEPS = ['Customer', 'Tanks', 'Site', 'Requirements', 'Recommend'];
+            const STEPS = ['Customer', 'Tanks', 'Site', 'Pumps', 'Monitoring', 'Recommend'];
 
             // ---- RENDER: LIST ----
             if (view === 'list') return (
@@ -6509,6 +6528,10 @@ ${componentResults.map(c => {
                                     </div>
                                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos stay on your phone. Tap a badge to remove it.</div>
                                 </div>
+                                <div className="form-group">
+                                    <label className="form-label">Customer Notes</label>
+                                    <textarea className="form-textarea" rows="2" value={form.customerNotes} onChange={e => setForm(f => ({ ...f, customerNotes: e.target.value }))} placeholder="Initial notes about this customer / enquiry..." />
+                                </div>
                             </div>
                         )}
 
@@ -6612,6 +6635,25 @@ ${componentResults.map(c => {
                                     </div>
                                 ))}
                                 <button className="btn btn-secondary" style={{ width: '100%' }} onClick={addTank}><Icons.Plus /> Add Another Tank</button>
+
+                                <div style={{ marginTop: 20, padding: 16, background: 'var(--bg)', borderRadius: 8 }}>
+                                    <div className="form-row" style={{ marginBottom: 10 }}>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label">Tanks Interconnected?</label>
+                                            <select className="form-select" value={form.tanksInterconnected} onChange={e => setForm(f => ({ ...f, tanksInterconnected: e.target.value }))}>
+                                                <option>No</option><option>Yes</option><option>Partial</option>
+                                            </select>
+                                        </div>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label">Interconnection Notes</label>
+                                            <input className="form-input" value={form.tanksInterconnectedNotes} onChange={e => setForm(f => ({ ...f, tanksInterconnectedNotes: e.target.value }))} placeholder="e.g., OH-1 and OH-2 share balancing line" />
+                                        </div>
+                                    </div>
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label">Tanks Section Notes</label>
+                                        <textarea className="form-textarea" rows="2" value={form.tanksNotes} onChange={e => setForm(f => ({ ...f, tanksNotes: e.target.value }))} placeholder="Any additional notes about tanks..." />
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -6635,30 +6677,32 @@ ${componentResults.map(c => {
                                         </select>
                                     </div>
                                     <div className="form-group">
-                                        <label className="form-label">WiFi / Internet Available?</label>
+                                        <label className="form-label">WiFi / Internet Available at all locations?</label>
                                         <select className="form-select" value={form.wifi} onChange={e => setForm(f => ({ ...f, wifi: e.target.value }))}>
-                                            <option>Yes</option><option>No</option><option>Can Arrange</option>
+                                            <option>Yes</option><option>No</option><option>Partial</option><option>Can Arrange</option>
                                         </select>
                                     </div>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">WiFi Notes {form.wifi === 'Partial' && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(which areas lack WiFi)</span>}</label>
+                                    <input className="form-input" value={form.wifiNotes} onChange={e => setForm(f => ({ ...f, wifiNotes: e.target.value }))} placeholder="e.g., Tank 3 area has weak signal, router needed near UG tank" />
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
-                                        <label className="form-label">Distance to Control Room (meters)</label>
-                                        <input type="number" className="form-input" value={form.controlRoomDistance} onChange={e => setForm(f => ({ ...f, controlRoomDistance: e.target.value }))} placeholder="e.g., 50" />
-                                    </div>
-                                    <div className="form-group">
-                                        <label className="form-label">Pump Automation Needed?</label>
-                                        <select className="form-select" value={form.pumpAutomation} onChange={e => setForm(f => ({ ...f, pumpAutomation: e.target.value }))}>
-                                            <option>No</option><option>Yes</option><option>Future</option>
+                                        <label className="form-label">RS-485 Wiring Possible?</label>
+                                        <select className="form-select" value={form.rs485Wiring} onChange={e => setForm(f => ({ ...f, rs485Wiring: e.target.value }))}>
+                                            <option>Yes</option><option>No</option><option>Needs new cable</option>
                                         </select>
                                     </div>
-                                </div>
-                                {form.pumpAutomation === 'Yes' && (
                                     <div className="form-group">
-                                        <label className="form-label">Number of Pumps</label>
-                                        <input type="number" className="form-input" value={form.pumpCount} onChange={e => setForm(f => ({ ...f, pumpCount: e.target.value }))} placeholder="e.g., 4" style={{ maxWidth: '150px' }} />
+                                        <label className="form-label">RS-485 Notes</label>
+                                        <input className="form-input" value={form.rs485Notes} onChange={e => setForm(f => ({ ...f, rs485Notes: e.target.value }))} placeholder="e.g., conduit to be laid, 100m cable needed" />
                                     </div>
-                                )}
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Distance to Control Room (meters)</label>
+                                    <input type="number" className="form-input" value={form.controlRoomDistance} onChange={e => setForm(f => ({ ...f, controlRoomDistance: e.target.value }))} placeholder="e.g., 50" style={{ maxWidth: '200px' }} />
+                                </div>
                                 <div className="form-group">
                                     <label className="form-label">Site Condition Photos</label>
                                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
@@ -6677,11 +6721,109 @@ ${componentResults.map(c => {
                                     <label className="form-label">Additional Site Details</label>
                                     <textarea className="form-textarea" rows="3" value={form.siteExtraDetails} onChange={e => setForm(f => ({ ...f, siteExtraDetails: e.target.value }))} placeholder="e.g., Rooftop access via external staircase, corrosive environment near tank 3, CCTV room nearby, conduit already in place..." />
                                 </div>
+                                <div className="form-group">
+                                    <label className="form-label">Site Section Notes</label>
+                                    <textarea className="form-textarea" rows="2" value={form.siteNotes} onChange={e => setForm(f => ({ ...f, siteNotes: e.target.value }))} placeholder="Any other site-related notes..." />
+                                </div>
                             </div>
                         )}
 
-                        {/* STEP 3: Requirements */}
+                        {/* STEP 3: Pumps & Control */}
                         {step === 3 && (
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <h3 style={{ color: 'var(--primary)', margin: 0 }}>Pumps & Control ({form.pumps.length})</h3>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, pumps: [...f.pumps, emptyPump()] }))}><Icons.Plus /> Add Pump</button>
+                                </div>
+                                {form.pumps.length === 0 && (
+                                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg)', borderRadius: 8 }}>
+                                        No pumps added yet. Click "Add Pump" if pump monitoring/control is required.
+                                    </div>
+                                )}
+                                {form.pumps.map((pump, idx) => {
+                                    const updatePump = (key, val) => setForm(f => { const pumps = [...f.pumps]; pumps[idx] = { ...pumps[idx], [key]: val }; return { ...f, pumps }; });
+                                    const removePump = () => setForm(f => ({ ...f, pumps: f.pumps.filter((_, i) => i !== idx) }));
+                                    const typeOptions = pump.phase === 'Three-phase' ? PUMP_TYPES_THREE : PUMP_TYPES_SINGLE;
+                                    return (
+                                        <div key={idx} className="tank-card">
+                                            <div className="tank-card-header">
+                                                <span className="tank-card-label">{pump.label || `Pump ${idx + 1}`}</span>
+                                                <button className="btn btn-danger btn-sm btn-icon" onClick={removePump}><Icons.X /></button>
+                                            </div>
+                                            <div className="tank-grid" style={{ marginBottom: 10 }}>
+                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                    <label className="form-label">Label</label>
+                                                    <input className="form-input" value={pump.label} onChange={e => updatePump('label', e.target.value)} placeholder="e.g., P1, Main Pump" />
+                                                </div>
+                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                    <label className="form-label">Phase</label>
+                                                    <select className="form-select" value={pump.phase} onChange={e => { updatePump('phase', e.target.value); updatePump('type', (e.target.value === 'Three-phase' ? PUMP_TYPES_THREE : PUMP_TYPES_SINGLE)[0]); }}>
+                                                        <option>Single-phase</option><option>Three-phase</option>
+                                                    </select>
+                                                </div>
+                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                    <label className="form-label">Type</label>
+                                                    <select className="form-select" value={pump.type} onChange={e => updatePump('type', e.target.value)}>
+                                                        {typeOptions.map(t => <option key={t}>{t}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                    <label className="form-label">Capacity (HP)</label>
+                                                    <input className="form-input" value={pump.capacity} onChange={e => updatePump('capacity', e.target.value)} placeholder="e.g., 1.5" />
+                                                </div>
+                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                    <label className="form-label">Panel Type</label>
+                                                    <select className="form-select" value={pump.panelType} onChange={e => updatePump('panelType', e.target.value)}>
+                                                        {PANEL_TYPES.map(p => <option key={p}>{p}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                    <label className="form-label">Capacitor Type</label>
+                                                    <select className="form-select" value={pump.capacitorType} onChange={e => updatePump('capacitorType', e.target.value)}>
+                                                        {CAPACITOR_TYPES.map(c => <option key={c}>{c}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="form-group" style={{ marginBottom: 10 }}>
+                                                <label className="form-label">Tanks Connected to This Pump</label>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                    {form.tanks.length === 0 ? (
+                                                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No tanks added yet — go back to Tanks step</span>
+                                                    ) : form.tanks.map((tank, ti) => {
+                                                        const tlabel = tank.label || `Tank ${ti + 1}`;
+                                                        const checked = (pump.tanksConnected || []).includes(tlabel);
+                                                        return (
+                                                            <div key={ti} className={`checklist-item ${checked ? 'checked' : ''}`}
+                                                                onClick={() => {
+                                                                    const current = pump.tanksConnected || [];
+                                                                    const next = checked ? current.filter(t => t !== tlabel) : [...current, tlabel];
+                                                                    updatePump('tanksConnected', next);
+                                                                }}>
+                                                                {checked ? '✓ ' : ''}{tlabel}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                <label className="form-label">Pump Notes</label>
+                                                <input className="form-input" value={pump.notes} onChange={e => updatePump('notes', e.target.value)} placeholder="e.g., old pump, noisy, needs replacement" />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {form.pumps.length > 0 && (
+                                    <button className="btn btn-secondary" style={{ width: '100%' }} onClick={() => setForm(f => ({ ...f, pumps: [...f.pumps, emptyPump()] }))}><Icons.Plus /> Add Another Pump</button>
+                                )}
+                                <div className="form-group" style={{ marginTop: 16 }}>
+                                    <label className="form-label">Pumps Section Notes</label>
+                                    <textarea className="form-textarea" rows="2" value={form.pumpsNotes} onChange={e => setForm(f => ({ ...f, pumpsNotes: e.target.value }))} placeholder="Overall pump setup notes, electrical requirements, etc." />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* STEP 4: Monitoring & Automation */}
+                        {step === 4 && (
                             <div>
                                 <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Monitoring & Control Requirements</h3>
                                 <div className="form-group">
@@ -6706,29 +6848,128 @@ ${componentResults.map(c => {
                                         ))}
                                     </div>
                                 </div>
-                                <div className="form-group">
-                                    <label className="form-label" style={{ marginBottom: '10px' }}>Control Requirements</label>
-                                    {[
-                                        { key: 'valveControl', descKey: 'valveControlDesc', label: 'Valve Control', placeholder: 'e.g., 4 motorised ball valves, 2 inch' },
-                                        { key: 'submersiblePumpControl', descKey: 'submersiblePumpDesc', label: 'Submersible Pump Control', placeholder: 'e.g., 2 pumps, 1HP each, 3-phase' },
-                                        { key: 'singlePhaseMotorControl', descKey: 'singlePhaseMotorDesc', label: 'Single Phase Motor Control', placeholder: 'e.g., 3 motors, 0.5HP, star-delta starter needed' },
-                                    ].map(ctrl => (
-                                        <div key={ctrl.key} style={{ background: 'var(--bg)', borderRadius: '8px', padding: '12px', marginBottom: '10px' }}>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
-                                                <input type="checkbox" checked={form[ctrl.key]} onChange={e => setForm(f => ({ ...f, [ctrl.key]: e.target.checked }))} style={{ width: '18px', height: '18px' }} />
-                                                {ctrl.label}
-                                            </label>
-                                            {form[ctrl.key] && (
-                                                <input className="form-input" style={{ marginTop: '8px' }} value={form[ctrl.descKey]} onChange={e => setForm(f => ({ ...f, [ctrl.descKey]: e.target.value }))} placeholder={ctrl.placeholder} />
-                                            )}
+                                <div className="form-row">
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label">Cloud Monitoring Required?</label>
+                                        <select className="form-select" value={form.cloudMonitoring} onChange={e => setForm(f => ({ ...f, cloudMonitoring: e.target.value }))}>
+                                            <option>Yes</option><option>No</option><option>Future</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label">Cloud Monitoring Notes</label>
+                                        <input className="form-input" value={form.cloudMonitoringNotes} onChange={e => setForm(f => ({ ...f, cloudMonitoringNotes: e.target.value }))} placeholder="e.g., needs mobile app access for residents" />
+                                    </div>
+                                </div>
+
+                                {/* Valve Control with per-valve pipe sizes */}
+                                <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '12px', marginTop: 14 }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
+                                        <input type="checkbox" checked={form.valveControl} onChange={e => setForm(f => ({ ...f, valveControl: e.target.checked, valves: e.target.checked && (f.valves || []).length === 0 ? [emptyValve()] : (f.valves || []) }))} style={{ width: '18px', height: '18px' }} />
+                                        Valve Control
+                                    </label>
+                                    {form.valveControl && (
+                                        <div style={{ marginTop: 10 }}>
+                                            {(form.valves || []).map((v, vi) => {
+                                                const updateValve = (k, val) => setForm(f => { const vs = [...(f.valves || [])]; vs[vi] = { ...vs[vi], [k]: val }; return { ...f, valves: vs }; });
+                                                return (
+                                                    <div key={vi} style={{ background: 'white', padding: 10, borderRadius: 6, marginBottom: 8, border: '1px solid var(--border)' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                            <span style={{ fontSize: 12, fontWeight: 600 }}>Valve {vi + 1}</span>
+                                                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => setForm(f => ({ ...f, valves: f.valves.filter((_, i) => i !== vi) }))}><Icons.X /></button>
+                                                        </div>
+                                                        <div className="tank-grid">
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label className="form-label">Pipe Size</label>
+                                                                <select className="form-select" value={v.pipeSize} onChange={e => updateValve('pipeSize', e.target.value)}>
+                                                                    {PIPE_SIZES.map(s => <option key={s}>{s}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            {v.pipeSize === 'Other' && (
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label className="form-label">Custom Pipe Size</label>
+                                                                    <input className="form-input" value={v.pipeSizeOther} onChange={e => updateValve('pipeSizeOther', e.target.value)} placeholder="e.g., 2.5 inch" />
+                                                                </div>
+                                                            )}
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label className="form-label">Valve Type <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+                                                                <select className="form-select" value={v.valveType} onChange={e => updateValve('valveType', e.target.value)}>
+                                                                    {VALVE_TYPES.map(t => <option key={t} value={t}>{t || '—'}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label className="form-label">Location</label>
+                                                                <input className="form-input" value={v.location} onChange={e => updateValve('location', e.target.value)} placeholder="e.g., inlet to OH-1" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="form-group" style={{ marginTop: 8, marginBottom: 0 }}>
+                                                            <input className="form-input" value={v.notes} onChange={e => updateValve('notes', e.target.value)} placeholder="Notes for this valve..." />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, valves: [...(f.valves || []), emptyValve()] }))}><Icons.Plus /> Add Valve</button>
                                         </div>
-                                    ))}
+                                    )}
+                                </div>
+
+                                {/* Flowmeter */}
+                                <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '12px', marginTop: 14 }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
+                                        <input type="checkbox" checked={form.flowmeterRequired} onChange={e => setForm(f => ({ ...f, flowmeterRequired: e.target.checked, flowmeters: e.target.checked && (f.flowmeters || []).length === 0 ? [emptyFlowmeter()] : (f.flowmeters || []) }))} style={{ width: '18px', height: '18px' }} />
+                                        Flowmeter Required
+                                    </label>
+                                    {form.flowmeterRequired && (
+                                        <div style={{ marginTop: 10 }}>
+                                            {(form.flowmeters || []).map((fm, fi) => {
+                                                const updateFm = (k, val) => setForm(f => { const fms = [...(f.flowmeters || [])]; fms[fi] = { ...fms[fi], [k]: val }; return { ...f, flowmeters: fms }; });
+                                                return (
+                                                    <div key={fi} style={{ background: 'white', padding: 10, borderRadius: 6, marginBottom: 8, border: '1px solid var(--border)' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                            <span style={{ fontSize: 12, fontWeight: 600 }}>Flowmeter {fi + 1}</span>
+                                                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => setForm(f => ({ ...f, flowmeters: f.flowmeters.filter((_, i) => i !== fi) }))}><Icons.X /></button>
+                                                        </div>
+                                                        <div className="tank-grid">
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label className="form-label">Count</label>
+                                                                <input type="number" className="form-input" value={fm.count} onChange={e => updateFm('count', e.target.value)} placeholder="1" min="1" />
+                                                            </div>
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label className="form-label">Pipe Size</label>
+                                                                <select className="form-select" value={fm.pipeSize} onChange={e => updateFm('pipeSize', e.target.value)}>
+                                                                    {PIPE_SIZES.map(s => <option key={s}>{s}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            {fm.pipeSize === 'Other' && (
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label className="form-label">Custom Size</label>
+                                                                    <input className="form-input" value={fm.pipeSizeOther} onChange={e => updateFm('pipeSizeOther', e.target.value)} placeholder="e.g., 2.5 inch" />
+                                                                </div>
+                                                            )}
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label className="form-label">Location</label>
+                                                                <input className="form-input" value={fm.location} onChange={e => updateFm('location', e.target.value)} placeholder="e.g., main inlet" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="form-group" style={{ marginTop: 8, marginBottom: 0 }}>
+                                                            <input className="form-input" value={fm.notes} onChange={e => updateFm('notes', e.target.value)} placeholder="Notes for this flowmeter..." />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, flowmeters: [...(f.flowmeters || []), emptyFlowmeter()] }))}><Icons.Plus /> Add Flowmeter</button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="form-group" style={{ marginTop: 14 }}>
+                                    <label className="form-label">Monitoring Section Notes</label>
+                                    <textarea className="form-textarea" rows="2" value={form.monitoringNotes} onChange={e => setForm(f => ({ ...f, monitoringNotes: e.target.value }))} placeholder="Any overall monitoring/automation notes..." />
                                 </div>
                             </div>
                         )}
 
-                        {/* STEP 4: Recommendation */}
-                        {step === 4 && (
+                        {/* STEP 5: Recommendation */}
+                        {step === 5 && (
                             <div>
                                 <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Technician Recommendations</h3>
                                 <div className="form-group">
