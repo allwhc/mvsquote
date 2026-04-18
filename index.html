@@ -1378,34 +1378,64 @@
         const loadHindiFont = async () => {
             if (_hindiFontCache) return _hindiFontCache;
             const cached = sessionStorage.getItem('hindi_font_base64');
-            if (cached) { _hindiFontCache = cached; return cached; }
-            try {
-                // Noto Sans Devanagari Regular from jsDelivr CDN (reliable)
-                const url = 'https://cdn.jsdelivr.net/gh/notofonts/devanagari@main/fonts/NotoSansDevanagari/hinted/ttf/NotoSansDevanagari-Regular.ttf';
-                const res = await fetch(url);
-                const buf = await res.arrayBuffer();
-                const bytes = new Uint8Array(buf);
-                let binary = '';
-                const CHUNK = 0x8000;
-                for (let i = 0; i < bytes.length; i += CHUNK) {
-                    binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + CHUNK, bytes.length)));
-                }
-                const base64 = btoa(binary);
-                _hindiFontCache = base64;
-                try { sessionStorage.setItem('hindi_font_base64', base64); } catch(e) {}
-                return base64;
-            } catch(e) {
-                console.error('Failed to load Hindi font:', e);
-                throw new Error('Could not load Hindi font. Please check your internet connection.');
+            if (cached && cached.length > 50000) { _hindiFontCache = cached; return cached; }
+
+            // Try multiple CDN sources in order
+            const urls = [
+                'https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Regular.ttf',
+                'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSansDevanagari/NotoSansDevanagari-Regular.ttf',
+                'https://fonts.gstatic.com/s/notosansdevanagari/v26/TuGoUUFzXI5FBtUq5a8bjKYTZjtRU6Sgv3NaV_SNmI0b8QQCQmHn6B2OHjbL_08AlXQly-AzoFoW4Ow.ttf'
+            ];
+            let lastErr;
+            for (const url of urls) {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) { lastErr = new Error(`${url} returned ${res.status}`); continue; }
+                    const buf = await res.arrayBuffer();
+                    if (buf.byteLength < 50000) { lastErr = new Error(`${url} returned too small file (${buf.byteLength} bytes)`); continue; }
+                    // Verify it's a TTF/OTF (starts with version bytes 00 01 00 00 or 'OTTO' or 'true')
+                    const head = new Uint8Array(buf.slice(0, 4));
+                    const sig = String.fromCharCode(...head);
+                    const isTTF = (head[0] === 0 && head[1] === 1 && head[2] === 0 && head[3] === 0) || sig === 'OTTO' || sig === 'true';
+                    if (!isTTF) { lastErr = new Error(`${url} returned non-TTF (signature: ${sig})`); continue; }
+
+                    const bytes = new Uint8Array(buf);
+                    let binary = '';
+                    const CHUNK = 0x8000;
+                    for (let i = 0; i < bytes.length; i += CHUNK) {
+                        binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + CHUNK, bytes.length)));
+                    }
+                    const base64 = btoa(binary);
+                    _hindiFontCache = base64;
+                    try { sessionStorage.setItem('hindi_font_base64', base64); } catch(e) {}
+                    console.log('Loaded Hindi font from:', url, 'size:', buf.byteLength, 'bytes');
+                    return base64;
+                } catch(e) { lastErr = e; continue; }
             }
+            console.error('All Hindi font CDNs failed. Last error:', lastErr);
+            throw new Error('Could not load Hindi font: ' + (lastErr?.message || 'unknown'));
         };
 
         // Register Hindi font with a jsPDF instance
         const registerHindiFont = async (pdf) => {
-            const base64 = await loadHindiFont();
-            pdf.addFileToVFS('NotoSansDevanagari-Regular.ttf', base64);
-            pdf.addFont('NotoSansDevanagari-Regular.ttf', 'NotoHindi', 'normal');
-            pdf.addFont('NotoSansDevanagari-Regular.ttf', 'NotoHindi', 'bold');
+            try {
+                const base64 = await loadHindiFont();
+                pdf.addFileToVFS('NotoSansDevanagari-Regular.ttf', base64);
+                pdf.addFont('NotoSansDevanagari-Regular.ttf', 'NotoHindi', 'normal');
+                // Re-register same font file as "bold" since Regular.ttf can serve both
+                pdf.addFont('NotoSansDevanagari-Regular.ttf', 'NotoHindi', 'bold');
+            } catch(e) {
+                // Clear bad cache
+                try { sessionStorage.removeItem('hindi_font_base64'); } catch(ex) {}
+                _hindiFontCache = null;
+                throw e;
+            }
+        };
+
+        // Replace ₹ with "Rs. " since jsPDF's default Helvetica can't render it
+        const sanitizeForPdf = (text) => {
+            if (!text) return text;
+            return String(text).replace(/₹\s*/g, 'Rs. ').replace(/[\u202F\u00A0]/g, ' ');
         };
 
         // Fetch image as base64 for PDF embedding
@@ -9242,7 +9272,7 @@ ${componentResults.map(c => {
                             pdf.setTextColor(255);
                             setTextFont('bold');
                             pdf.setFontSize(12);
-                            pdf.text(p.priceDisplay, 105, y + 7, { align: 'center' });
+                            pdf.text(isHi ? p.priceDisplay : sanitizeForPdf(p.priceDisplay), 105, y + 7, { align: 'center' });
                         }
                     }
 
