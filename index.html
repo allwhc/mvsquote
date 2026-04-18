@@ -9043,6 +9043,70 @@ ${componentResults.map(c => {
                         }
                     };
 
+                    // Render text that may have mixed Hindi + English (Hindi PDF only)
+                    // Splits into segments by Devanagari vs Latin and renders each with the appropriate font.
+                    // Returns the x position after the last segment drawn.
+                    const DEVANAGARI_RE = /[\u0900-\u097F\u00A0-\u00BF\u2000-\u206F]+/g; // Devanagari range + symbols
+                    const LATIN_RE = /[A-Za-z0-9%°.,:;\-_/()+@#&'"!?₹°]+/g;
+                    const renderMixed = (text, x, y, opts = {}) => {
+                        if (!isHi) { pdf.text(text, x, y, opts); return; }
+                        // Split text into runs — each run is either "devanagari" or "latin" or "space"
+                        const runs = [];
+                        let buf = '';
+                        let bufType = null;
+                        const typeOf = (ch) => {
+                            const code = ch.charCodeAt(0);
+                            if (code >= 0x0900 && code <= 0x097F) return 'hi';
+                            return 'en';
+                        };
+                        for (const ch of text) {
+                            const t = typeOf(ch);
+                            if (bufType === null || t === bufType) { buf += ch; bufType = t; }
+                            else { runs.push({ type: bufType, text: buf }); buf = ch; bufType = t; }
+                        }
+                        if (buf) runs.push({ type: bufType, text: buf });
+
+                        // Measure total width first if alignment needed
+                        const savedFont = pdf.getFont();
+                        let totalW = 0;
+                        for (const r of runs) {
+                            if (r.type === 'hi') pdf.setFont('NotoHindi', 'normal');
+                            else pdf.setFont('helvetica', 'normal');
+                            totalW += pdf.getTextWidth(r.text);
+                        }
+                        let startX = x;
+                        if (opts.align === 'center') startX = x - totalW / 2;
+                        else if (opts.align === 'right') startX = x - totalW;
+
+                        let curX = startX;
+                        for (const r of runs) {
+                            if (r.type === 'hi') pdf.setFont('NotoHindi', 'normal');
+                            else pdf.setFont('helvetica', 'normal');
+                            pdf.text(r.text, curX, y);
+                            curX += pdf.getTextWidth(r.text);
+                        }
+                        // Restore font
+                        pdf.setFont(savedFont.fontName, savedFont.fontStyle);
+                    };
+
+                    // For lines that need to be split first (splitTextToSize), we render each line with renderMixed
+                    const renderMixedLines = (text, x, y, maxWidth, lineHeight) => {
+                        if (!isHi) {
+                            const lines = pdf.splitTextToSize(text, maxWidth);
+                            pdf.text(lines, x, y);
+                            return lines.length * lineHeight;
+                        }
+                        // In Hindi mode, set NotoHindi for splitting (it measures better for Hindi)
+                        pdf.setFont('NotoHindi', 'normal');
+                        const lines = pdf.splitTextToSize(text, maxWidth);
+                        let cy = y;
+                        for (const line of lines) {
+                            renderMixed(line, x, cy);
+                            cy += lineHeight;
+                        }
+                        return lines.length * lineHeight;
+                    };
+
                     // Field pickers
                     const pickName = (p) => isHi ? (p.nameHi || p.nameEn || '') : (p.nameEn || '');
                     const pickTagline = (p) => isHi ? (p.taglineHi || '') : (p.taglineEn || '');
@@ -9135,8 +9199,7 @@ ${componentResults.map(c => {
                         pdf.setTextColor(40);
                         setTextFont('normal');
                         pdf.setFontSize(11);
-                        const lines = pdf.splitTextToSize(intro, 180);
-                        pdf.text(lines, 15, y);
+                        renderMixedLines(intro, 15, y, 180, 5);
                     }
 
                     // --- PRODUCT PAGES ---
@@ -9170,18 +9233,19 @@ ${componentResults.map(c => {
                         setTextFont('bold');
                         pdf.setFontSize(18);
                         const name = pickName(p);
-                        if (name) { pdf.text(name, 15, y); y += 8; }
+                        if (name) { renderMixed(name, 15, y); y += 8; }
 
                         // Tagline
                         setTextFont('normal');
                         pdf.setFontSize(11);
                         pdf.setTextColor(100);
                         const tagline = pickTagline(p);
-                        if (tagline) { pdf.text(tagline, 15, y); y += 7; }
+                        if (tagline) { renderMixed(tagline, 15, y); y += 7; }
 
                         y += 4;
 
-                        // Features (bullets)
+                        // Features (bullets). Use asterisk for Hindi since • may not be in Latin font segment
+                        const bullet = '• ';
                         const features = pickFeatures(p);
                         if (features) {
                             setLabelFont('bold');
@@ -9195,9 +9259,11 @@ ${componentResults.map(c => {
                             const feats = features.split('\n').map(l => l.trim()).filter(Boolean);
                             for (const f of feats) {
                                 if (y > 270) { pdf.addPage(); y = 20; }
-                                const lines = pdf.splitTextToSize('• ' + f, 170);
-                                pdf.text(lines, 20, y);
-                                y += lines.length * 4.5 + 1;
+                                // Render bullet separately in Helvetica (always works)
+                                pdf.setFont('helvetica', 'normal');
+                                pdf.text('•', 18, y);
+                                const used = renderMixedLines(f, 22, y, 166, 4.5);
+                                y += used + 1;
                             }
                             y += 3;
                         }
@@ -9214,9 +9280,12 @@ ${componentResults.map(c => {
                             setTextFont('normal');
                             pdf.setFontSize(10);
                             pdf.setTextColor(40);
-                            const lines = pdf.splitTextToSize(hiw, 180);
-                            if (y + lines.length * 4.5 > 280) { pdf.addPage(); y = 20; }
-                            pdf.text(lines, 15, y); y += lines.length * 4.5 + 3;
+                            // pre-check page break
+                            pdf.setFont(isHi ? 'NotoHindi' : 'helvetica', 'normal');
+                            const tmpLines = pdf.splitTextToSize(hiw, 180);
+                            if (y + tmpLines.length * 4.5 > 280) { pdf.addPage(); y = 20; }
+                            const used = renderMixedLines(hiw, 15, y, 180, 4.5);
+                            y += used + 3;
                         }
 
                         // Specs
@@ -9228,16 +9297,17 @@ ${componentResults.map(c => {
                             pdf.setTextColor(...brandColor);
                             pdf.text(L.specifications, 15, y);
                             y += 6;
-                            setTextFont('normal');
                             pdf.setFontSize(9);
                             pdf.setTextColor(40);
                             const parseSpecs = (s) => s.split('\n').map(l => { const [k, ...rest] = l.split(':'); return { k: (k || '').trim(), v: rest.join(':').trim() }; }).filter(x => x.k);
                             for (const s of parseSpecs(specs)) {
                                 if (y > 275) { pdf.addPage(); y = 20; }
-                                setTextFont('bold');
-                                pdf.text(s.k + ':', 20, y);
-                                setTextFont('normal');
-                                pdf.text(s.v, 70, y);
+                                // Key bold
+                                if (isHi) pdf.setFont('NotoHindi', 'bold'); else pdf.setFont('helvetica', 'bold');
+                                renderMixed(s.k + ':', 20, y);
+                                // Value normal
+                                if (isHi) pdf.setFont('NotoHindi', 'normal'); else pdf.setFont('helvetica', 'normal');
+                                renderMixed(s.v, 70, y);
                                 y += 5;
                             }
                             y += 3;
@@ -9272,7 +9342,8 @@ ${componentResults.map(c => {
                             pdf.setTextColor(255);
                             setTextFont('bold');
                             pdf.setFontSize(12);
-                            pdf.text(isHi ? p.priceDisplay : sanitizeForPdf(p.priceDisplay), 105, y + 7, { align: 'center' });
+                            if (isHi) renderMixed(p.priceDisplay, 105, y + 7, { align: 'center' });
+                            else pdf.text(sanitizeForPdf(p.priceDisplay), 105, y + 7, { align: 'center' });
                         }
                     }
 
@@ -9302,7 +9373,8 @@ ${componentResults.map(c => {
                     setTextFont('normal');
                     pdf.setFontSize(9);
                     pdf.setTextColor(220);
-                    pdf.text(L.thankYou, 105, 270, { align: 'center' });
+                    if (isHi) renderMixed(L.thankYou, 105, 270, { align: 'center' });
+                    else pdf.text(L.thankYou, 105, 270, { align: 'center' });
 
                     setPdfProgress('Saving PDF...');
                     const langSuffix = isHi ? 'Hindi' : 'English';
