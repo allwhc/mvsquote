@@ -9045,6 +9045,88 @@ ${componentResults.map(c => {
                 setGeneratingPdf(false);
             };
 
+            const loadSample = async () => {
+                if (!confirm('Create a sample SenseFlow brochure with 4 products? You can edit it after.')) return;
+                const sample = {
+                    name: 'SenseFlow Residential Brochure 2026',
+                    brand: 'SenseFlow',
+                    coverTitle: 'Smart Water Monitoring & Control',
+                    coverSubtitle: 'Sense. Monitor. Control.',
+                    coverImage: '',
+                    introEn: 'SenseFlow brings intelligent water management to homes, housing societies, and industrial facilities. Our IoT-enabled devices monitor tank levels, control pumps and valves, and deliver real-time insights — helping you save water, prevent overflow, and automate your water infrastructure.\n\nBuilt in India, trusted by societies and facility managers across the country, SenseFlow combines rugged hardware with an easy-to-use mobile app and cloud dashboard.',
+                    introHi: 'सेंसफ्लो घरों, हाउसिंग सोसायटियों और औद्योगिक सुविधाओं के लिए बुद्धिमान जल प्रबंधन लाता है। हमारे IoT-सक्षम उपकरण टैंक स्तरों की निगरानी करते हैं, पंपों और वाल्वों को नियंत्रित करते हैं, और वास्तविक समय की जानकारी प्रदान करते हैं — जिससे आपको पानी बचाने, ओवरफ्लो रोकने और अपने जल बुनियादी ढांचे को स्वचालित करने में मदद मिलती है।\n\nभारत में निर्मित, देश भर की सोसायटियों और सुविधा प्रबंधकों द्वारा विश्वसनीय, सेंसफ्लो मजबूत हार्डवेयर को उपयोग में आसान मोबाइल ऐप और क्लाउड डैशबोर्ड के साथ जोड़ता है।',
+                    products: [
+                        {
+                            sku: 'SF20',
+                            nameEn: 'SenseFlow Node', nameHi: 'सेंसफ्लो नोड',
+                            taglineEn: 'Smart Cloud-based Water Tank Monitor',
+                            taglineHi: 'स्मार्ट क्लाउड-आधारित वॉटर टैंक मॉनिटर',
+                            heroImage: '',
+                            featuresEn: 'Real-time water tank level on your phone / computer\nCloud dashboard included — monitor from anywhere\nLED indicator shows tank level (up to 4 levels) at a glance\nWiFi setup via app — no wiring to router needed\nSupports multiple tanks on one dashboard\nOverflow & low-level alerts via app',
+                            featuresHi: 'आपके फोन / कंप्यूटर पर वास्तविक समय टैंक स्तर\nक्लाउड डैशबोर्ड शामिल — कहीं से भी निगरानी करें\nLED संकेतक एक नज़र में टैंक स्तर (4 स्तर तक) दिखाता है\nऐप के माध्यम से WiFi सेटअप — राउटर से वायरिंग की ज़रूरत नहीं\nएक डैशबोर्ड पर कई टैंक समर्थित\nऐप के माध्यम से ओवरफ्लो और निम्न-स्तर अलर्ट',
+                            howItWorksEn: 'A sealed level sensor is placed inside your overhead tank and wired to the SenseFlow Node unit (typically mounted in a dry location). The Node reads the sensor, shows the level on its LED display, and sends data to our cloud every few seconds. You view live levels, trends, and alerts in the SenseFlow mobile app.',
+                            howItWorksHi: 'एक सीलबंद स्तर सेंसर आपके ओवरहेड टैंक के अंदर रखा जाता है और सेंसफ्लो नोड यूनिट (आमतौर पर सूखी जगह पर लगाया जाता है) से जोड़ा जाता है। नोड सेंसर पढ़ता है, अपने LED डिस्प्ले पर स्तर दिखाता है, और हर कुछ सेकंड में हमारे क्लाउड को डेटा भेजता है।',
+                            specsEn: 'Power: 5V USB adapter (included)\nConnectivity: 2.4 GHz WiFi\nSensor Range: Up to 10 ft depth\nIndicators: 4-level LED bar\nMobile App: Android & iOS\nCloud: Included (lifetime)\nWarranty: 1 year',
+                            specsHi: 'बिजली: 5V USB अडैप्टर (शामिल)\nकनेक्टिविटी: 2.4 GHz WiFi\nसेंसर रेंज: 10 फीट गहराई तक\nसंकेतक: 4-स्तर LED बार\nमोबाइल ऐप: Android और iOS\nक्लाउड: शामिल (आजीवन)\nवारंटी: 1 वर्ष',
+                            galleryImages: [],
+                            priceDisplay: 'Starting from ₹5,499'
+                        },
+                        {
+                            sku: 'AL-PRIME',
+                            nameEn: 'AquaLevel Prime', nameHi: 'एक्वालेवल प्राइम',
+                            taglineEn: 'Premium Water Level Monitor for Housing Societies',
+                            taglineHi: 'हाउसिंग सोसायटियों के लिए प्रीमियम जल स्तर मॉनिटर',
+                            heroImage: '',
+                            featuresEn: 'Industrial-grade level sensor — rated for harsh water conditions\nCloud dashboard with multi-tank view\nAutomatic overflow prevention alerts\nRS-485 wiring option for long-distance installations\nRemote firmware updates\nSupports integration with BMS / SCADA systems',
+                            featuresHi: 'औद्योगिक-ग्रेड स्तर सेंसर — कठोर जल परिस्थितियों के लिए रेटेड\nमल्टी-टैंक व्यू के साथ क्लाउड डैशबोर्ड\nस्वचालित ओवरफ्लो रोकथाम अलर्ट\nलंबी दूरी की स्थापना के लिए RS-485 वायरिंग विकल्प\nरिमोट फर्मवेयर अपडेट\nBMS / SCADA सिस्टम के साथ एकीकरण समर्थित',
+                            howItWorksEn: 'AquaLevel Prime uses a high-precision industrial sensor designed for continuous use in concrete and plastic water tanks. The controller unit can be wall-mounted in the pump room and connected to the cloud via WiFi or RS-485 cable. Ideal for housing societies with multiple overhead and underground tanks.',
+                            howItWorksHi: 'एक्वालेवल प्राइम कंक्रीट और प्लास्टिक पानी के टैंकों में निरंतर उपयोग के लिए डिज़ाइन किए गए उच्च-परिशुद्धता औद्योगिक सेंसर का उपयोग करता है।',
+                            specsEn: 'Power: 230V AC (SMPS included)\nConnectivity: WiFi + optional RS-485\nSensor Range: Up to 20 ft depth\nTanks Supported: Up to 8 per unit\nProtection: IP67 sensor, IP54 controller\nMobile App: Android & iOS\nWarranty: 2 years',
+                            specsHi: 'बिजली: 230V AC (SMPS शामिल)\nकनेक्टिविटी: WiFi + वैकल्पिक RS-485\nसेंसर रेंज: 20 फीट गहराई तक\nसमर्थित टैंक: प्रति यूनिट 8 तक\nसुरक्षा: IP67 सेंसर, IP54 नियंत्रक\nमोबाइल ऐप: Android और iOS\nवारंटी: 2 वर्ष',
+                            galleryImages: [],
+                            priceDisplay: 'Starting from ₹12,999'
+                        },
+                        {
+                            sku: 'SF-PLUG',
+                            nameEn: 'SenseFlow Smart Plug', nameHi: 'सेंसफ्लो स्मार्ट प्लग',
+                            taglineEn: 'Automate Your Water Pump — 16A Smart Plug',
+                            taglineHi: 'अपने जल पंप को स्वचालित करें — 16A स्मार्ट प्लग',
+                            heroImage: '',
+                            featuresEn: '16 Amp heavy-duty plug for single-phase pumps up to 1.5 HP\nAuto ON/OFF based on tank level (pairs with SenseFlow Node or AquaLevel)\nManual override button on device\nDry-run protection built-in\nOverload protection\nRemote ON/OFF from mobile app\nSchedule-based operation',
+                            featuresHi: '1.5 HP तक के सिंगल-फेज पंप के लिए 16 एम्पीयर हैवी-ड्यूटी प्लग\nटैंक स्तर के आधार पर स्वचालित ऑन/ऑफ\nडिवाइस पर मैनुअल ओवरराइड बटन\nड्राई-रन सुरक्षा अंतर्निहित\nओवरलोड सुरक्षा\nमोबाइल ऐप से रिमोट ऑन/ऑफ\nशेड्यूल-आधारित संचालन',
+                            howItWorksEn: 'Plug your water pump into the SenseFlow Smart Plug. The plug communicates wirelessly with your SenseFlow Node or AquaLevel controller. When the overhead tank drops below a set level, the pump turns ON automatically; when full, it turns OFF — preventing overflow and dry-run.',
+                            howItWorksHi: 'अपने पानी के पंप को सेंसफ्लो स्मार्ट प्लग में प्लग करें। प्लग आपके सेंसफ्लो नोड या एक्वालेवल नियंत्रक के साथ वायरलेस रूप से संचार करता है।',
+                            specsEn: 'Rated Current: 16 Amp\nMax Load: 3500W (1.5 HP single-phase)\nConnectivity: WiFi 2.4 GHz\nOperating Voltage: 230V AC\nSafety: Dry-run + Overload protection\nMobile App: Android & iOS\nWarranty: 1 year',
+                            specsHi: 'रेटेड करंट: 16 एम्पीयर\nअधिकतम भार: 3500W (1.5 HP सिंगल-फेज)\nकनेक्टिविटी: WiFi 2.4 GHz\nऑपरेटिंग वोल्टेज: 230V AC\nसुरक्षा: ड्राई-रन + ओवरलोड सुरक्षा\nमोबाइल ऐप: Android और iOS\nवारंटी: 1 वर्ष',
+                            galleryImages: [],
+                            priceDisplay: 'Starting from ₹5,999'
+                        },
+                        {
+                            sku: 'SF-DISPLAY',
+                            nameEn: 'SenseFlow Monitor Display', nameHi: 'सेंसफ्लो मॉनिटर डिस्प्ले',
+                            taglineEn: 'Large LED Display for Pump Rooms & Common Areas',
+                            taglineHi: 'पंप रूम और सामान्य क्षेत्रों के लिए बड़ा LED डिस्प्ले',
+                            heroImage: '',
+                            featuresEn: 'Bright 4-inch LED display visible from across the room\nShows multiple tank levels simultaneously\nColor-coded level indication (Green / Yellow / Red)\nAudible buzzer for overflow and empty alerts\nWall-mountable — low power consumption\nPairs wirelessly with SenseFlow Node / AquaLevel',
+                            featuresHi: 'कमरे के पार से दिखाई देने वाला उज्ज्वल 4-इंच LED डिस्प्ले\nएक साथ कई टैंक स्तर दिखाता है\nरंग-कोडित स्तर संकेत (हरा / पीला / लाल)\nओवरफ्लो और खाली अलर्ट के लिए श्रव्य बज़र\nदीवार पर लगाने योग्य — कम बिजली की खपत\nसेंसफ्लो नोड / एक्वालेवल के साथ वायरलेस पेयरिंग',
+                            howItWorksEn: 'Mount the display in your pump room, security cabin, or society entrance. It wirelessly receives tank level data from your SenseFlow Node or AquaLevel and displays it on a large, easy-to-read LED panel. Perfect for watchmen, facility managers, and residents to check tank status at a glance.',
+                            howItWorksHi: 'डिस्प्ले को अपने पंप रूम, सुरक्षा केबिन, या सोसायटी प्रवेश द्वार पर लगाएं। यह सेंसफ्लो नोड या एक्वालेवल से वायरलेस रूप से टैंक स्तर डेटा प्राप्त करता है।',
+                            specsEn: 'Display Size: 4 inch LED\nPower: 12V DC adapter (included)\nConnectivity: WiFi 2.4 GHz\nMounting: Wall / Desk\nAlert: Buzzer + LED\nDimensions: 15 × 10 × 3 cm\nWarranty: 1 year',
+                            specsHi: 'डिस्प्ले आकार: 4 इंच LED\nबिजली: 12V DC अडैप्टर (शामिल)\nकनेक्टिविटी: WiFi 2.4 GHz\nमाउंटिंग: दीवार / डेस्क\nअलर्ट: बज़र + LED\nआयाम: 15 × 10 × 3 सेमी\nवारंटी: 1 वर्ष',
+                            galleryImages: [],
+                            priceDisplay: 'Starting from ₹4,490'
+                        }
+                    ]
+                };
+                const id = await FirebaseBrochures.add(sample);
+                if (id) {
+                    await loadData();
+                    alert('Sample brochure created! Click Edit to add images and customize.');
+                } else {
+                    alert('Failed to create sample.');
+                }
+            };
+
             if (loading) return <LoadingScreen message="Loading brochures..." />;
 
             // ---- LIST VIEW ----
@@ -9056,14 +9138,19 @@ ${componentResults.map(c => {
                                 <h1 className="page-title">Brochure Manager</h1>
                                 <p className="page-subtitle">Create digital product brochures — download as PDF with images</p>
                             </div>
-                            <button className="btn btn-primary" onClick={() => { setForm(emptyBrochure()); setEditing(null); setView('form'); }}>
-                                <Icons.Plus /> New Brochure
-                            </button>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn" onClick={loadSample} style={{ background: '#8B5CF6', color: 'white' }}>
+                                    ✨ Load Sample
+                                </button>
+                                <button className="btn btn-primary" onClick={() => { setForm(emptyBrochure()); setEditing(null); setView('form'); }}>
+                                    <Icons.Plus /> New Brochure
+                                </button>
+                            </div>
                         </div>
 
                         {brochures.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: 40, background: 'white', borderRadius: 12, color: '#9CA3AF' }}>
-                                No brochures yet. Click "New Brochure" to create your first one.
+                                No brochures yet. Click "New Brochure" to create your own, or "Load Sample" to start with a pre-filled SenseFlow brochure.
                             </div>
                         ) : (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
