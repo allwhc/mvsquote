@@ -9265,10 +9265,10 @@ ${componentResults.map(c => {
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                     <div>
-                                        <label style={labelStyle}>SKU (from Products)</label>
-                                        <select style={inputStyle} value={p.sku} onChange={e => { const sku = e.target.value; const prod = catalogProducts.find(pr => pr.sku === sku); updateProduct(idx, 'sku', sku); if (prod && !p.nameEn) updateProduct(idx, 'nameEn', prod.name); }}>
-                                            <option value="">— Select or custom —</option>
-                                            {catalogProducts.map(cp => <option key={cp.sku} value={cp.sku}>{cp.sku} — {cp.name}</option>)}
+                                        <label style={labelStyle}>SKU (optional, internal reference)</label>
+                                        <select style={inputStyle} value={p.sku} onChange={e => updateProduct(idx, 'sku', e.target.value)}>
+                                            <option value="">— None —</option>
+                                            {catalogProducts.map(cp => <option key={cp.sku} value={cp.sku}>{cp.sku}</option>)}
                                         </select>
                                     </div>
                                     <div>
