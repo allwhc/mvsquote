@@ -1373,6 +1373,41 @@
             return data.secure_url;
         };
 
+        // Hindi font loader — fetches Noto Sans Devanagari TTF and caches in sessionStorage
+        let _hindiFontCache = null;
+        const loadHindiFont = async () => {
+            if (_hindiFontCache) return _hindiFontCache;
+            const cached = sessionStorage.getItem('hindi_font_base64');
+            if (cached) { _hindiFontCache = cached; return cached; }
+            try {
+                // Noto Sans Devanagari Regular from jsDelivr CDN (reliable)
+                const url = 'https://cdn.jsdelivr.net/gh/notofonts/devanagari@main/fonts/NotoSansDevanagari/hinted/ttf/NotoSansDevanagari-Regular.ttf';
+                const res = await fetch(url);
+                const buf = await res.arrayBuffer();
+                const bytes = new Uint8Array(buf);
+                let binary = '';
+                const CHUNK = 0x8000;
+                for (let i = 0; i < bytes.length; i += CHUNK) {
+                    binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + CHUNK, bytes.length)));
+                }
+                const base64 = btoa(binary);
+                _hindiFontCache = base64;
+                try { sessionStorage.setItem('hindi_font_base64', base64); } catch(e) {}
+                return base64;
+            } catch(e) {
+                console.error('Failed to load Hindi font:', e);
+                throw new Error('Could not load Hindi font. Please check your internet connection.');
+            }
+        };
+
+        // Register Hindi font with a jsPDF instance
+        const registerHindiFont = async (pdf) => {
+            const base64 = await loadHindiFont();
+            pdf.addFileToVFS('NotoSansDevanagari-Regular.ttf', base64);
+            pdf.addFont('NotoSansDevanagari-Regular.ttf', 'NotoHindi', 'normal');
+            pdf.addFont('NotoSansDevanagari-Regular.ttf', 'NotoHindi', 'bold');
+        };
+
         // Fetch image as base64 for PDF embedding
         const fetchImageAsBase64 = async (url) => {
             try {
@@ -8943,8 +8978,8 @@ ${componentResults.map(c => {
                 return { ...f, products: p };
             });
 
-            // PDF GENERATOR
-            const generateBrochurePDF = async (brochure) => {
+            // PDF GENERATOR — lang is 'en' or 'hi'
+            const generateBrochurePDF = async (brochure, lang = 'en') => {
                 setGeneratingPdf(true);
                 setPdfProgress('Preparing...');
                 try {
@@ -8952,8 +8987,60 @@ ${componentResults.map(c => {
                     const pdf = new jsPDF();
                     const brand = CONFIG.BRANDS[brochure.brand] || CONFIG.BRANDS['SenseFlow'];
                     const brandColor = brand.color;
-                    const showEn = pdfLanguage === 'en' || pdfLanguage === 'both';
-                    const showHi = pdfLanguage === 'hi' || pdfLanguage === 'both';
+                    const isHi = lang === 'hi';
+
+                    // Load Hindi font if needed
+                    if (isHi) {
+                        setPdfProgress('Loading Hindi font...');
+                        await registerHindiFont(pdf);
+                    }
+
+                    // Helpers: setFont switches between English (helvetica) and Hindi (NotoHindi)
+                    // We separate "UI labels" (always English like "About Us", "Key Features") from content
+                    const setTextFont = (style = 'normal') => {
+                        if (isHi) {
+                            pdf.setFont('NotoHindi', style === 'italic' ? 'normal' : style);
+                        } else {
+                            pdf.setFont('helvetica', style);
+                        }
+                    };
+                    const setLabelFont = (style = 'normal') => {
+                        // Section labels in Hindi PDF are translated below; rendered in Hindi font
+                        if (isHi) {
+                            pdf.setFont('NotoHindi', style === 'italic' ? 'normal' : style);
+                        } else {
+                            pdf.setFont('helvetica', style);
+                        }
+                    };
+
+                    // Field pickers
+                    const pickName = (p) => isHi ? (p.nameHi || p.nameEn || '') : (p.nameEn || '');
+                    const pickTagline = (p) => isHi ? (p.taglineHi || '') : (p.taglineEn || '');
+                    const pickFeatures = (p) => isHi ? (p.featuresHi || '') : (p.featuresEn || '');
+                    const pickHowItWorks = (p) => isHi ? (p.howItWorksHi || '') : (p.howItWorksEn || '');
+                    const pickSpecs = (p) => isHi ? (p.specsHi || '') : (p.specsEn || '');
+                    const intro = isHi ? (brochure.introHi || '') : (brochure.introEn || '');
+
+                    // Section labels (translated for Hindi)
+                    const L = isHi ? {
+                        aboutUs: 'हमारे बारे में',
+                        keyFeatures: 'मुख्य विशेषताएँ',
+                        howItWorks: 'यह कैसे काम करता है',
+                        specifications: 'विनिर्देश',
+                        gallery: 'गैलरी',
+                        getInTouch: 'संपर्क करें',
+                        thankYou: 'सेंसफ्लो में आपकी रुचि के लिए धन्यवाद।',
+                        page: 'पृष्ठ'
+                    } : {
+                        aboutUs: 'About Us',
+                        keyFeatures: 'Key Features',
+                        howItWorks: 'How It Works',
+                        specifications: 'Specifications',
+                        gallery: 'Gallery',
+                        getInTouch: 'Get in Touch',
+                        thankYou: 'Thank you for your interest in SenseFlow.',
+                        page: 'Page'
+                    };
 
                     // Preload all images
                     setPdfProgress('Downloading images...');
@@ -8974,6 +9061,7 @@ ${componentResults.map(c => {
                         try { pdf.addImage(brand.logo, 'PNG', 85, 15, 40, 40); } catch(e) {}
                     }
                     pdf.setTextColor(255);
+                    // Brand name always in English even in Hindi PDF (it's a proper noun)
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(28);
                     pdf.text(brand.name.toUpperCase(), 105, 70, { align: 'center' });
@@ -8986,7 +9074,7 @@ ${componentResults.map(c => {
                         try { pdf.addImage(imageCache[brochure.coverImage], 'JPEG', 15, 100, 180, 100, '', 'FAST'); } catch(e) {}
                     }
 
-                    // Cover title
+                    // Cover title (uses brochure's cover title which may be in English — kept as is)
                     pdf.setTextColor(...brandColor);
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(20);
@@ -8996,38 +9084,29 @@ ${componentResults.map(c => {
                     pdf.setTextColor(80);
                     if (brochure.coverSubtitle) pdf.text(brochure.coverSubtitle, 105, 225, { align: 'center' });
 
-                    // Footer contact
+                    // Footer contact (English)
+                    pdf.setFont('helvetica', 'normal');
                     pdf.setFontSize(9);
                     pdf.setTextColor(100);
                     pdf.text(`${brand.email} | ${CONFIG.COMPANY.phone} | ${brand.website || ''}`, 105, 280, { align: 'center' });
 
                     // --- INTRO PAGE ---
-                    if (brochure.introEn || brochure.introHi) {
+                    if (intro) {
                         pdf.addPage();
                         pdf.setTextColor(...brandColor);
-                        pdf.setFont('helvetica', 'bold');
+                        setLabelFont('bold');
                         pdf.setFontSize(18);
-                        pdf.text('About Us', 15, 25);
+                        pdf.text(L.aboutUs, 15, 25);
                         pdf.setDrawColor(...brandColor);
                         pdf.setLineWidth(0.5);
                         pdf.line(15, 28, 195, 28);
 
                         let y = 40;
                         pdf.setTextColor(40);
-                        pdf.setFont('helvetica', 'normal');
+                        setTextFont('normal');
                         pdf.setFontSize(11);
-                        if (showEn && brochure.introEn) {
-                            const lines = pdf.splitTextToSize(brochure.introEn, 180);
-                            pdf.text(lines, 15, y);
-                            y += lines.length * 5 + 10;
-                        }
-                        if (showHi && brochure.introHi) {
-                            pdf.setFont('helvetica', 'normal');
-                            pdf.setFontSize(11);
-                            pdf.setTextColor(60);
-                            const lines = pdf.splitTextToSize(brochure.introHi, 180);
-                            pdf.text(lines, 15, y);
-                        }
+                        const lines = pdf.splitTextToSize(intro, 180);
+                        pdf.text(lines, 15, y);
                     }
 
                     // --- PRODUCT PAGES ---
@@ -9036,14 +9115,14 @@ ${componentResults.map(c => {
                         setPdfProgress(`Adding product ${i+1}/${brochure.products.length}...`);
                         pdf.addPage();
 
-                        // Header band
+                        // Header band (brand name always in English)
                         pdf.setFillColor(...brandColor);
                         pdf.rect(0, 0, 210, 12, 'F');
                         pdf.setTextColor(255);
                         pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(10);
                         pdf.text(brand.name, 15, 8);
-                        pdf.text(`Page ${i + 2}`, 195, 8, { align: 'right' });
+                        pdf.text(`${L.page} ${i + 2}`, 195, 8, { align: 'right' });
 
                         // Hero image
                         let imgHeight = 0;
@@ -9058,129 +9137,89 @@ ${componentResults.map(c => {
 
                         // Product name
                         pdf.setTextColor(...brandColor);
-                        pdf.setFont('helvetica', 'bold');
+                        setTextFont('bold');
                         pdf.setFontSize(18);
-                        if (showEn && p.nameEn) { pdf.text(p.nameEn, 15, y); y += 8; }
-                        if (showHi && p.nameHi) {
-                            pdf.setFontSize(14);
-                            pdf.setTextColor(80);
-                            pdf.text(p.nameHi, 15, y); y += 7;
-                        }
+                        const name = pickName(p);
+                        if (name) { pdf.text(name, 15, y); y += 8; }
 
                         // Tagline
-                        pdf.setFont('helvetica', 'italic');
+                        setTextFont('normal');
                         pdf.setFontSize(11);
                         pdf.setTextColor(100);
-                        if (showEn && p.taglineEn) { pdf.text(p.taglineEn, 15, y); y += 6; }
-                        if (showHi && p.taglineHi) { pdf.text(p.taglineHi, 15, y); y += 6; }
+                        const tagline = pickTagline(p);
+                        if (tagline) { pdf.text(tagline, 15, y); y += 7; }
 
                         y += 4;
 
                         // Features (bullets)
-                        if ((showEn && p.featuresEn) || (showHi && p.featuresHi)) {
-                            pdf.setFont('helvetica', 'bold');
+                        const features = pickFeatures(p);
+                        if (features) {
+                            setLabelFont('bold');
                             pdf.setFontSize(12);
                             pdf.setTextColor(...brandColor);
-                            pdf.text('Key Features', 15, y);
+                            pdf.text(L.keyFeatures, 15, y);
                             y += 6;
-                            pdf.setFont('helvetica', 'normal');
+                            setTextFont('normal');
                             pdf.setFontSize(10);
                             pdf.setTextColor(40);
-
-                            if (showEn && p.featuresEn) {
-                                const features = p.featuresEn.split('\n').map(l => l.trim()).filter(Boolean);
-                                for (const f of features) {
-                                    if (y > 270) { pdf.addPage(); y = 20; }
-                                    const lines = pdf.splitTextToSize('• ' + f, 170);
-                                    pdf.text(lines, 20, y);
-                                    y += lines.length * 4.5 + 1;
-                                }
-                                y += 3;
+                            const feats = features.split('\n').map(l => l.trim()).filter(Boolean);
+                            for (const f of feats) {
+                                if (y > 270) { pdf.addPage(); y = 20; }
+                                const lines = pdf.splitTextToSize('• ' + f, 170);
+                                pdf.text(lines, 20, y);
+                                y += lines.length * 4.5 + 1;
                             }
-                            if (showHi && p.featuresHi) {
-                                if (showEn) { y += 2; }
-                                pdf.setTextColor(60);
-                                const features = p.featuresHi.split('\n').map(l => l.trim()).filter(Boolean);
-                                for (const f of features) {
-                                    if (y > 270) { pdf.addPage(); y = 20; }
-                                    const lines = pdf.splitTextToSize('• ' + f, 170);
-                                    pdf.text(lines, 20, y);
-                                    y += lines.length * 4.5 + 1;
-                                }
-                                y += 3;
-                            }
+                            y += 3;
                         }
 
                         // How it works
-                        if ((showEn && p.howItWorksEn) || (showHi && p.howItWorksHi)) {
+                        const hiw = pickHowItWorks(p);
+                        if (hiw) {
                             if (y > 250) { pdf.addPage(); y = 20; }
-                            pdf.setFont('helvetica', 'bold');
+                            setLabelFont('bold');
                             pdf.setFontSize(12);
                             pdf.setTextColor(...brandColor);
-                            pdf.text('How It Works', 15, y);
+                            pdf.text(L.howItWorks, 15, y);
                             y += 6;
-                            pdf.setFont('helvetica', 'normal');
+                            setTextFont('normal');
                             pdf.setFontSize(10);
                             pdf.setTextColor(40);
-
-                            if (showEn && p.howItWorksEn) {
-                                const lines = pdf.splitTextToSize(p.howItWorksEn, 180);
-                                if (y + lines.length * 4.5 > 280) { pdf.addPage(); y = 20; }
-                                pdf.text(lines, 15, y); y += lines.length * 4.5 + 3;
-                            }
-                            if (showHi && p.howItWorksHi) {
-                                pdf.setTextColor(60);
-                                const lines = pdf.splitTextToSize(p.howItWorksHi, 180);
-                                if (y + lines.length * 4.5 > 280) { pdf.addPage(); y = 20; }
-                                pdf.text(lines, 15, y); y += lines.length * 4.5 + 3;
-                            }
+                            const lines = pdf.splitTextToSize(hiw, 180);
+                            if (y + lines.length * 4.5 > 280) { pdf.addPage(); y = 20; }
+                            pdf.text(lines, 15, y); y += lines.length * 4.5 + 3;
                         }
 
                         // Specs
-                        if ((showEn && p.specsEn) || (showHi && p.specsHi)) {
+                        const specs = pickSpecs(p);
+                        if (specs) {
                             if (y > 250) { pdf.addPage(); y = 20; }
-                            pdf.setFont('helvetica', 'bold');
+                            setLabelFont('bold');
                             pdf.setFontSize(12);
                             pdf.setTextColor(...brandColor);
-                            pdf.text('Specifications', 15, y);
+                            pdf.text(L.specifications, 15, y);
                             y += 6;
-                            pdf.setFont('helvetica', 'normal');
+                            setTextFont('normal');
                             pdf.setFontSize(9);
                             pdf.setTextColor(40);
-
                             const parseSpecs = (s) => s.split('\n').map(l => { const [k, ...rest] = l.split(':'); return { k: (k || '').trim(), v: rest.join(':').trim() }; }).filter(x => x.k);
-
-                            if (showEn && p.specsEn) {
-                                for (const s of parseSpecs(p.specsEn)) {
-                                    if (y > 275) { pdf.addPage(); y = 20; }
-                                    pdf.setFont('helvetica', 'bold');
-                                    pdf.text(s.k + ':', 20, y);
-                                    pdf.setFont('helvetica', 'normal');
-                                    pdf.text(s.v, 70, y);
-                                    y += 5;
-                                }
-                                y += 3;
+                            for (const s of parseSpecs(specs)) {
+                                if (y > 275) { pdf.addPage(); y = 20; }
+                                setTextFont('bold');
+                                pdf.text(s.k + ':', 20, y);
+                                setTextFont('normal');
+                                pdf.text(s.v, 70, y);
+                                y += 5;
                             }
-                            if (showHi && p.specsHi) {
-                                pdf.setTextColor(60);
-                                for (const s of parseSpecs(p.specsHi)) {
-                                    if (y > 275) { pdf.addPage(); y = 20; }
-                                    pdf.setFont('helvetica', 'bold');
-                                    pdf.text(s.k + ':', 20, y);
-                                    pdf.setFont('helvetica', 'normal');
-                                    pdf.text(s.v, 70, y);
-                                    y += 5;
-                                }
-                            }
+                            y += 3;
                         }
 
                         // Gallery images
                         if ((p.galleryImages || []).length > 0) {
                             if (y > 230) { pdf.addPage(); y = 20; }
-                            pdf.setFont('helvetica', 'bold');
+                            setLabelFont('bold');
                             pdf.setFontSize(12);
                             pdf.setTextColor(...brandColor);
-                            pdf.text('Gallery', 15, y);
+                            pdf.text(L.gallery, 15, y);
                             y += 6;
                             const thumbSize = 42;
                             const gap = 4;
@@ -9201,7 +9240,7 @@ ${componentResults.map(c => {
                             pdf.setFillColor(...brandColor);
                             pdf.rect(15, y, 180, 10, 'F');
                             pdf.setTextColor(255);
-                            pdf.setFont('helvetica', 'bold');
+                            setTextFont('bold');
                             pdf.setFontSize(12);
                             pdf.text(p.priceDisplay, 105, y + 7, { align: 'center' });
                         }
@@ -9213,29 +9252,31 @@ ${componentResults.map(c => {
                     pdf.setFillColor(...brandColor);
                     pdf.rect(0, 0, 210, 297, 'F');
                     pdf.setTextColor(255);
-                    pdf.setFont('helvetica', 'bold');
+                    setLabelFont('bold');
                     pdf.setFontSize(24);
-                    pdf.text('Get in Touch', 105, 60, { align: 'center' });
+                    pdf.text(L.getInTouch, 105, 60, { align: 'center' });
                     pdf.setFont('helvetica', 'normal');
                     pdf.setFontSize(14);
                     pdf.text(brand.name, 105, 75, { align: 'center' });
 
                     pdf.setFontSize(11);
                     let cY = 110;
-                    pdf.text(`📧 ${brand.email}`, 105, cY, { align: 'center' }); cY += 10;
-                    pdf.text(`📞 ${CONFIG.COMPANY.phone}`, 105, cY, { align: 'center' }); cY += 10;
-                    if (brand.website) { pdf.text(`🌐 ${brand.website}`, 105, cY, { align: 'center' }); cY += 10; }
+                    pdf.text(`${brand.email}`, 105, cY, { align: 'center' }); cY += 10;
+                    pdf.text(`${CONFIG.COMPANY.phone}`, 105, cY, { align: 'center' }); cY += 10;
+                    if (brand.website) { pdf.text(`${brand.website}`, 105, cY, { align: 'center' }); cY += 10; }
                     pdf.setFontSize(10);
                     cY += 5;
                     pdf.text(CONFIG.COMPANY.address, 105, cY, { align: 'center' }); cY += 5;
                     pdf.text(CONFIG.COMPANY.city, 105, cY, { align: 'center' });
 
+                    setTextFont('normal');
                     pdf.setFontSize(9);
                     pdf.setTextColor(220);
-                    pdf.text('Thank you for your interest in SenseFlow.', 105, 270, { align: 'center' });
+                    pdf.text(L.thankYou, 105, 270, { align: 'center' });
 
                     setPdfProgress('Saving PDF...');
-                    pdf.save(`${brochure.name.replace(/\s+/g, '-')}-${brand.name}.pdf`);
+                    const langSuffix = isHi ? 'Hindi' : 'English';
+                    pdf.save(`${brochure.name.replace(/\s+/g, '-')}-${brand.name}-${langSuffix}.pdf`);
                     setPdfProgress('');
                 } catch(e) {
                     console.error('PDF generation failed:', e);
@@ -9360,15 +9401,13 @@ ${componentResults.map(c => {
                                         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{b.name}</div>
                                         <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>{(b.products || []).length} product(s)</div>
                                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                            <button className="btn btn-sm btn-primary" onClick={() => { setPdfLanguage('both'); generateBrochurePDF(b); }} disabled={generatingPdf}>
-                                                {generatingPdf ? pdfProgress : '⬇ Download PDF'}
+                                            <button className="btn btn-sm btn-primary" onClick={() => generateBrochurePDF(b, 'en')} disabled={generatingPdf} style={{ flex: 1 }}>
+                                                {generatingPdf ? pdfProgress : '⬇ English'}
                                             </button>
-                                            <select value={pdfLanguage} onChange={e => setPdfLanguage(e.target.value)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #E5E7EB', fontSize: 12 }}>
-                                                <option value="both">Both</option>
-                                                <option value="en">English</option>
-                                                <option value="hi">हिंदी</option>
-                                            </select>
-                                            <button className="btn btn-sm" onClick={() => handleEdit(b)} style={{ background: '#F3F4F6' }}>✎ Edit</button>
+                                            <button className="btn btn-sm" onClick={() => generateBrochurePDF(b, 'hi')} disabled={generatingPdf} style={{ flex: 1, background: '#F59E0B', color: 'white' }}>
+                                                {generatingPdf ? '...' : '⬇ हिंदी'}
+                                            </button>
+                                            <button className="btn btn-sm" onClick={() => handleEdit(b)} style={{ background: '#F3F4F6' }}>✎</button>
                                             <button className="btn btn-sm" onClick={() => handleDelete(b)} style={{ background: '#FEE2E2', color: '#EF4444' }}>🗑</button>
                                         </div>
                                     </div>
