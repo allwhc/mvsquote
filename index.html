@@ -9050,7 +9050,8 @@ ${componentResults.map(c => {
                     const LATIN_RE = /[A-Za-z0-9%°.,:;\-_/()+@#&'"!?₹°]+/g;
                     const renderMixed = (text, x, y, opts = {}) => {
                         if (!isHi) { pdf.text(text, x, y, opts); return; }
-                        // Split text into runs — each run is either "devanagari" or "latin" or "space"
+                        // Split text into runs — each run is either "devanagari" or "latin"
+                        // Treat ₹ and similar Indian-specific symbols as Devanagari so NotoHindi renders them
                         const runs = [];
                         let buf = '';
                         let bufType = null;
@@ -9215,7 +9216,9 @@ ${componentResults.map(c => {
                         pdf.setFont('helvetica', 'bold');
                         pdf.setFontSize(10);
                         pdf.text(brand.name, 15, 8);
-                        pdf.text(`${L.page} ${i + 2}`, 195, 8, { align: 'right' });
+                        // Page label — Hindi "पृष्ठ" needs Devanagari font
+                        if (isHi) renderMixed(`${L.page} ${i + 2}`, 195, 8, { align: 'right' });
+                        else pdf.text(`${L.page} ${i + 2}`, 195, 8, { align: 'right' });
 
                         // Hero image
                         let imgHeight = 0;
@@ -9334,7 +9337,7 @@ ${componentResults.map(c => {
                             y += thumbSize + 6;
                         }
 
-                        // Price
+                        // Price — always sanitize ₹ to "Rs." since TTF font may not have the glyph
                         if (p.priceDisplay) {
                             if (y > 275) { pdf.addPage(); y = 20; }
                             pdf.setFillColor(...brandColor);
@@ -9342,8 +9345,9 @@ ${componentResults.map(c => {
                             pdf.setTextColor(255);
                             setTextFont('bold');
                             pdf.setFontSize(12);
-                            if (isHi) renderMixed(p.priceDisplay, 105, y + 7, { align: 'center' });
-                            else pdf.text(sanitizeForPdf(p.priceDisplay), 105, y + 7, { align: 'center' });
+                            const priceText = sanitizeForPdf(p.priceDisplay);
+                            if (isHi) renderMixed(priceText, 105, y + 7, { align: 'center' });
+                            else pdf.text(priceText, 105, y + 7, { align: 'center' });
                         }
                     }
 
