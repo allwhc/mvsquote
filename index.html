@@ -1387,6 +1387,33 @@
             } catch(e) { console.error('Failed to fetch image:', url, e); return null; }
         };
 
+        // ============ FIREBASE BRANDS HELPERS (custom sub-brands) ============
+        const FirebaseBrands = {
+            async getAll() {
+                try {
+                    const snap = await db.collection('brands_custom').orderBy('name').get();
+                    return snap.docs.map(d => ({ ...d.data(), firebaseId: d.id }));
+                } catch(e) { console.error('FirebaseBrands.getAll failed:', e); return []; }
+            },
+            async add(brand) {
+                try {
+                    const ref = await db.collection('brands_custom').add({
+                        ...brand,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return ref.id;
+                } catch(e) { console.error(e); return null; }
+            },
+            async update(id, data) {
+                try { await db.collection('brands_custom').doc(id).update(data); return true; }
+                catch(e) { console.error(e); return false; }
+            },
+            async delete(id) {
+                try { await db.collection('brands_custom').doc(id).delete(); return true; }
+                catch(e) { console.error(e); return false; }
+            }
+        };
+
         // ============ FIREBASE BROCHURES HELPERS ============
         const FirebaseBrochures = {
             async getAll() {
@@ -8643,6 +8670,178 @@ ${componentResults.map(c => {
             );
         };
 
+        // ============ BRAND MANAGER COMPONENT ============
+        const BrandManager = ({ onBrandsChanged }) => {
+            const [customBrands, setCustomBrands] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [showForm, setShowForm] = useState(false);
+            const [editingId, setEditingId] = useState(null);
+            const [form, setForm] = useState({ name: '', parentBrand: 'SenseFlow', prefix: '' });
+
+            const loadData = async () => {
+                setLoading(true);
+                const data = await FirebaseBrands.getAll();
+                setCustomBrands(data);
+                setLoading(false);
+            };
+
+            useEffect(() => { loadData(); }, []);
+
+            const mainBrands = Object.keys(CONFIG.BRANDS).filter(b => !CONFIG.BRANDS[b]._isSubBrand);
+
+            const handleSave = async () => {
+                if (!form.name.trim()) return alert('Brand name is required');
+                // Normalize prefix: uppercase, trim, add trailing - if missing and not empty
+                let prefix = form.prefix.trim().toUpperCase();
+                if (prefix && !prefix.endsWith('-')) prefix += '-';
+                const data = { name: form.name.trim(), parentBrand: form.parentBrand, prefix };
+                // Don't allow duplicate name
+                const nameExists = (editingId ? customBrands.filter(b => b.firebaseId !== editingId) : customBrands).some(b => b.name === data.name) || mainBrands.includes(data.name);
+                if (nameExists) return alert('A brand with this name already exists');
+
+                if (editingId) {
+                    await FirebaseBrands.update(editingId, data);
+                    // Update in-memory CONFIG.BRANDS (remove old, add new)
+                    const oldName = customBrands.find(b => b.firebaseId === editingId)?.name;
+                    if (oldName && oldName !== data.name) delete CONFIG.BRANDS[oldName];
+                } else {
+                    await FirebaseBrands.add(data);
+                }
+                // Merge into CONFIG.BRANDS
+                const parent = CONFIG.BRANDS[data.parentBrand];
+                if (parent) {
+                    CONFIG.BRANDS[data.name] = {
+                        ...parent,
+                        name: data.name,
+                        prefix: data.prefix || parent.prefix,
+                        _isSubBrand: true,
+                        _parentBrand: data.parentBrand
+                    };
+                }
+                setForm({ name: '', parentBrand: 'SenseFlow', prefix: '' });
+                setShowForm(false);
+                setEditingId(null);
+                await loadData();
+                if (onBrandsChanged) onBrandsChanged();
+            };
+
+            const handleEdit = (b) => {
+                setForm({ name: b.name, parentBrand: b.parentBrand, prefix: b.prefix || '' });
+                setEditingId(b.firebaseId);
+                setShowForm(true);
+            };
+
+            const handleDelete = async (b) => {
+                if (!confirm(`Delete sub-brand "${b.name}"?\n\nExisting quotations using this brand will keep the name but won't be editable until you recreate it.`)) return;
+                await FirebaseBrands.delete(b.firebaseId);
+                delete CONFIG.BRANDS[b.name];
+                await loadData();
+                if (onBrandsChanged) onBrandsChanged();
+            };
+
+            if (loading) return <LoadingScreen message="Loading brands..." />;
+
+            const inputStyle = { width: '100%', padding: '10px 14px', border: '1.5px solid #E5E7EB', borderRadius: 8, fontSize: 14, outline: 'none', background: '#FAFAFA' };
+            const labelStyle = { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', display: 'block', marginBottom: 4 };
+
+            return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <h1 className="page-title">Brand Manager</h1>
+                            <p className="page-subtitle">Add sub-brands that inherit logo and details from a parent brand</p>
+                        </div>
+                        <button className="btn btn-primary" onClick={() => { setForm({ name: '', parentBrand: 'SenseFlow', prefix: '' }); setEditingId(null); setShowForm(true); }}>
+                            <Icons.Plus /> Add Sub-brand
+                        </button>
+                    </div>
+
+                    {/* Main brands info */}
+                    <div style={{ background: 'white', borderRadius: 12, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1E3A8A', marginBottom: 10 }}>Main Brands (built-in, not editable)</div>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            {mainBrands.map(name => {
+                                const b = CONFIG.BRANDS[name];
+                                return (
+                                    <div key={name} style={{ padding: '8px 14px', background: '#F3F4F6', borderRadius: 8, fontSize: 13 }}>
+                                        <strong>{name}</strong>
+                                        {b.prefix && <span style={{ color: '#6B7280', marginLeft: 8, fontSize: 11 }}>({b.prefix})</span>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Custom sub-brands */}
+                    <div style={{ background: 'white', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#8B5CF6', marginBottom: 10 }}>Custom Sub-brands ({customBrands.length})</div>
+                        {customBrands.length === 0 ? (
+                            <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+                                No custom sub-brands yet. Click "Add Sub-brand" to create one.
+                            </div>
+                        ) : (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                <thead>
+                                    <tr style={{ background: '#F9FAFB', borderBottom: '2px solid #E5E7EB' }}>
+                                        <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Name</th>
+                                        <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Parent Brand</th>
+                                        <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Prefix</th>
+                                        <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, color: '#6B7280', textTransform: 'uppercase' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {customBrands.map(b => (
+                                        <tr key={b.firebaseId} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                                            <td style={{ padding: '10px 12px', fontWeight: 600 }}>{b.name}</td>
+                                            <td style={{ padding: '10px 12px', color: '#6B7280' }}>↰ {b.parentBrand}</td>
+                                            <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12 }}>{b.prefix || '—'}</td>
+                                            <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                                                <button onClick={() => handleEdit(b)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, fontSize: 14 }} title="Edit">✎</button>
+                                                <button onClick={() => handleDelete(b)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, fontSize: 14, color: '#EF4444' }} title="Delete">🗑</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Add/Edit Modal */}
+                    {showForm && (
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setShowForm(false)}>
+                            <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 500, width: '100%' }} onClick={e => e.stopPropagation()}>
+                                <h3 style={{ margin: '0 0 16px', fontSize: 18 }}>{editingId ? 'Edit Sub-brand' : 'Add Sub-brand'}</h3>
+                                <div style={{ marginBottom: 14 }}>
+                                    <label style={labelStyle}>Brand Name *</label>
+                                    <input style={inputStyle} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g. SenseFlow Cloud, SenseFlow Wired+" autoFocus />
+                                </div>
+                                <div style={{ marginBottom: 14 }}>
+                                    <label style={labelStyle}>Parent Brand (inherits logo, color, email, website)</label>
+                                    <select style={inputStyle} value={form.parentBrand} onChange={e => setForm({...form, parentBrand: e.target.value})}>
+                                        {mainBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                                    </select>
+                                    <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                                        Logo, email, website, tagline all come from {form.parentBrand}.
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: 20 }}>
+                                    <label style={labelStyle}>Invoice/Quote Prefix (optional)</label>
+                                    <input style={inputStyle} value={form.prefix} onChange={e => setForm({...form, prefix: e.target.value})} placeholder={`e.g. SFC (leave blank to use ${form.parentBrand}'s prefix)`} />
+                                    <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                                        Prefix appears before doc numbers — e.g. {(form.prefix || CONFIG.BRANDS[form.parentBrand]?.prefix || '').toUpperCase().replace(/-$/, '') || '(none)'}-QT-2604-001
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                                    <button className="btn" onClick={() => setShowForm(false)} style={{ background: '#E5E7EB', color: '#374151' }}>Cancel</button>
+                                    <button className="btn btn-primary" onClick={handleSave}>{editingId ? 'Update' : 'Create'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
         // ============ BROCHURE MANAGER COMPONENT ============
         const emptyBrochureProduct = () => ({
             sku: '', nameEn: '', nameHi: '',
@@ -9385,6 +9584,30 @@ ${componentResults.map(c => {
             // Admin section states
             const [adminExpanded, setAdminExpanded] = useState(false);
             const [syncExpanded, setSyncExpanded] = useState(false);
+            const [customBrandsVersion, setCustomBrandsVersion] = useState(0);
+
+            // Load custom sub-brands from Firebase and merge into CONFIG.BRANDS at startup
+            useEffect(() => {
+                const loadCustomBrands = async () => {
+                    try {
+                        const customBrands = await FirebaseBrands.getAll();
+                        customBrands.forEach(cb => {
+                            const parent = CONFIG.BRANDS[cb.parentBrand];
+                            if (!parent) return;
+                            CONFIG.BRANDS[cb.name] = {
+                                ...parent,
+                                name: cb.name,
+                                prefix: cb.prefix || parent.prefix,
+                                _isSubBrand: true,
+                                _parentBrand: cb.parentBrand,
+                                _firebaseId: cb.firebaseId
+                            };
+                        });
+                        setCustomBrandsVersion(v => v + 1);
+                    } catch(e) { console.error('Failed to load custom brands:', e); }
+                };
+                loadCustomBrands();
+            }, []);
             const [adminUnlocked, setAdminUnlocked] = useState(isAdminAuthenticated());
             const [adminPassword, setAdminPassword] = useState('');
             const [adminError, setAdminError] = useState('');
@@ -9896,6 +10119,7 @@ ${componentResults.map(c => {
                     case 'projects': return <Projects />;
                     case 'enquiries': return <EnquiryTracker products={products} navigate={navigate} setEditingDoc={setEditingDoc} />;
                     case 'brochures': return <BrochureManager products={products} />;
+                    case 'brands': return <BrandManager onBrandsChanged={() => setCustomBrandsVersion(v => v + 1)} />;
                     default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                 }
             };
@@ -10035,6 +10259,9 @@ ${componentResults.map(c => {
                                     </div>
                                     <div className={`nav-item ${page === 'brochures' ? 'active' : ''}`} onClick={() => navigate('brochures')}>
                                         <Icons.Quote /> Brochures
+                                    </div>
+                                    <div className={`nav-item ${page === 'brands' ? 'active' : ''}`} onClick={() => navigate('brands')}>
+                                        <Icons.Box /> Brands
                                     </div>
                                 </>
                             )}
