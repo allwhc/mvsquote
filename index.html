@@ -2127,10 +2127,15 @@
                                                     fontSize: '13px',
                                                     transition: 'background 0.15s'
                                                 }}
-                                                onMouseEnter={e => e.target.style.background = 'var(--bg)'}
-                                                onMouseLeave={e => e.target.style.background = optValue === value ? 'var(--primary-lighter)' : 'white'}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = optValue === value ? 'var(--primary-lighter)' : 'white'}
                                             >
-                                                {getLabel(opt)}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    {opt.imageUrl && (
+                                                        <img src={opt.imageUrl.replace('/upload/', '/upload/w_60,h_60,c_fill,q_auto/')} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                                                    )}
+                                                    <span>{getLabel(opt)}</span>
+                                                </div>
                                             </div>
                                         );
                                     })
@@ -2973,8 +2978,10 @@
                 d2cRate: 3,
                 amazonRate: 12,
                 flipkartRate: 11,
-                dealerRate: 500
+                dealerRate: 500,
+                imageUrl: ''
             });
+            const [productImageUploading, setProductImageUploading] = useState(false);
             const [selectedItem, setSelectedItem] = useState('');
             const [itemQty, setItemQty] = useState(1);
             const [selectedSubProduct, setSelectedSubProduct] = useState('');
@@ -3110,7 +3117,8 @@
                     d2cRate: formData.d2cRate,
                     amazonRate: formData.amazonRate,
                     flipkartRate: formData.flipkartRate,
-                    dealerRate: formData.dealerRate
+                    dealerRate: formData.dealerRate,
+                    imageUrl: formData.imageUrl || ''
                 };
 
                 // Update/Add product
@@ -3143,7 +3151,7 @@
             };
 
             const resetForm = () => {
-                setFormData({ sku: '', name: '', category: 'SenseFlow', formBom: [], formSubProducts: [], sellingPrice: '', mrp: '', d2cRate: 3, amazonRate: 12, flipkartRate: 11, dealerRate: 500 });
+                setFormData({ sku: '', name: '', category: 'SenseFlow', formBom: [], formSubProducts: [], sellingPrice: '', mrp: '', d2cRate: 3, amazonRate: 12, flipkartRate: 11, dealerRate: 500, imageUrl: '' });
                 setEditProduct(null);
                 setCircularError('');
             };
@@ -3199,7 +3207,8 @@
                     d2cRate: product.d2cRate !== undefined ? product.d2cRate : 3,
                     amazonRate: product.amazonRate !== undefined ? product.amazonRate : 12,
                     flipkartRate: product.flipkartRate !== undefined ? product.flipkartRate : 11,
-                    dealerRate: product.dealerRate !== undefined ? product.dealerRate : 500
+                    dealerRate: product.dealerRate !== undefined ? product.dealerRate : 500,
+                    imageUrl: product.imageUrl || ''
                 });
                 setCircularError('');
                 setShowModal(true);
@@ -3299,7 +3308,12 @@
                                                         <span style={{ marginRight: '8px', color: 'var(--text-muted)' }}>{isExpanded ? '▼' : '▶'}</span>
                                                         <span className="code-badge">{p.sku}</span>
                                                     </td>
-                                                    <td>{p.name}</td>
+                                                    <td>
+                                                        {p.imageUrl && (
+                                                            <img src={p.imageUrl.replace('/upload/', '/upload/w_80,h_80,c_fill,q_auto/')} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4, marginRight: 8, verticalAlign: 'middle' }} />
+                                                        )}
+                                                        {p.name}
+                                                    </td>
                                                     <td><span className={`category-badge ${getCategoryClass(p.category)}`}>{p.category}</span></td>
                                                     <td className="price">{formatCurrency(makingCost)}</td>
                                                     <td>
@@ -3387,6 +3401,41 @@
                         <div className="form-group">
                             <label className="form-label">Product Name <span>*</span></label>
                             <input type="text" className="form-input" placeholder="e.g., New Product Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Product Image <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                                {formData.imageUrl && (
+                                    <img src={formData.imageUrl.replace('/upload/', '/upload/w_120,h_120,c_fill,q_auto/')} alt="" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                                )}
+                                <button type="button" className="btn btn-secondary btn-sm" disabled={productImageUploading} onClick={() => {
+                                    const input = document.createElement('input');
+                                    input.type = 'file';
+                                    input.accept = 'image/*';
+                                    input.onchange = async (e) => {
+                                        const file = e.target.files[0];
+                                        if (!file) return;
+                                        setProductImageUploading(true);
+                                        try {
+                                            const tags = ['product'];
+                                            if (formData.sku) tags.push(`product_${formData.sku}`);
+                                            const { url } = await uploadToCloudinary(file, { folder: 'products', tags });
+                                            setFormData(fd => ({ ...fd, imageUrl: url }));
+                                        } catch(err) {
+                                            alert('Image upload failed: ' + err.message);
+                                        }
+                                        setProductImageUploading(false);
+                                    };
+                                    input.click();
+                                }}>
+                                    {productImageUploading ? 'Uploading...' : (formData.imageUrl ? 'Replace Image' : 'Upload Image')}
+                                </button>
+                                {formData.imageUrl && (
+                                    <button type="button" className="btn btn-sm" onClick={() => setFormData(fd => ({ ...fd, imageUrl: '' }))} style={{ background: '#FEE2E2', color: '#EF4444' }}>Remove</button>
+                                )}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Shows as thumbnail in products list and quotation dropdown.</div>
                         </div>
 
                         {/* BOM Section - Components */}
@@ -4207,7 +4256,7 @@
                                                 options={products.map(p => {
                                                     const makingCost = calculateMakingCost(p, items, products, bom, subProducts);
                                                     const mrp = getMRP(p, makingCost);
-                                                    return { value: p.sku, label: `${p.sku} — ${p.name} (MRP: ${formatCurrency(mrp)})` };
+                                                    return { value: p.sku, label: `${p.sku} — ${p.name} (MRP: ${formatCurrency(mrp)})`, imageUrl: p.imageUrl };
                                                 })}
                                                 value={selectedProduct}
                                                 onChange={setSelectedProduct}
