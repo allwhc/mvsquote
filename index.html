@@ -1362,15 +1362,18 @@
         };
 
         // ============ CLOUDINARY UPLOAD HELPER ============
-        const uploadToCloudinary = async (file) => {
+        const uploadToCloudinary = async (file, opts = {}) => {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('upload_preset', CONFIG.CLOUDINARY.uploadPreset);
+            if (opts.folder) formData.append('folder', opts.folder);
+            if (opts.tags && opts.tags.length) formData.append('tags', opts.tags.join(','));
             const url = `https://api.cloudinary.com/v1_1/${CONFIG.CLOUDINARY.cloudName}/image/upload`;
             const res = await fetch(url, { method: 'POST', body: formData });
             if (!res.ok) throw new Error('Upload failed: ' + res.status);
             const data = await res.json();
-            return data.secure_url;
+            // Return full payload so caller can use url + public_id
+            return { url: data.secure_url, publicId: data.public_id, folder: data.folder || data.asset_folder };
         };
 
         // Hindi font loader — fetches Noto Sans Devanagari TTF and caches in sessionStorage
@@ -6199,6 +6202,7 @@ ${componentResults.map(c => {
 
             // Form state
             const emptyForm = () => ({
+                photoFolderId: 'draft_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
                 customerName: '', contactPerson: '', phone: '',
                 gps: null, address: '',
                 propertyType: '', numBuildings: '', numFloors: '',
@@ -6232,6 +6236,8 @@ ${componentResults.map(c => {
                 status: 'pending_quote'
             });
             const [form, setForm] = useState(emptyForm());
+            const formRef = React.useRef(form);
+            useEffect(() => { formRef.current = form; }, [form]);
 
             // Draft helpers
             const hasDraft = () => { try { return !!localStorage.getItem(INSP_DRAFT_KEY); } catch { return false; } };
@@ -6306,19 +6312,59 @@ ${componentResults.map(c => {
             };
 
             // Camera trigger — captures filename only, photo stays on phone
-            const triggerCamera = (onCapture) => {
+            const triggerCamera = (onCapture, tagHint) => {
                 const input = document.createElement('input');
                 input.type = 'file';
                 input.accept = 'image/*';
                 input.capture = 'environment';
-                input.onchange = e => {
+                input.onchange = async e => {
                     const file = e.target.files[0];
-                    if (file) {
-                        onCapture({ filename: file.name, takenAt: new Date().toISOString() });
+                    if (!file) { input.value = ''; return; }
+                    const photo = {
+                        filename: file.name,
+                        takenAt: new Date().toISOString(),
+                        uploading: true,
+                        url: null,
+                        publicId: null
+                    };
+                    onCapture(photo);
+                    // Background upload to Cloudinary
+                    try {
+                        const folderId = (formRef.current && formRef.current.photoFolderId) || 'unknown';
+                        const tags = ['inspection', `inspection_${folderId}`];
+                        if (tagHint) tags.push(tagHint);
+                        const result = await uploadToCloudinary(file, {
+                            folder: `inspections/${folderId}`,
+                            tags
+                        });
+                        // Patch the photo record with the URL
+                        setForm(f => patchPhoto(f, photo.filename, photo.takenAt, {
+                            uploading: false,
+                            url: result.url,
+                            publicId: result.publicId
+                        }));
+                    } catch(err) {
+                        console.error('Cloudinary upload failed:', err);
+                        setForm(f => patchPhoto(f, photo.filename, photo.takenAt, {
+                            uploading: false,
+                            uploadError: err.message
+                        }));
                     }
                     input.value = '';
                 };
                 input.click();
+            };
+
+            // Helper to find and patch a photo record across all photo arrays in the form
+            const patchPhoto = (f, filename, takenAt, patch) => {
+                const matches = (p) => p.filename === filename && p.takenAt === takenAt;
+                const patchArr = (arr) => (arr || []).map(p => matches(p) ? { ...p, ...patch } : p);
+                return {
+                    ...f,
+                    siteConditionPhotos: patchArr(f.siteConditionPhotos),
+                    sitePhotos: patchArr(f.sitePhotos),
+                    tanks: (f.tanks || []).map(t => ({ ...t, photos: patchArr(t.photos) }))
+                };
             };
 
             // Tank helpers
@@ -6336,7 +6382,7 @@ ${componentResults.map(c => {
                         tanks[idx] = { ...tanks[idx], photos: [...(tanks[idx].photos || []), photo] };
                         return { ...f, tanks };
                     });
-                });
+                }, 'tank_photo');
             };
 
             // Checklist toggle
@@ -6357,6 +6403,14 @@ ${componentResults.map(c => {
 
             const handleSave = async () => {
                 if (!form.customerName || !form.inspectedBy) { alert('Customer name and Inspected By are required.'); return; }
+                // Check if any photos still uploading
+                const allPhotos = [
+                    ...(form.siteConditionPhotos || []),
+                    ...(form.sitePhotos || []),
+                    ...((form.tanks || []).flatMap(t => t.photos || []))
+                ];
+                const uploading = allPhotos.filter(p => p.uploading).length;
+                if (uploading > 0 && !confirm(`${uploading} photo(s) still uploading. Save anyway? (Photos may not appear in this inspection until upload completes.)`)) return;
                 setSaving(true);
                 const { _draftSavedAt, ...formData } = form;
                 const id = await FirebaseInspections.saveInspection({ ...formData, id: Date.now() });
@@ -6556,6 +6610,36 @@ ${componentResults.map(c => {
                             </div>
                         </div>
 
+                        {/* Photos Gallery */}
+                        {(() => {
+                            const allPhotos = [
+                                ...(selectedInsp.siteConditionPhotos || []).map(p => ({ ...p, section: 'Site Condition' })),
+                                ...(selectedInsp.sitePhotos || []).map(p => ({ ...p, section: 'Site' })),
+                                ...(selectedInsp.tanks || []).flatMap((t, ti) => (t.photos || []).map(p => ({ ...p, section: `${t.label || `Tank ${ti+1}`}` })))
+                            ].filter(p => p.url);
+                            if (allPhotos.length === 0) return null;
+                            return (
+                                <div className="card">
+                                    <div className="card-header"><h3 className="card-title">Photos ({allPhotos.length})</h3></div>
+                                    <div className="card-body">
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
+                                            {allPhotos.map((p, i) => (
+                                                <a key={i} href={p.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>
+                                                    <div style={{ aspectRatio: '1', background: `url(${p.url}) center/cover`, borderRadius: 8, border: '1px solid var(--border)' }}></div>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, textAlign: 'center' }}>{p.section}</div>
+                                                </a>
+                                            ))}
+                                        </div>
+                                        {selectedInsp.photoFolderId && (
+                                            <div style={{ marginTop: 12, fontSize: 11, color: 'var(--text-muted)' }}>
+                                                To delete all photos for this inspection, open Cloudinary and delete folder <code>inspections/{selectedInsp.photoFolderId}</code>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {/* Suggested Products */}
                         <div className="card">
                             <div className="card-header"><h3 className="card-title">Suggested Products</h3></div>
@@ -6685,16 +6769,16 @@ ${componentResults.map(c => {
                                 <div className="form-group">
                                     <label className="form-label">Site Overview Photos</label>
                                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                                        <button className="photo-btn" onClick={() => triggerCamera(photo => setForm(f => ({ ...f, sitePhotos: [...(f.sitePhotos || []), photo] })))}>
+                                        <button className="photo-btn" onClick={() => triggerCamera(photo => setForm(f => ({ ...f, sitePhotos: [...(f.sitePhotos || []), photo] })), 'site_photo')}>
                                             <Icons.Camera /> Take Photo
                                         </button>
                                         {(form.sitePhotos || []).map((p, i) => (
-                                            <span key={i} className="photo-record" style={{ cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, sitePhotos: f.sitePhotos.filter((_, x) => x !== i) }))}>
-                                                📷 {p.filename} ✕
+                                            <span key={i} className="photo-record" style={{ cursor: 'pointer', background: p.uploadError ? '#FEE2E2' : (p.uploading ? '#FEF3C7' : '#D1FAE5'), color: p.uploadError ? '#991B1B' : (p.uploading ? '#92400E' : '#065F46') }} onClick={() => setForm(f => ({ ...f, sitePhotos: f.sitePhotos.filter((_, x) => x !== i) }))}>
+                                                {p.uploading ? '⏳' : (p.uploadError ? '⚠' : '☁')} {p.filename} ✕
                                             </span>
                                         ))}
                                     </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos stay on your phone. Tap a badge to remove it.</div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos upload to cloud in background. ⏳ uploading, ☁ uploaded, ⚠ failed.</div>
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">Customer Notes</label>
@@ -6773,13 +6857,13 @@ ${componentResults.map(c => {
                                                         <Icons.Camera /> Add Photo
                                                     </button>
                                                     {(tank.photos || []).map((p, pi) => (
-                                                        <span key={pi} className="photo-record" style={{ cursor: 'pointer' }} onClick={() => {
+                                                        <span key={pi} className="photo-record" style={{ cursor: 'pointer', background: p.uploadError ? '#FEE2E2' : (p.uploading ? '#FEF3C7' : '#D1FAE5'), color: p.uploadError ? '#991B1B' : (p.uploading ? '#92400E' : '#065F46') }} onClick={() => {
                                                             setForm(f => {
                                                                 const tanks = [...f.tanks];
                                                                 tanks[idx] = { ...tanks[idx], photos: tanks[idx].photos.filter((_, x) => x !== pi) };
                                                                 return { ...f, tanks };
                                                             });
-                                                        }}>📷 {p.filename} ✕</span>
+                                                        }}>{p.uploading ? '⏳' : (p.uploadError ? '⚠' : '☁')} {p.filename} ✕</span>
                                                     ))}
                                                 </div>
                                             </div>
@@ -6874,16 +6958,16 @@ ${componentResults.map(c => {
                                 <div className="form-group">
                                     <label className="form-label">Site Condition Photos</label>
                                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                                        <button className="photo-btn" onClick={() => triggerCamera(photo => setForm(f => ({ ...f, siteConditionPhotos: [...(f.siteConditionPhotos || []), photo] })))}>
+                                        <button className="photo-btn" onClick={() => triggerCamera(photo => setForm(f => ({ ...f, siteConditionPhotos: [...(f.siteConditionPhotos || []), photo] })), 'site_condition')}>
                                             <Icons.Camera /> Take Photo
                                         </button>
                                         {(form.siteConditionPhotos || []).map((p, i) => (
-                                            <span key={i} className="photo-record" style={{ cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, siteConditionPhotos: f.siteConditionPhotos.filter((_, x) => x !== i) }))}>
-                                                📷 {p.filename} ✕
+                                            <span key={i} className="photo-record" style={{ cursor: 'pointer', background: p.uploadError ? '#FEE2E2' : (p.uploading ? '#FEF3C7' : '#D1FAE5'), color: p.uploadError ? '#991B1B' : (p.uploading ? '#92400E' : '#065F46') }} onClick={() => setForm(f => ({ ...f, siteConditionPhotos: f.siteConditionPhotos.filter((_, x) => x !== i) }))}>
+                                                {p.uploading ? '⏳' : (p.uploadError ? '⚠' : '☁')} {p.filename} ✕
                                             </span>
                                         ))}
                                     </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos stay on your phone. Tap a photo badge to remove it.</div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos upload to cloud in background. ⏳ uploading, ☁ uploaded, ⚠ failed.</div>
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">Additional Site Details</label>
@@ -8956,7 +9040,7 @@ ${componentResults.map(c => {
                     if (!file) return;
                     setUploading(true);
                     try {
-                        const url = await uploadToCloudinary(file);
+                        const { url } = await uploadToCloudinary(file, { folder: 'brochure', tags: ['brochure'] });
                         onUploaded(url);
                     } catch(err) {
                         alert('Upload failed: ' + err.message);
