@@ -2360,6 +2360,8 @@
             const [categoryFilter, setCategoryFilter] = useState('');
             const [showModal, setShowModal] = useState(false);
             const [editItem, setEditItem] = useState(null);
+            const [sortKey, setSortKey] = useState('code');
+            const [sortDir, setSortDir] = useState('asc');
             const [formData, setFormData] = useState({
                 code: '',
                 name: '',
@@ -2368,14 +2370,45 @@
                 vendors: [{ name: '', phone: '', email: '' }]
             });
 
-            const filteredItems = items.filter(item => {
-                const matchesSearch = 
-                    item.code.toLowerCase().includes(search.toLowerCase()) ||
-                    item.name.toLowerCase().includes(search.toLowerCase()) ||
-                    (item.vendor || '').toLowerCase().includes(search.toLowerCase());
-                const matchesCategory = !categoryFilter || item.category === categoryFilter;
-                return matchesSearch && matchesCategory;
-            });
+            const filteredItems = (() => {
+                const filtered = items.filter(item => {
+                    const matchesSearch =
+                        item.code.toLowerCase().includes(search.toLowerCase()) ||
+                        item.name.toLowerCase().includes(search.toLowerCase()) ||
+                        (item.vendor || '').toLowerCase().includes(search.toLowerCase());
+                    const matchesCategory = !categoryFilter || item.category === categoryFilter;
+                    return matchesSearch && matchesCategory;
+                });
+                // Sort
+                const dir = sortDir === 'asc' ? 1 : -1;
+                const cmp = (a, b) => {
+                    let va, vb;
+                    if (sortKey === 'code') {
+                        // Natural sort for codes like C5, C10 — split into prefix + number
+                        const parse = (c) => {
+                            const m = (c || '').match(/^([A-Za-z]*)(\d+)$/);
+                            return m ? [m[1].toUpperCase(), parseInt(m[2], 10)] : [(c || '').toUpperCase(), 0];
+                        };
+                        const [pa, na] = parse(a.code);
+                        const [pb, nb] = parse(b.code);
+                        if (pa !== pb) return pa < pb ? -1 * dir : 1 * dir;
+                        return (na - nb) * dir;
+                    }
+                    if (sortKey === 'name') { va = (a.name || '').toLowerCase(); vb = (b.name || '').toLowerCase(); }
+                    else if (sortKey === 'category') { va = (a.category || '').toLowerCase(); vb = (b.category || '').toLowerCase(); }
+                    else if (sortKey === 'price') { va = Number(a.price) || 0; vb = Number(b.price) || 0; return (va - vb) * dir; }
+                    else if (sortKey === 'vendor') { va = (a.vendor || '').toLowerCase(); vb = (b.vendor || '').toLowerCase(); }
+                    else { return 0; }
+                    return va < vb ? -1 * dir : (va > vb ? 1 * dir : 0);
+                };
+                return [...filtered].sort(cmp);
+            })();
+
+            const handleSort = (key) => {
+                if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setSortKey(key); setSortDir('asc'); }
+            };
+            const sortIndicator = (key) => sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
             const resetForm = () => {
                 setFormData({
@@ -2587,11 +2620,11 @@
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th>Code</th>
-                                            <th>Item Name</th>
-                                            <th>Category</th>
-                                            <th>Unit Price</th>
-                                            <th>Vendor</th>
+                                            <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('code')}>Code{sortIndicator('code')}</th>
+                                            <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('name')}>Item Name{sortIndicator('name')}</th>
+                                            <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('category')}>Category{sortIndicator('category')}</th>
+                                            <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('price')}>Unit Price{sortIndicator('price')}</th>
+                                            <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('vendor')}>Vendor{sortIndicator('vendor')}</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
