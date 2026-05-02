@@ -9825,6 +9825,256 @@ ${componentResults.map(c => {
             );
         };
 
+        // ============ DATA RECOVERY TOOL ============
+        const DataRecovery = ({ items, setItems }) => {
+            const [scanning, setScanning] = useState(false);
+            const [report, setReport] = useState(null);
+            const [recovering, setRecovering] = useState(false);
+            const [logs, setLogs] = useState([]);
+            const log = (msg) => setLogs(prev => [...prev, `${new Date().toLocaleTimeString()} — ${msg}`]);
+
+            // Find next free code with given prefix from a list of items
+            const nextFreeCode = (prefix, knownItems) => {
+                const regex = new RegExp(`^${prefix}(\\d+)$`, 'i');
+                let max = 0;
+                knownItems.forEach(it => {
+                    const m = (it.code || '').match(regex);
+                    if (m) max = Math.max(max, parseInt(m[1], 10));
+                });
+                return prefix + (max + 1);
+            };
+
+            const runScan = async () => {
+                setScanning(true);
+                setReport(null);
+                setLogs([]);
+                try {
+                    log('Reading items from Firebase...');
+                    const fbItems = await FirebaseCatalog.getItems() || [];
+                    const itemCodes = new Set(fbItems.map(i => i.code));
+                    log(`Found ${fbItems.length} items in Firebase, codes: ${itemCodes.size} unique.`);
+
+                    log('Reading inventory transactions from Firebase...');
+                    const fbTxns = await FirebaseInventory.getAllTransactions() || [];
+                    log(`Found ${fbTxns.length} inventory transactions.`);
+
+                    // Group transactions by itemCode and find orphans
+                    const byCode = {};
+                    fbTxns.forEach(t => {
+                        const code = t.itemCode || '(no code)';
+                        if (!byCode[code]) byCode[code] = [];
+                        byCode[code].push(t);
+                    });
+
+                    const orphans = [];
+                    const collisions = [];
+                    Object.keys(byCode).forEach(code => {
+                        const txns = byCode[code];
+                        if (!itemCodes.has(code)) {
+                            // No item with this code in master — orphan
+                            orphans.push({ code, txns, distinctNames: [...new Set(txns.map(t => t.itemName).filter(Boolean))] });
+                        } else {
+                            // Check for "different name" collisions — txns referring to a name different from current item
+                            const currentItem = fbItems.find(i => i.code === code);
+                            const currentName = currentItem?.name;
+                            const otherNames = [...new Set(txns.map(t => t.itemName).filter(n => n && n !== currentName))];
+                            if (otherNames.length > 0) {
+                                collisions.push({ code, currentName, otherNames, txns: txns.filter(t => t.itemName && t.itemName !== currentName) });
+                            }
+                        }
+                    });
+
+                    log(`Scan complete. Orphans: ${orphans.length}. Collisions: ${collisions.length}.`);
+                    setReport({ fbItems, fbTxns, orphans, collisions });
+                } catch(e) {
+                    log('ERROR: ' + e.message);
+                    console.error(e);
+                }
+                setScanning(false);
+            };
+
+            const recover = async (entry, kind) => {
+                // entry has: code, distinctNames (orphan) or otherNames (collision), txns
+                const namesToRestore = kind === 'orphan' ? entry.distinctNames : entry.otherNames;
+                if (namesToRestore.length === 0) { alert('No name found in transactions — cannot restore.'); return; }
+                if (namesToRestore.length > 1) {
+                    if (!confirm(`Multiple distinct names found for code ${entry.code}:\n\n${namesToRestore.join('\n')}\n\nProceed to restore each as a separate item?`)) return;
+                }
+
+                setRecovering(true);
+                try {
+                    // Re-fetch latest items to get fresh codes for collision check
+                    const fbItems = await FirebaseCatalog.getItems() || [];
+                    const knownItems = [...fbItems];
+
+                    for (const name of namesToRestore) {
+                        // Find a sample transaction to extract details
+                        const sampleTxn = entry.txns.find(t => t.itemName === name);
+                        // Decide prefix from existing code (e.g., 'C' from C65) — fallback to 'C'
+                        const prefix = (entry.code.match(/^([A-Za-z]+)/) || [null, 'C'])[1].toUpperCase();
+                        const newCode = nextFreeCode(prefix, knownItems);
+
+                        log(`Restoring "${name}" with code ${newCode} (was ${entry.code})...`);
+
+                        // Build the recovered item
+                        const newItem = {
+                            code: newCode,
+                            name: name,
+                            price: sampleTxn?.cost ? Number(sampleTxn.cost) : 0,
+                            category: 'Electronics',
+                            vendor: sampleTxn?.vendor || '',
+                            vendorAddress: ''
+                        };
+
+                        // Save to Firebase by adding to current list and using FirebaseCatalog.saveItems
+                        knownItems.push(newItem);
+
+                        // Update inventory transactions for this name (within the orphan/collision code group)
+                        const txnsToUpdate = entry.txns.filter(t => t.itemName === name);
+                        log(`  Updating ${txnsToUpdate.length} transaction(s) to use code ${newCode}...`);
+                        for (const t of txnsToUpdate) {
+                            await FirebaseInventory.updateTransaction(t.id, { itemCode: newCode });
+                        }
+                    }
+
+                    // Save updated items list to Firebase
+                    log('Saving updated items list to Firebase...');
+                    await FirebaseCatalog.saveItems(knownItems);
+
+                    // Update local React state too
+                    setItems(enrichItems(knownItems));
+
+                    log('✓ Recovery complete. Refreshing scan...');
+                    await runScan();
+                } catch(e) {
+                    log('ERROR: ' + e.message);
+                    console.error(e);
+                }
+                setRecovering(false);
+            };
+
+            return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <h1 className="page-title">Data Recovery</h1>
+                            <p className="page-subtitle">Find inventory transactions whose item code no longer exists in Items Master and restore the missing items</p>
+                        </div>
+                        <button className="btn btn-primary" onClick={runScan} disabled={scanning || recovering}>
+                            {scanning ? 'Scanning...' : '🔍 Scan Now'}
+                        </button>
+                    </div>
+
+                    {!report && !scanning && (
+                        <div style={{ background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 8, padding: 14, fontSize: 13, marginBottom: 16 }}>
+                            <strong>How this works:</strong> The tool reads your Items Master and Inventory Transactions from Firebase. It finds:
+                            <ul style={{ marginTop: 8, marginBottom: 0 }}>
+                                <li><strong>Orphans</strong> — transactions whose <code>itemCode</code> doesn't match any item (the item was deleted or lost)</li>
+                                <li><strong>Collisions</strong> — transactions whose <code>itemName</code> differs from the item currently using that code (the code was reused for a different item)</li>
+                            </ul>
+                            <p style={{ marginTop: 8, marginBottom: 0 }}>For each, you can <strong>restore</strong> the missing item with a new free code, and old transactions will be updated to point to the new code.</p>
+                        </div>
+                    )}
+
+                    {logs.length > 0 && (
+                        <div style={{ background: '#1F2937', color: '#D1FAE5', borderRadius: 8, padding: 12, fontSize: 12, fontFamily: 'monospace', maxHeight: 200, overflowY: 'auto', marginBottom: 16 }}>
+                            {logs.map((l, i) => <div key={i}>{l}</div>)}
+                        </div>
+                    )}
+
+                    {report && (
+                        <>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
+                                <div style={{ background: 'white', padding: 14, borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color: '#3B82F6' }}>{report.fbItems.length}</div>
+                                    <div style={{ fontSize: 11, color: '#6B7280' }}>Items in Master</div>
+                                </div>
+                                <div style={{ background: 'white', padding: 14, borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color: '#3B82F6' }}>{report.fbTxns.length}</div>
+                                    <div style={{ fontSize: 11, color: '#6B7280' }}>Inventory Txns</div>
+                                </div>
+                                <div style={{ background: 'white', padding: 14, borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', textAlign: 'center', border: report.orphans.length > 0 ? '2px solid #EF4444' : 'none' }}>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color: report.orphans.length > 0 ? '#EF4444' : '#10B981' }}>{report.orphans.length}</div>
+                                    <div style={{ fontSize: 11, color: '#6B7280' }}>Orphan Codes</div>
+                                </div>
+                                <div style={{ background: 'white', padding: 14, borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', textAlign: 'center', border: report.collisions.length > 0 ? '2px solid #F59E0B' : 'none' }}>
+                                    <div style={{ fontSize: 22, fontWeight: 700, color: report.collisions.length > 0 ? '#F59E0B' : '#10B981' }}>{report.collisions.length}</div>
+                                    <div style={{ fontSize: 11, color: '#6B7280' }}>Collisions</div>
+                                </div>
+                            </div>
+
+                            {/* Orphans */}
+                            {report.orphans.length > 0 && (
+                                <div style={{ background: 'white', borderRadius: 12, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                                    <h3 style={{ marginTop: 0, color: '#EF4444' }}>Orphan Codes ({report.orphans.length})</h3>
+                                    <p style={{ fontSize: 12, color: '#6B7280', marginTop: 0 }}>These transactions reference codes not found in Items Master.</p>
+                                    {report.orphans.map(o => (
+                                        <div key={o.code} style={{ background: '#FEF2F2', borderRadius: 8, padding: 12, marginBottom: 10, border: '1px solid #FCA5A5' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                <div>
+                                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Code: {o.code}</span>
+                                                    <span style={{ marginLeft: 10, fontSize: 12, color: '#6B7280' }}>({o.txns.length} transaction(s))</span>
+                                                </div>
+                                                <button className="btn btn-sm" onClick={() => recover(o, 'orphan')} disabled={recovering} style={{ background: '#10B981', color: 'white' }}>
+                                                    {recovering ? 'Working...' : '↻ Restore'}
+                                                </button>
+                                            </div>
+                                            <div style={{ fontSize: 12 }}>
+                                                <strong>Distinct names found:</strong>
+                                                <ul style={{ marginTop: 4, marginBottom: 4 }}>
+                                                    {o.distinctNames.length === 0 ? <li style={{ color: '#9CA3AF' }}>No names recorded</li> : o.distinctNames.map(n => <li key={n}>{n}</li>)}
+                                                </ul>
+                                                <details>
+                                                    <summary style={{ cursor: 'pointer', color: '#3B82F6', fontSize: 11 }}>Show transactions ({o.txns.length})</summary>
+                                                    <ul style={{ fontSize: 11, marginTop: 6 }}>
+                                                        {o.txns.map(t => <li key={t.id}>{t.transactionDate || t.createdAt} — {t.type} {t.qty} — "{t.itemName}" — {t.vendor || ''}</li>)}
+                                                    </ul>
+                                                </details>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Collisions */}
+                            {report.collisions.length > 0 && (
+                                <div style={{ background: 'white', borderRadius: 12, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                                    <h3 style={{ marginTop: 0, color: '#F59E0B' }}>Code Collisions ({report.collisions.length})</h3>
+                                    <p style={{ fontSize: 12, color: '#6B7280', marginTop: 0 }}>The current item using this code has a different name than what's referenced in some old transactions — likely the code was reused.</p>
+                                    {report.collisions.map(c => (
+                                        <div key={c.code} style={{ background: '#FFFBEB', borderRadius: 8, padding: 12, marginBottom: 10, border: '1px solid #FCD34D' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                <div>
+                                                    <span style={{ fontWeight: 700, fontSize: 14 }}>Code: {c.code}</span>
+                                                    <span style={{ marginLeft: 10, fontSize: 12, color: '#6B7280' }}>({c.txns.length} mismatched transaction(s))</span>
+                                                </div>
+                                                <button className="btn btn-sm" onClick={() => recover(c, 'collision')} disabled={recovering} style={{ background: '#10B981', color: 'white' }}>
+                                                    {recovering ? 'Working...' : '↻ Restore'}
+                                                </button>
+                                            </div>
+                                            <div style={{ fontSize: 12 }}>
+                                                <strong>Currently:</strong> {c.currentName}<br/>
+                                                <strong>Other names in transactions:</strong>
+                                                <ul style={{ marginTop: 4 }}>
+                                                    {c.otherNames.map(n => <li key={n}>{n}</li>)}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {report.orphans.length === 0 && report.collisions.length === 0 && (
+                                <div style={{ background: '#D1FAE5', border: '1px solid #10B981', borderRadius: 12, padding: 24, textAlign: 'center', color: '#065F46' }}>
+                                    ✓ No data integrity issues found. Items Master and inventory transactions are in sync.
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            );
+        };
+
         // ============ MAIN APP ============
         const App = () => {
             const [page, setPage] = useState('dashboard');
@@ -10398,6 +10648,7 @@ ${componentResults.map(c => {
                     case 'enquiries': return <EnquiryTracker products={products} navigate={navigate} setEditingDoc={setEditingDoc} />;
                     case 'brochures': return <BrochureManager products={products} />;
                     case 'brands': return <BrandManager onBrandsChanged={() => setCustomBrandsVersion(v => v + 1)} />;
+                    case 'recovery': return <DataRecovery items={items} setItems={setItems} />;
                     default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                 }
             };
@@ -10540,6 +10791,9 @@ ${componentResults.map(c => {
                                     </div>
                                     <div className={`nav-item ${page === 'brands' ? 'active' : ''}`} onClick={() => navigate('brands')}>
                                         <Icons.Box /> Brands
+                                    </div>
+                                    <div className={`nav-item ${page === 'recovery' ? 'active' : ''}`} onClick={() => navigate('recovery')}>
+                                        <Icons.AlertTriangle /> Data Recovery
                                     </div>
                                 </>
                             )}
