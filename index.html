@@ -1039,6 +1039,134 @@
                 } catch(e) { console.error(`FirebaseCatalog.save ${collectionName} failed:`, e); return false; }
             },
 
+            // ===== Per-doc operations (safe under concurrent writers) =====
+
+            // Add a single item with a Firestore-checked unique code.
+            // If preferredCode is taken, regenerate with the prefix.
+            // Returns { ok, code, _fbId } on success.
+            async addItemSafe(itemData, prefix) {
+                try {
+                    const snap = await db.collection('catalog_items').get();
+                    const existingCodes = new Set(snap.docs.map(d => (d.data().code || '').toUpperCase()));
+
+                    let code = (itemData.code || '').toUpperCase();
+                    // If empty or duplicate, generate with prefix
+                    if (!code || existingCodes.has(code)) {
+                        const usePrefix = (prefix || (code.match(/^[A-Za-z]+/)?.[0]) || 'C').toUpperCase();
+                        const regex = new RegExp(`^${usePrefix}(\\d+)$`, 'i');
+                        let max = 0;
+                        existingCodes.forEach(c => { const m = c.match(regex); if (m) max = Math.max(max, parseInt(m[1], 10)); });
+                        code = usePrefix + (max + 1);
+                    }
+
+                    const data = { ...itemData, code };
+                    delete data._fbId;
+                    delete data.vendors;
+                    const ref = await db.collection('catalog_items').add(data);
+                    return { ok: true, code, _fbId: ref.id };
+                } catch(e) { console.error('addItemSafe failed:', e); return { ok: false, error: e.message }; }
+            },
+
+            async updateItemDoc(_fbId, itemData) {
+                try {
+                    if (!_fbId) return false;
+                    const data = { ...itemData };
+                    delete data._fbId;
+                    delete data.vendors;
+                    await db.collection('catalog_items').doc(_fbId).set(data);
+                    return true;
+                } catch(e) { console.error('updateItemDoc failed:', e); return false; }
+            },
+
+            async deleteItemDoc(_fbId) {
+                try { await db.collection('catalog_items').doc(_fbId).delete(); return true; }
+                catch(e) { console.error('deleteItemDoc failed:', e); return false; }
+            },
+
+            // Same for products (SKU is the unique key)
+            async addProductSafe(productData, prefix) {
+                try {
+                    const snap = await db.collection('catalog_products').get();
+                    const existingSkus = new Set(snap.docs.map(d => (d.data().sku || '').toUpperCase()));
+
+                    let sku = (productData.sku || '').toUpperCase();
+                    if (!sku || existingSkus.has(sku)) {
+                        const usePrefix = (prefix || (sku.match(/^[A-Za-z]+/)?.[0]) || 'SF').toUpperCase();
+                        const regex = new RegExp(`^${usePrefix}(\\d+)$`, 'i');
+                        let max = 0;
+                        existingSkus.forEach(s => { const m = s.match(regex); if (m) max = Math.max(max, parseInt(m[1], 10)); });
+                        sku = usePrefix + (max + 1);
+                    }
+
+                    const data = { ...productData, sku };
+                    delete data._fbId;
+                    const ref = await db.collection('catalog_products').add(data);
+                    return { ok: true, sku, _fbId: ref.id };
+                } catch(e) { console.error('addProductSafe failed:', e); return { ok: false, error: e.message }; }
+            },
+
+            async updateProductDoc(_fbId, productData) {
+                try {
+                    if (!_fbId) return false;
+                    const data = { ...productData };
+                    delete data._fbId;
+                    await db.collection('catalog_products').doc(_fbId).set(data);
+                    return true;
+                } catch(e) { console.error('updateProductDoc failed:', e); return false; }
+            },
+
+            async deleteProductDoc(_fbId) {
+                try { await db.collection('catalog_products').doc(_fbId).delete(); return true; }
+                catch(e) { console.error('deleteProductDoc failed:', e); return false; }
+            },
+
+            // BOM and SubProducts — replace all entries for one product at a time
+            async replaceBomForProduct(productSku, newEntries) {
+                try {
+                    const snap = await db.collection('catalog_bom').where('productSku', '==', productSku).get();
+                    let batch = db.batch();
+                    let count = 0;
+                    for (const doc of snap.docs) {
+                        batch.delete(doc.ref);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    for (const entry of (newEntries || [])) {
+                        const data = { ...entry, productSku };
+                        delete data._fbId;
+                        batch.set(db.collection('catalog_bom').doc(), data);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    if (count > 0) await batch.commit();
+                    return true;
+                } catch(e) { console.error('replaceBomForProduct failed:', e); return false; }
+            },
+
+            async replaceSubProductsForProduct(productSku, newEntries) {
+                try {
+                    const snap = await db.collection('catalog_subproducts').where('productSku', '==', productSku).get();
+                    let batch = db.batch();
+                    let count = 0;
+                    for (const doc of snap.docs) {
+                        batch.delete(doc.ref);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    for (const entry of (newEntries || [])) {
+                        const data = { ...entry, productSku };
+                        delete data._fbId;
+                        batch.set(db.collection('catalog_subproducts').doc(), data);
+                        count++;
+                        if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
+                    }
+                    if (count > 0) await batch.commit();
+                    return true;
+                } catch(e) { console.error('replaceSubProductsForProduct failed:', e); return false; }
+            },
+
+            // ===== Old full-rewrite methods (kept for migration / re-sync) =====
+
             async saveItems(items) {
                 return this._saveCollection('catalog_items', items);
             },
@@ -2302,7 +2430,7 @@
                 return (v.phone && !isPhoneValid(v.phone)) || (v.email && !isEmailValid(v.email));
             });
 
-            const handleSubmit = () => {
+            const handleSubmit = async () => {
                 if (!formData.code || !formData.name || !formData.price) {
                     alert('Please fill all required fields: Code, Name, and Price');
                     return;
@@ -2310,7 +2438,7 @@
 
                 // Check for duplicate code (only when adding new item)
                 if (!editItem && items.some(item => item.code.toUpperCase() === formData.code.toUpperCase())) {
-                    alert(`Item code "${formData.code}" already exists! Delete the existing item first or use a different code.`);
+                    alert(`Item code "${formData.code}" already exists locally! Use a different code.`);
                     return;
                 }
 
@@ -2338,9 +2466,21 @@
                 };
 
                 if (editItem) {
-                    setItems(items.map(item => item.code === editItem.code ? itemData : item));
+                    // Update — write to Firebase by _fbId
+                    if (editItem._fbId) {
+                        const ok = await FirebaseCatalog.updateItemDoc(editItem._fbId, itemData);
+                        if (!ok) { alert('Failed to update item in Firebase. Try again.'); return; }
+                    }
+                    setItems(items.map(item => item.code === editItem.code ? { ...itemData, _fbId: editItem._fbId } : item));
                 } else {
-                    setItems([...items, itemData]);
+                    // Add — Firebase-checked unique code (auto-regenerates if collision)
+                    const prefix = (formData.code.match(/^[A-Za-z]+/) || ['C'])[0].toUpperCase();
+                    const result = await FirebaseCatalog.addItemSafe(itemData, prefix);
+                    if (!result.ok) { alert('Failed to add item to Firebase. Try again.'); return; }
+                    if (result.code !== formData.code) {
+                        alert(`Note: Code "${formData.code}" was already taken. Item was created with code "${result.code}".`);
+                    }
+                    setItems([...items, { ...itemData, code: result.code, _fbId: result._fbId }]);
                 }
                 setShowModal(false);
                 resetForm();
@@ -2380,10 +2520,14 @@
                 setShowModal(true);
             };
 
-            const handleDelete = (code) => {
-                if (confirm('Delete this item? Products using it will be affected.')) {
-                    setItems(items.filter(item => item.code !== code));
+            const handleDelete = async (code) => {
+                if (!confirm('Delete this item? Products using it will be affected.')) return;
+                const item = items.find(i => i.code === code);
+                if (item && item._fbId) {
+                    const ok = await FirebaseCatalog.deleteItemDoc(item._fbId);
+                    if (!ok) { alert('Failed to delete item from Firebase.'); return; }
                 }
+                setItems(items.filter(item => item.code !== code));
             };
 
             const getItemCategoryClass = (cat) => {
@@ -3096,7 +3240,7 @@
                 });
             };
 
-            const handleSubmit = () => {
+            const handleSubmit = async () => {
                 if (!formData.sku || !formData.name || (formData.formBom.length === 0 && formData.formSubProducts.length === 0)) {
                     alert('Please fill SKU, Name and add at least one component or sub-product');
                     return;
@@ -3104,7 +3248,7 @@
 
                 // Check for duplicate SKU (only when adding new product)
                 if (!editProduct && products.some(p => p.sku.toUpperCase() === formData.sku.toUpperCase())) {
-                    alert(`Product SKU "${formData.sku}" already exists! Delete the existing product first or use a different SKU.`);
+                    alert(`Product SKU "${formData.sku}" already exists locally! Use a different SKU.`);
                     return;
                 }
 
@@ -3121,29 +3265,48 @@
                     imageUrl: formData.imageUrl || ''
                 };
 
-                // Update/Add product
+                let finalSku = formData.sku;
+                let finalFbId;
+
                 if (editProduct) {
-                    setProducts(products.map(p => p.sku === editProduct.sku ? productData : p));
+                    // Update — write to Firebase by _fbId
+                    if (editProduct._fbId) {
+                        const ok = await FirebaseCatalog.updateProductDoc(editProduct._fbId, productData);
+                        if (!ok) { alert('Failed to update product in Firebase. Try again.'); return; }
+                    }
+                    finalFbId = editProduct._fbId;
+                    setProducts(products.map(p => p.sku === editProduct.sku ? { ...productData, _fbId: editProduct._fbId } : p));
                 } else {
-                    setProducts([...products, productData]);
+                    // Add — Firebase-checked unique SKU (auto-regenerates if collision)
+                    const prefix = getCategoryPrefix(productData.category);
+                    const result = await FirebaseCatalog.addProductSafe(productData, prefix);
+                    if (!result.ok) { alert('Failed to add product to Firebase. Try again.'); return; }
+                    if (result.sku !== formData.sku) {
+                        alert(`Note: SKU "${formData.sku}" was already taken. Product was created with SKU "${result.sku}".`);
+                    }
+                    finalSku = result.sku;
+                    finalFbId = result._fbId;
+                    setProducts([...products, { ...productData, sku: result.sku, _fbId: result._fbId }]);
                 }
 
-                // Update BOM (remove old entries for this product, add new ones)
-                const otherBomEntries = bom.filter(b => b.productSku !== formData.sku);
+                // Update BOM in Firebase using replaceBomForProduct (per-product, doesn't touch other products' BOMs)
                 const newBomEntries = formData.formBom.map(b => ({
-                    productSku: formData.sku,
+                    productSku: finalSku,
                     componentCode: b.code,
                     qty: b.qty
                 }));
+                await FirebaseCatalog.replaceBomForProduct(finalSku, newBomEntries);
+                const otherBomEntries = bom.filter(b => b.productSku !== finalSku && b.productSku !== editProduct?.sku);
                 setBom([...otherBomEntries, ...newBomEntries]);
 
-                // Update Sub-Products (remove old entries for this product, add new ones)
-                const otherSubProductEntries = subProducts.filter(sp => sp.productSku !== formData.sku);
+                // Update Sub-Products similarly
                 const newSubProductEntries = formData.formSubProducts.map(sp => ({
-                    productSku: formData.sku,
+                    productSku: finalSku,
                     subProductSku: sp.sku,
                     qty: sp.qty
                 }));
+                await FirebaseCatalog.replaceSubProductsForProduct(finalSku, newSubProductEntries);
+                const otherSubProductEntries = subProducts.filter(sp => sp.productSku !== finalSku && sp.productSku !== editProduct?.sku);
                 setSubProducts([...otherSubProductEntries, ...newSubProductEntries]);
 
                 setShowModal(false);
@@ -3214,14 +3377,19 @@
                 setShowModal(true);
             };
 
-            const handleDelete = (sku) => {
-                if (confirm('Delete this product?')) {
-                    setProducts(products.filter(p => p.sku !== sku));
-                    // Also remove BOM entries for this product
-                    setBom(bom.filter(b => b.productSku !== sku));
-                    // Remove from sub products if referenced (as parent or child)
-                    setSubProducts(subProducts.filter(sp => sp.productSku !== sku && sp.subProductSku !== sku));
+            const handleDelete = async (sku) => {
+                if (!confirm('Delete this product?')) return;
+                const product = products.find(p => p.sku === sku);
+                if (product && product._fbId) {
+                    const ok = await FirebaseCatalog.deleteProductDoc(product._fbId);
+                    if (!ok) { alert('Failed to delete product from Firebase.'); return; }
                 }
+                // Clean up BOM and sub-products in Firebase too (per-product replace with empty array)
+                await FirebaseCatalog.replaceBomForProduct(sku, []);
+                await FirebaseCatalog.replaceSubProductsForProduct(sku, []);
+                setProducts(products.filter(p => p.sku !== sku));
+                setBom(bom.filter(b => b.productSku !== sku));
+                setSubProducts(subProducts.filter(sp => sp.productSku !== sku && sp.subProductSku !== sku));
             };
 
             const handleDuplicate = (product) => {
@@ -10508,48 +10676,12 @@ ${componentResults.map(c => {
                 }
             };
 
-            // Auto-save to Firebase on every change (priority, 2s debounce)
-            const firebaseSyncTimer = React.useRef(null);
-            const firebaseSyncPrev = React.useRef({ items: null, products: null, bom: null, subProducts: null });
-            useEffect(() => {
-                if (!FirebaseCatalog.isMigrated()) return;
-                if (isLoading) return;
-                if (items.length === 0 && products.length === 0) return;
-
-                if (firebaseSyncTimer.current) clearTimeout(firebaseSyncTimer.current);
-                firebaseSyncTimer.current = setTimeout(async () => {
-                    try {
-                        const prev = firebaseSyncPrev.current;
-                        const saves = [];
-                        if (prev.items !== null && JSON.stringify(items) !== JSON.stringify(prev.items)) {
-                            saves.push(FirebaseCatalog.saveItems(items));
-                        }
-                        if (prev.products !== null && JSON.stringify(products) !== JSON.stringify(prev.products)) {
-                            saves.push(FirebaseCatalog.saveProducts(products));
-                        }
-                        if (prev.bom !== null && JSON.stringify(bom) !== JSON.stringify(prev.bom)) {
-                            saves.push(FirebaseCatalog.saveBom(bom));
-                        }
-                        if (prev.subProducts !== null && JSON.stringify(subProducts) !== JSON.stringify(prev.subProducts)) {
-                            saves.push(FirebaseCatalog.saveSubProducts(subProducts));
-                        }
-                        if (saves.length > 0) {
-                            await Promise.all(saves);
-                            console.log('Firebase auto-save complete:', saves.length, 'collection(s)');
-                        }
-                    } catch(e) {
-                        console.error('Firebase auto-save failed:', e);
-                    }
-                    firebaseSyncPrev.current = { items: [...items], products: [...products], bom: [...bom], subProducts: [...subProducts] };
-                }, 2000);
-
-                // Set initial prev on first render (skip saving on initial load)
-                if (firebaseSyncPrev.current.items === null) {
-                    firebaseSyncPrev.current = { items: [...items], products: [...products], bom: [...bom], subProducts: [...subProducts] };
-                }
-
-                return () => { if (firebaseSyncTimer.current) clearTimeout(firebaseSyncTimer.current); };
-            }, [items, products, bom, subProducts, isLoading]);
+            // Auto-save to Firebase: DISABLED.
+            // Previously this did a full delete+rewrite of all 4 collections every 2s, which
+            // caused concurrent writers from different PCs to overwrite each other (lost items).
+            // We now do per-doc add/update/delete writes inside ItemsMaster and ProductsPage form
+            // handlers — those are atomic and safe under concurrency. The 'Save to Firebase' button
+            // in the sidebar still does a full save if you want to force-sync the entire local state.
 
             // Manual save to Firebase (no debounce)
             const [firebaseSaveStatus, setFirebaseSaveStatus] = useState('idle'); // idle, saving, saved, error
