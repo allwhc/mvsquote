@@ -823,6 +823,7 @@
                 gst: '27ALDPJ5310J1ZA'
             },
             UPI_ID: '9867738509@axl',
+            BUSINESS_STATE: 'Maharashtra', // Your state — for CGST+SGST vs IGST split
             CLOUDINARY: {
                 cloudName: 'dbkpwow7m',
                 uploadPreset: 'mvs_brochure'
@@ -920,6 +921,35 @@
                 { key: 'OTHER_OUT', label: 'Other' }
             ]
         };
+
+        // HSN codes for goods, SAC codes for services — common ones for SenseFlow business
+        const HSN_GOODS_OPTIONS = [
+            { code: '8537', label: '8537 — Boards/panels for electric control or distribution' },
+            { code: '8536', label: '8536 — Switches, connectors, relays (≤ 1000V)' },
+            { code: '8543', label: '8543 — Electrical apparatus with individual functions' },
+            { code: '9026', label: '9026 — Flow / level / pressure measuring instruments' },
+            { code: '9028', label: '9028 — Gas / liquid / electricity meters' },
+            { code: '9027', label: '9027 — Electronic instruments (analytical / measuring)' },
+            { code: '9032', label: '9032 — Automatic regulating / controlling instruments' },
+            { code: '8531', label: '8531 — Electric sound / visual signalling apparatus' }
+        ];
+        const SAC_SERVICES_OPTIONS = [
+            { code: '9987', label: '9987 — Maintenance, repair and installation services' },
+            { code: '9986', label: '9986 — Engineering / scientific / technical consulting' },
+            { code: '9983', label: '9983 — Other professional / technical / business services' },
+            { code: '9954', label: '9954 — Construction services' },
+            { code: '9988', label: '9988 — Manufacturing services on physical inputs (job work)' }
+        ];
+
+        // Indian states + Union Territories with GST state codes
+        const INDIAN_STATES = [
+            'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
+            'Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh',
+            'Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab',
+            'Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand',
+            'West Bengal','Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu',
+            'Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry'
+        ];
 
         // ============ FIREBASE QUOTATION HELPERS ============
         const FirebaseQuotations = {
@@ -2367,6 +2397,8 @@
                 name: '',
                 price: '',
                 category: 'Electronics',
+                hsn: '',
+                isService: false,
                 vendors: [{ name: '', phone: '', email: '' }]
             });
 
@@ -2416,6 +2448,8 @@
                     name: '',
                     price: '',
                     category: 'Electronics',
+                    hsn: '',
+                    isService: false,
                     vendors: [{ name: '', phone: '', email: '' }]
                 });
                 setEditItem(null);
@@ -2493,6 +2527,8 @@
                     name: formData.name,
                     price: Number(formData.price),
                     category: formData.category,
+                    hsn: formData.hsn || '',
+                    isService: !!formData.isService,
                     vendor: vendorStr,
                     vendorAddress: vendorAddressStr,
                     vendors: activeVendors
@@ -2802,15 +2838,37 @@
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Unit Price (₹) <span>*</span></label>
-                                <input 
-                                    type="number" 
-                                    className="form-input" 
-                                    placeholder="e.g., 150" 
-                                    value={formData.price} 
-                                    onChange={e => setFormData({ ...formData, price: e.target.value })} 
+                                <input
+                                    type="number"
+                                    className="form-input"
+                                    placeholder="e.g., 150"
+                                    value={formData.price}
+                                    onChange={e => setFormData({ ...formData, price: e.target.value })}
                                 />
                             </div>
-                            
+
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <input type="checkbox" checked={!!formData.isService} onChange={e => setFormData({ ...formData, isService: e.target.checked, hsn: '' })} />
+                                        This is a service (uses SAC code)
+                                    </label>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">{formData.isService ? 'SAC Code' : 'HSN Code'} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                                    <select className="form-select" value={formData.hsn} onChange={e => setFormData({ ...formData, hsn: e.target.value })}>
+                                        <option value="">— Select —</option>
+                                        {(formData.isService ? SAC_SERVICES_OPTIONS : HSN_GOODS_OPTIONS).map(o => (
+                                            <option key={o.code} value={o.code}>{o.label}</option>
+                                        ))}
+                                        <option value="__custom__">Custom (type below)</option>
+                                    </select>
+                                    {formData.hsn === '__custom__' && (
+                                        <input type="text" className="form-input" style={{ marginTop: 6 }} placeholder="e.g., 8537" onChange={e => setFormData({ ...formData, hsn: e.target.value })} />
+                                    )}
+                                </div>
+                            </div>
+
                             <div style={{ borderTop: '1px solid var(--border)', margin: '20px 0', paddingTop: '20px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                                     <h4 style={{ color: 'var(--text)', fontSize: '14px', fontWeight: '600', margin: 0 }}>
@@ -3152,6 +3210,8 @@
             const [formData, setFormData] = useState({
                 sku: '', name: '', category: 'SenseFlow',
                 subBrand: '',
+                hsn: '',
+                isService: false,
                 formBom: [], // Components from Items
                 formSubProducts: [], // Sub-products from Products
                 sellingPrice: '',
@@ -3323,6 +3383,8 @@
                     name: formData.name,
                     category: formData.category,
                     subBrand: formData.subBrand || '',
+                    hsn: formData.hsn || '',
+                    isService: !!formData.isService,
                     sellingPrice: formData.sellingPrice ? Number(formData.sellingPrice) : defaultSellingPrice,
                     mrp: formData.mrp ? Number(formData.mrp) : defaultMRP,
                     d2cRate: formData.d2cRate,
@@ -3381,7 +3443,7 @@
             };
 
             const resetForm = () => {
-                setFormData({ sku: '', name: '', category: 'SenseFlow', subBrand: '', formBom: [], formSubProducts: [], sellingPrice: '', mrp: '', d2cRate: 3, amazonRate: 12, flipkartRate: 11, dealerRate: 500, imageUrl: '' });
+                setFormData({ sku: '', name: '', category: 'SenseFlow', subBrand: '', hsn: '', isService: false, formBom: [], formSubProducts: [], sellingPrice: '', mrp: '', d2cRate: 3, amazonRate: 12, flipkartRate: 11, dealerRate: 500, imageUrl: '' });
                 setEditProduct(null);
                 setCircularError('');
             };
@@ -3431,6 +3493,8 @@
                     name: product.name,
                     category: product.category,
                     subBrand: product.subBrand || '',
+                    hsn: product.hsn || '',
+                    isService: !!product.isService,
                     formBom: productBom,
                     formSubProducts: productSubs,
                     sellingPrice: product.sellingPrice || '',
@@ -3700,6 +3764,33 @@
                             </div>
                         </div>
 
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <input type="checkbox" checked={!!formData.isService} onChange={e => setFormData({ ...formData, isService: e.target.checked, hsn: '' })} />
+                                    This is a service (uses SAC code)
+                                </label>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">{formData.isService ? 'SAC Code' : 'HSN Code'} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                                <select className="form-select" value={(formData.isService ? SAC_SERVICES_OPTIONS : HSN_GOODS_OPTIONS).some(o => o.code === formData.hsn) ? formData.hsn : (formData.hsn ? '__custom__' : '')}
+                                    onChange={e => {
+                                        const v = e.target.value;
+                                        if (v === '__custom__') return; // wait for custom input
+                                        setFormData({ ...formData, hsn: v });
+                                    }}>
+                                    <option value="">— Select —</option>
+                                    {(formData.isService ? SAC_SERVICES_OPTIONS : HSN_GOODS_OPTIONS).map(o => (
+                                        <option key={o.code} value={o.code}>{o.label}</option>
+                                    ))}
+                                    <option value="__custom__">Custom (type below)</option>
+                                </select>
+                                {(formData.hsn && !(formData.isService ? SAC_SERVICES_OPTIONS : HSN_GOODS_OPTIONS).some(o => o.code === formData.hsn)) && (
+                                    <input type="text" className="form-input" style={{ marginTop: 6 }} placeholder="e.g., 8537" value={formData.hsn} onChange={e => setFormData({ ...formData, hsn: e.target.value })} />
+                                )}
+                            </div>
+                        </div>
+
                         <div className="form-group">
                             <label className="form-label">Product Image <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
                             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -3883,7 +3974,7 @@
 
         // ============ QUOTATION BUILDER ============
         const QuotationBuilder = ({ products, items, quotations, setQuotations, bom, subProducts, editingDoc, setEditingDoc }) => {
-            const [customer, setCustomer] = useState({ name: '', phone: '', email: '', address: '', gst: '' });
+            const [customer, setCustomer] = useState({ name: '', phone: '', email: '', address: '', gst: '', placeOfSupply: CONFIG.BUSINESS_STATE });
             const [deliveryAddress, setDeliveryAddress] = useState({ name: '', phone: '', address: '' });
             const [sameAsDelivery, setSameAsDelivery] = useState(true);
             const [quoteItems, setQuoteItems] = useState([]);
@@ -3900,7 +3991,7 @@
             // Load editingDoc data when set
             React.useEffect(() => {
                 if (editingDoc) {
-                    setCustomer(editingDoc.customer || { name: '', phone: '', email: '', address: '', gst: '' });
+                    setCustomer({ placeOfSupply: CONFIG.BUSINESS_STATE, ...(editingDoc.customer || { name: '', phone: '', email: '', address: '', gst: '' }) });
                     if (editingDoc.deliveryAddress) {
                         setSameAsDelivery(false);
                         setDeliveryAddress(editingDoc.deliveryAddress);
@@ -3960,7 +4051,9 @@
                     mrp: mrp,
                     minPrice: sellingPrice,
                     qty: 1,
-                    discount: 0
+                    discount: 0,
+                    hsn: product.hsn || '',
+                    isService: !!product.isService
                 }]);
                 setSelectedProduct('');
             };
@@ -3973,7 +4066,9 @@
                     mrp: 0,
                     minPrice: 0,
                     qty: 1,
-                    discount: 0
+                    discount: 0,
+                    hsn: '',
+                    isService: false
                 }]);
             };
 
@@ -4100,7 +4195,13 @@
                     let billY = customer.phone ? 93 : 89;
                     if (customer.email) { doc.text('Email: ' + customer.email, 20, billY); billY += 4; }
                     if (customer.address) { const al = doc.splitTextToSize(customer.address, 75); doc.text(al, 20, billY); billY += al.length * 4; }
-                    if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 20, billY + 1); doc.setFontSize(9); }
+                    if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 20, billY + 1); doc.setFontSize(9); billY += 5; }
+                    if (type === 'invoice') {
+                        doc.setFontSize(8);
+                        doc.text('Place of Supply: ' + (customer.placeOfSupply || CONFIG.BUSINESS_STATE), 20, billY + 1); billY += 4;
+                        doc.text('Reverse Charge: No', 20, billY + 1);
+                        doc.setFontSize(9);
+                    }
                     // SHIP TO column
                     doc.text('SHIP TO:', 115, 76);
                     doc.setFont('helvetica', 'bold');
@@ -4118,7 +4219,13 @@
                     if (customer.email) { doc.text('Email: ' + customer.email, 100, billY2); billY2 += 4; }
                     billY2 = Math.max(billY2, 83);
                     if (customer.address) { const al = doc.splitTextToSize(customer.address, 85); doc.text(al, 100, billY2); billY2 += al.length * 4; }
-                    if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 100, billY2 + 1); doc.setFontSize(9); }
+                    if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 100, billY2 + 1); doc.setFontSize(9); billY2 += 5; }
+                    if (type === 'invoice') {
+                        doc.setFontSize(8);
+                        doc.text('Place of Supply: ' + (customer.placeOfSupply || CONFIG.BUSINESS_STATE), 100, billY2 + 1); billY2 += 4;
+                        doc.text('Reverse Charge: No', 100, billY2 + 1);
+                        doc.setFontSize(9);
+                    }
                 }
 
                 // Table - smart columns based on discount usage
@@ -4134,20 +4241,35 @@
                     // Use content with name + \n + desc for height calculation, custom draw handles styling
                     return { content: name + '\n' + desc, styles: { fontStyle: 'normal', textColor: [30, 30, 30], fontSize: 8 } };
                 };
+                const showHsn = (type === 'invoice');
                 if (hasDiscount) {
-                    tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
+                    tableHead = [showHsn
+                        ? ['Product', 'HSN/SAC', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']
+                        : ['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
                     tableData = quoteItems.map(item => {
                         const netPrice = calculateNetPrice(item);
-                        return [productCell(item), item.qty.toString(), formatCurrencyPDF(item.mrp), item.discount + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        const row = [productCell(item)];
+                        if (showHsn) row.push(item.hsn || '');
+                        row.push(item.qty.toString(), formatCurrencyPDF(item.mrp), item.discount + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty));
+                        return row;
                     });
-                    colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
+                    colStyles = showHsn
+                        ? { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 18, fontSize: 8 }, 2: { halign: 'center', cellWidth: 12 }, 3: { halign: 'right', cellWidth: 22 }, 4: { halign: 'center', cellWidth: 14 }, 5: { halign: 'right', cellWidth: 22 }, 6: { halign: 'right', cellWidth: 22 } }
+                        : { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
                 } else {
-                    tableHead = [['Product', 'Qty', 'Unit Price', 'Total']];
+                    tableHead = [showHsn
+                        ? ['Product', 'HSN/SAC', 'Qty', 'Unit Price', 'Total']
+                        : ['Product', 'Qty', 'Unit Price', 'Total']];
                     tableData = quoteItems.map(item => {
                         const netPrice = calculateNetPrice(item);
-                        return [productCell(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        const row = [productCell(item)];
+                        if (showHsn) row.push(item.hsn || '');
+                        row.push(item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty));
+                        return row;
                     });
-                    colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
+                    colStyles = showHsn
+                        ? { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 22, fontSize: 8 }, 2: { halign: 'center', cellWidth: 18 }, 3: { halign: 'right', cellWidth: 28 }, 4: { halign: 'right', cellWidth: 28 } }
+                        : { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
                 }
 
                 doc.autoTable({
@@ -4211,34 +4333,50 @@
                     doc.setFont('helvetica', 'bold');
                     doc.text(formatCurrencyPDF(subtotal), 195, finalY, { align: 'right' });
 
-                    doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(80);
-                    doc.text('GST (' + CONFIG.GST_RATE + '%):', 135, finalY + 8);
-                    doc.setTextColor(30);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text(formatCurrencyPDF(gst), 195, finalY + 8, { align: 'right' });
+                    // GST split: intra-state (CGST+SGST) vs inter-state (IGST)
+                    const intraState = (customer.placeOfSupply || CONFIG.BUSINESS_STATE) === CONFIG.BUSINESS_STATE;
+                    const halfRate = (CONFIG.GST_RATE / 2);
+                    const halfGst = gst / 2;
 
-                    let totalLineY = finalY + 13;
-                    let totalLabelY = finalY + 20;
+                    let gstY = finalY + 8;
+                    if (intraState) {
+                        doc.setFont('helvetica', 'normal'); doc.setTextColor(80);
+                        doc.text('CGST (' + halfRate + '%):', 135, gstY);
+                        doc.setTextColor(30); doc.setFont('helvetica', 'bold');
+                        doc.text(formatCurrencyPDF(halfGst), 195, gstY, { align: 'right' });
+                        gstY += 6;
+                        doc.setFont('helvetica', 'normal'); doc.setTextColor(80);
+                        doc.text('SGST (' + halfRate + '%):', 135, gstY);
+                        doc.setTextColor(30); doc.setFont('helvetica', 'bold');
+                        doc.text(formatCurrencyPDF(halfGst), 195, gstY, { align: 'right' });
+                    } else {
+                        doc.setFont('helvetica', 'normal'); doc.setTextColor(80);
+                        doc.text('IGST (' + CONFIG.GST_RATE + '%):', 135, gstY);
+                        doc.setTextColor(30); doc.setFont('helvetica', 'bold');
+                        doc.text(formatCurrencyPDF(gst), 195, gstY, { align: 'right' });
+                    }
+
+                    let totalLineY = gstY + 5;
+                    let totalLabelY = gstY + 12;
 
                     if (discountAmount > 0) {
                         doc.setFont('helvetica', 'normal');
                         doc.setFontSize(11);
                         doc.setTextColor(80);
-                        doc.text('Gross Total:', 135, finalY + 16);
+                        doc.text('Gross Total:', 135, gstY + 8);
                         doc.setTextColor(30);
                         doc.setFont('helvetica', 'bold');
-                        doc.text(formatCurrencyPDF(grossTotal), 195, finalY + 16, { align: 'right' });
+                        doc.text(formatCurrencyPDF(grossTotal), 195, gstY + 8, { align: 'right' });
 
                         doc.setFont('helvetica', 'normal');
                         doc.setTextColor(220, 38, 38);
                         const discLabel = discountType === 'percentage' ? 'Discount (' + discountValue + '%):' : 'Discount:';
-                        doc.text(discLabel, 135, finalY + 24);
+                        doc.text(discLabel, 135, gstY + 16);
                         doc.setFont('helvetica', 'bold');
-                        doc.text('- ' + formatCurrencyPDF(discountAmount), 195, finalY + 24, { align: 'right' });
+                        doc.text('- ' + formatCurrencyPDF(discountAmount), 195, gstY + 16, { align: 'right' });
 
-                        totalLineY = finalY + 29;
-                        totalLabelY = finalY + 36;
+                        totalLineY = gstY + 21;
+                        totalLabelY = gstY + 28;
                     }
 
                     doc.setDrawColor(...brandColor);
@@ -4509,9 +4647,22 @@
                                         <label className="form-label">Address</label>
                                         <textarea className="form-textarea" rows="2" placeholder="Enter address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} />
                                     </div>
-                                    <div className="form-group">
-                                        <label className="form-label">Customer GSTIN <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
-                                        <input type="text" className="form-input" placeholder="e.g., 27ABCDE1234F1Z5" value={customer.gst || ''} onChange={e => setCustomer({ ...customer, gst: e.target.value })} style={{ textTransform: 'uppercase' }} />
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label className="form-label">Customer GSTIN <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                                            <input type="text" className="form-input" placeholder="e.g., 27ABCDE1234F1Z5" value={customer.gst || ''} onChange={e => setCustomer({ ...customer, gst: e.target.value })} style={{ textTransform: 'uppercase' }} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="form-label">Place of Supply <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(state)</span></label>
+                                            <select className="form-select" value={customer.placeOfSupply || CONFIG.BUSINESS_STATE} onChange={e => setCustomer({ ...customer, placeOfSupply: e.target.value })}>
+                                                {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                                                {customer.placeOfSupply === CONFIG.BUSINESS_STATE
+                                                    ? `Same as your state (${CONFIG.BUSINESS_STATE}) — CGST + SGST will apply.`
+                                                    : `Inter-state — IGST will apply.`}
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="form-group" style={{ marginTop: '8px' }}>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
@@ -4588,6 +4739,14 @@
                                                             <div className="quote-item-name">
                                                                 <textarea className="form-textarea" value={item.name} placeholder="Enter product name..." onChange={e => updateItem(index, 'name', e.target.value)} rows="2" style={{ fontSize: '14px', padding: '8px 10px', width: '100%', fontWeight: '500', resize: 'vertical', minHeight: '44px' }} />
                                                                 <textarea className="form-textarea" value={item.description || ''} placeholder="Description (optional) — e.g., features, specs, included items..." onChange={e => updateItem(index, 'description', e.target.value)} rows="2" style={{ fontSize: '12px', padding: '6px 10px', marginTop: '4px', color: 'var(--text-muted)', resize: 'vertical', minHeight: '36px' }} />
+                                                                <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                                                                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                        <input type="checkbox" checked={!!item.isService} onChange={e => updateItem(index, 'isService', e.target.checked)} style={{ width: 14, height: 14 }} />
+                                                                        Service
+                                                                    </label>
+                                                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.isService ? 'SAC:' : 'HSN:'}</span>
+                                                                    <input type="text" value={item.hsn || ''} placeholder={item.isService ? 'e.g., 9987' : 'e.g., 8537'} onChange={e => updateItem(index, 'hsn', e.target.value)} style={{ fontSize: 11, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 4, width: 100 }} />
+                                                                </div>
                                                                 <small>{item.sku !== 'CUSTOM' ? (item.sku + ' | Min: ' + formatCurrency(item.minPrice)) : 'Custom Item'}</small>
                                                             </div>
                                                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeItem(index)} style={{ marginTop: '4px' }}><Icons.X /></button>
@@ -4875,7 +5034,13 @@
                     let billY3 = doc.customer.phone ? 93 : 89;
                     if (doc.customer.email) { pdf.text('Email: ' + doc.customer.email, 20, billY3); billY3 += 4; }
                     if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 75); pdf.text(al, 20, billY3); billY3 += al.length * 4; }
-                    if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 20, billY3 + 1); pdf.setFontSize(9); }
+                    if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 20, billY3 + 1); pdf.setFontSize(9); billY3 += 5; }
+                    if (type === 'invoice') {
+                        pdf.setFontSize(8);
+                        pdf.text('Place of Supply: ' + (doc.customer.placeOfSupply || CONFIG.BUSINESS_STATE), 20, billY3 + 1); billY3 += 4;
+                        pdf.text('Reverse Charge: No', 20, billY3 + 1);
+                        pdf.setFontSize(9);
+                    }
                     // SHIP TO column
                     pdf.text('SHIP TO:', 115, 76);
                     pdf.setFont('helvetica', 'bold');
@@ -4893,7 +5058,13 @@
                     if (doc.customer.email) { pdf.text('Email: ' + doc.customer.email, 100, billY4); billY4 += 4; }
                     billY4 = Math.max(billY4, 83);
                     if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 85); pdf.text(al, 100, billY4); billY4 += al.length * 4; }
-                    if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 100, billY4 + 1); pdf.setFontSize(9); }
+                    if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 100, billY4 + 1); pdf.setFontSize(9); billY4 += 5; }
+                    if (type === 'invoice') {
+                        pdf.setFontSize(8);
+                        pdf.text('Place of Supply: ' + (doc.customer.placeOfSupply || CONFIG.BUSINESS_STATE), 100, billY4 + 1); billY4 += 4;
+                        pdf.text('Reverse Charge: No', 100, billY4 + 1);
+                        pdf.setFontSize(9);
+                    }
                 }
 
                 // Table - smart columns based on discount usage
@@ -4907,20 +5078,35 @@
                     if (!desc) return { content: name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
                     return { content: name + '\n' + desc, styles: { fontStyle: 'normal', textColor: [30, 30, 30], fontSize: 8 } };
                 };
+                const showHsn2 = (type === 'invoice');
                 if (hasDiscount) {
-                    tableHead = [['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
+                    tableHead = [showHsn2
+                        ? ['Product', 'HSN/SAC', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']
+                        : ['Product', 'Qty', 'MRP', 'Disc %', 'Net Price', 'Total']];
                     tableData = doc.items.map(item => {
                         const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
-                        return [docProductCell(item), item.qty.toString(), formatCurrencyPDF(item.mrp), (item.discount || 0) + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        const row = [docProductCell(item)];
+                        if (showHsn2) row.push(item.hsn || '');
+                        row.push(item.qty.toString(), formatCurrencyPDF(item.mrp), (item.discount || 0) + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty));
+                        return row;
                     });
-                    colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
+                    colStyles = showHsn2
+                        ? { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 18, fontSize: 8 }, 2: { halign: 'center', cellWidth: 12 }, 3: { halign: 'right', cellWidth: 22 }, 4: { halign: 'center', cellWidth: 14 }, 5: { halign: 'right', cellWidth: 22 }, 6: { halign: 'right', cellWidth: 22 } }
+                        : { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 15 }, 2: { halign: 'right', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'right', cellWidth: 25 }, 5: { halign: 'right', cellWidth: 25 } };
                 } else {
-                    tableHead = [['Product', 'Qty', 'Unit Price', 'Total']];
+                    tableHead = [showHsn2
+                        ? ['Product', 'HSN/SAC', 'Qty', 'Unit Price', 'Total']
+                        : ['Product', 'Qty', 'Unit Price', 'Total']];
                     tableData = doc.items.map(item => {
                         const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
-                        return [docProductCell(item), item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty)];
+                        const row = [docProductCell(item)];
+                        if (showHsn2) row.push(item.hsn || '');
+                        row.push(item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty));
+                        return row;
                     });
-                    colStyles = { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
+                    colStyles = showHsn2
+                        ? { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 22, fontSize: 8 }, 2: { halign: 'center', cellWidth: 18 }, 3: { halign: 'right', cellWidth: 28 }, 4: { halign: 'right', cellWidth: 28 } }
+                        : { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 30 }, 3: { halign: 'right', cellWidth: 30 } };
                 }
 
                 pdf.autoTable({
@@ -4983,35 +5169,51 @@
                     pdf.setFont('helvetica', 'bold');
                     pdf.text(formatCurrencyPDF(doc.subtotal), 195, finalY, { align: 'right' });
 
-                    pdf.setFont('helvetica', 'normal');
-                    pdf.setTextColor(80);
-                    pdf.text('GST (' + CONFIG.GST_RATE + '%):', 135, finalY + 8);
-                    pdf.setTextColor(30);
-                    pdf.setFont('helvetica', 'bold');
-                    pdf.text(formatCurrencyPDF(doc.gst), 195, finalY + 8, { align: 'right' });
+                    // GST split
+                    const intraState2 = (doc.customer?.placeOfSupply || CONFIG.BUSINESS_STATE) === CONFIG.BUSINESS_STATE;
+                    const halfRate2 = (CONFIG.GST_RATE / 2);
+                    const halfGst2 = doc.gst / 2;
 
-                    let totalLineY = finalY + 13;
-                    let totalLabelY = finalY + 20;
+                    let gstY = finalY + 8;
+                    if (intraState2) {
+                        pdf.setFont('helvetica', 'normal'); pdf.setTextColor(80);
+                        pdf.text('CGST (' + halfRate2 + '%):', 135, gstY);
+                        pdf.setTextColor(30); pdf.setFont('helvetica', 'bold');
+                        pdf.text(formatCurrencyPDF(halfGst2), 195, gstY, { align: 'right' });
+                        gstY += 6;
+                        pdf.setFont('helvetica', 'normal'); pdf.setTextColor(80);
+                        pdf.text('SGST (' + halfRate2 + '%):', 135, gstY);
+                        pdf.setTextColor(30); pdf.setFont('helvetica', 'bold');
+                        pdf.text(formatCurrencyPDF(halfGst2), 195, gstY, { align: 'right' });
+                    } else {
+                        pdf.setFont('helvetica', 'normal'); pdf.setTextColor(80);
+                        pdf.text('IGST (' + CONFIG.GST_RATE + '%):', 135, gstY);
+                        pdf.setTextColor(30); pdf.setFont('helvetica', 'bold');
+                        pdf.text(formatCurrencyPDF(doc.gst), 195, gstY, { align: 'right' });
+                    }
+
+                    let totalLineY = gstY + 5;
+                    let totalLabelY = gstY + 12;
 
                     if (docDiscountAmt > 0) {
                         const docGross = doc.subtotal + doc.gst;
                         pdf.setFont('helvetica', 'normal');
                         pdf.setFontSize(11);
                         pdf.setTextColor(80);
-                        pdf.text('Gross Total:', 135, finalY + 16);
+                        pdf.text('Gross Total:', 135, gstY + 8);
                         pdf.setTextColor(30);
                         pdf.setFont('helvetica', 'bold');
-                        pdf.text(formatCurrencyPDF(docGross), 195, finalY + 16, { align: 'right' });
+                        pdf.text(formatCurrencyPDF(docGross), 195, gstY + 8, { align: 'right' });
 
                         pdf.setFont('helvetica', 'normal');
                         pdf.setTextColor(220, 38, 38);
                         const discLabel = docDiscount.type === 'percentage' ? 'Discount (' + docDiscount.value + '%):' : 'Discount:';
-                        pdf.text(discLabel, 135, finalY + 24);
+                        pdf.text(discLabel, 135, gstY + 16);
                         pdf.setFont('helvetica', 'bold');
-                        pdf.text('- ' + formatCurrencyPDF(docDiscountAmt), 195, finalY + 24, { align: 'right' });
+                        pdf.text('- ' + formatCurrencyPDF(docDiscountAmt), 195, gstY + 16, { align: 'right' });
 
-                        totalLineY = finalY + 29;
-                        totalLabelY = finalY + 36;
+                        totalLineY = gstY + 21;
+                        totalLabelY = gstY + 28;
                     }
 
                     pdf.setDrawColor(...brandColor);
