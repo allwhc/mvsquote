@@ -1822,6 +1822,25 @@
 
         // ============ HELPER FUNCTIONS ============
 
+        // Payment helpers
+        const PAYMENT_METHODS = ['UPI', 'Bank Transfer', 'NEFT/RTGS', 'Cash', 'Cheque', 'Card', 'Other'];
+        const calcPaidAmount = (doc) => (doc?.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const getPaymentStatus = (doc) => {
+            if (!doc || doc.type !== 'invoice') return null;
+            const total = Number(doc.grandTotal) || 0;
+            const paid = calcPaidAmount(doc);
+            if (paid <= 0) return { status: 'unpaid', paid, total, due: total };
+            if (paid + 0.01 < total) return { status: 'partial', paid, total, due: total - paid };
+            if (paid > total + 0.01) return { status: 'overpaid', paid, total, due: 0 };
+            return { status: 'paid', paid, total, due: 0 };
+        };
+        const paymentStatusColor = (status) => ({
+            unpaid: { bg: '#FEE2E2', text: '#991B1B', label: 'Unpaid' },
+            partial: { bg: '#FEF3C7', text: '#92400E', label: 'Partial' },
+            paid: { bg: '#D1FAE5', text: '#065F46', label: 'Paid' },
+            overpaid: { bg: '#DBEAFE', text: '#1E40AF', label: 'Overpaid' }
+        })[status] || { bg: '#F3F4F6', text: '#6B7280', label: 'N/A' };
+
         // Replace white/near-white pixels in a base64 logo image with a given RGB color
         // Returns a promise that resolves to a new base64 PNG data URL
         const recolorLogoBackground = (logoSrc, r, g, b) => {
@@ -4906,6 +4925,41 @@
             const [selectedDoc, setSelectedDoc] = useState(null);
             const [showModal, setShowModal] = useState(false);
             const [selectedForLabels, setSelectedForLabels] = useState([]);
+            const [showPaymentForm, setShowPaymentForm] = useState(false);
+            const [paymentForm, setPaymentForm] = useState({ amount: '', date: new Date().toISOString().split('T')[0], method: 'UPI', reference: '', notes: '' });
+            const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+
+            const recordPayment = async () => {
+                if (!selectedDoc || !selectedDoc.firebaseId) { alert('Cannot save: document missing Firebase ID'); return; }
+                const amount = Number(paymentForm.amount);
+                if (!amount || amount <= 0) { alert('Enter a valid amount'); return; }
+                const newPayment = {
+                    id: Date.now().toString(),
+                    amount,
+                    date: paymentForm.date,
+                    method: paymentForm.method,
+                    reference: paymentForm.reference || '',
+                    notes: paymentForm.notes || '',
+                    recordedAt: new Date().toISOString()
+                };
+                const updated = { ...selectedDoc, payments: [...(selectedDoc.payments || []), newPayment] };
+                const ok = await FirebaseQuotations.updateQuotation(selectedDoc.firebaseId, { payments: updated.payments });
+                if (!ok) { alert('Failed to save payment to Firebase'); return; }
+                setQuotations(quotations.map(q => q.firebaseId === selectedDoc.firebaseId ? updated : q));
+                setSelectedDoc(updated);
+                setPaymentForm({ amount: '', date: new Date().toISOString().split('T')[0], method: 'UPI', reference: '', notes: '' });
+                setShowPaymentForm(false);
+            };
+
+            const deletePayment = async (paymentId) => {
+                if (!selectedDoc || !selectedDoc.firebaseId) return;
+                if (!confirm('Delete this payment record?')) return;
+                const updated = { ...selectedDoc, payments: (selectedDoc.payments || []).filter(p => p.id !== paymentId) };
+                const ok = await FirebaseQuotations.updateQuotation(selectedDoc.firebaseId, { payments: updated.payments });
+                if (!ok) { alert('Failed to delete payment'); return; }
+                setQuotations(quotations.map(q => q.firebaseId === selectedDoc.firebaseId ? updated : q));
+                setSelectedDoc(updated);
+            };
 
             const viewDocument = (doc) => {
                 setSelectedDoc(doc);
@@ -5500,6 +5554,7 @@
                                         <th>Customer</th>
                                         <th>Items</th>
                                         <th>Amount</th>
+                                        <th>Payment</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -5507,7 +5562,7 @@
                                 <tbody>
                                     {quotations.length === 0 ? (
                                         <tr>
-                                            <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                                            <td colSpan="10" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                                                 No documents yet. Create a quotation to get started.
                                             </td>
                                         </tr>
@@ -5528,10 +5583,22 @@
                                                 <td>{doc.items.length} items</td>
                                                 <td className="price green">{formatCurrency(doc.grandTotal)}</td>
                                                 <td>
-                                                    <select 
-                                                        className="form-select" 
+                                                    {doc.type === 'invoice' ? (() => {
+                                                        const ps = getPaymentStatus(doc);
+                                                        const c = paymentStatusColor(ps.status);
+                                                        return (
+                                                            <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: c.bg, color: c.text, whiteSpace: 'nowrap' }}>
+                                                                {c.label}
+                                                                {ps.status === 'partial' && <span style={{ fontWeight: 400 }}> · ₹{Math.round(ps.paid).toLocaleString('en-IN')}/{Math.round(ps.total).toLocaleString('en-IN')}</span>}
+                                                            </span>
+                                                        );
+                                                    })() : <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>}
+                                                </td>
+                                                <td>
+                                                    <select
+                                                        className="form-select"
                                                         style={{ padding: '4px 8px', fontSize: '12px', width: 'auto' }}
-                                                        value={doc.status} 
+                                                        value={doc.status}
                                                         onChange={e => updateStatus(doc.id, e.target.value)}
                                                     >
                                                         <option value="draft">Draft</option>
@@ -5619,6 +5686,103 @@
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Payment Tracker (invoices only) */}
+                                {selectedDoc.type === 'invoice' && (() => {
+                                    const ps = getPaymentStatus(selectedDoc);
+                                    const c = paymentStatusColor(ps.status);
+                                    const payments = selectedDoc.payments || [];
+                                    return (
+                                        <div style={{ background: 'var(--bg)', padding: 16, borderRadius: 8, marginBottom: 16, border: `2px solid ${c.bg}` }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                                <h4 style={{ margin: 0, color: 'var(--primary)' }}>Payment Tracking</h4>
+                                                <span style={{ padding: '4px 12px', borderRadius: 12, fontSize: 12, fontWeight: 700, background: c.bg, color: c.text }}>{c.label}</span>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12, fontSize: 13 }}>
+                                                <div>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total</div>
+                                                    <div style={{ fontWeight: 700 }}>{formatCurrency(ps.total)}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Paid</div>
+                                                    <div style={{ fontWeight: 700, color: '#10B981' }}>{formatCurrency(ps.paid)}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Due</div>
+                                                    <div style={{ fontWeight: 700, color: ps.due > 0 ? '#EF4444' : '#10B981' }}>{formatCurrency(ps.due)}</div>
+                                                </div>
+                                            </div>
+
+                                            {payments.length > 0 && (
+                                                <div style={{ marginBottom: 12 }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>Payment History ({payments.length})</div>
+                                                    <table style={{ width: '100%', fontSize: 12 }}>
+                                                        <thead>
+                                                            <tr style={{ background: 'white' }}>
+                                                                <th style={{ padding: 6, textAlign: 'left' }}>Date</th>
+                                                                <th style={{ padding: 6, textAlign: 'right' }}>Amount</th>
+                                                                <th style={{ padding: 6, textAlign: 'left' }}>Method</th>
+                                                                <th style={{ padding: 6, textAlign: 'left' }}>Reference</th>
+                                                                <th style={{ padding: 6, width: 30 }}></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {payments.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(p => (
+                                                                <tr key={p.id} style={{ background: 'white', borderTop: '1px solid var(--border)' }}>
+                                                                    <td style={{ padding: 6 }}>{p.date}</td>
+                                                                    <td style={{ padding: 6, textAlign: 'right', fontWeight: 600, color: '#10B981' }}>{formatCurrency(p.amount)}</td>
+                                                                    <td style={{ padding: 6 }}>{p.method}</td>
+                                                                    <td style={{ padding: 6, color: 'var(--text-muted)' }}>{p.reference || '—'}{p.notes ? ` (${p.notes})` : ''}</td>
+                                                                    <td style={{ padding: 6 }}><button onClick={() => deletePayment(p.id)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 14 }} title="Delete">✕</button></td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+
+                                            {!showPaymentForm ? (
+                                                <button className="btn btn-primary btn-sm" onClick={() => { setShowPaymentForm(true); setPaymentForm({ amount: ps.due > 0 ? ps.due.toString() : '', date: new Date().toISOString().split('T')[0], method: 'UPI', reference: '', notes: '' }); }}>
+                                                    + Record Payment
+                                                </button>
+                                            ) : (
+                                                <div style={{ background: 'white', padding: 12, borderRadius: 6, border: '1px solid var(--border)' }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>New Payment</div>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                                                        <div>
+                                                            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Amount (₹)</label>
+                                                            <input className="form-input" type="number" value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount: e.target.value})} />
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Date</label>
+                                                            <input className="form-input" type="date" value={paymentForm.date} onChange={e => setPaymentForm({...paymentForm, date: e.target.value})} />
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Method</label>
+                                                            <select className="form-select" value={paymentForm.method} onChange={e => setPaymentForm({...paymentForm, method: e.target.value})}>
+                                                                {PAYMENT_METHODS.map(m => <option key={m}>{m}</option>)}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                                                        <div>
+                                                            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Reference (txn ID, cheque no.)</label>
+                                                            <input className="form-input" value={paymentForm.reference} onChange={e => setPaymentForm({...paymentForm, reference: e.target.value})} placeholder="Optional" />
+                                                        </div>
+                                                        <div>
+                                                            <label style={{ fontSize: 11, color: 'var(--text-muted)' }}>Notes</label>
+                                                            <input className="form-input" value={paymentForm.notes} onChange={e => setPaymentForm({...paymentForm, notes: e.target.value})} placeholder="Optional" />
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: 8 }}>
+                                                        <button className="btn btn-primary btn-sm" onClick={recordPayment}>Save</button>
+                                                        <button className="btn btn-secondary btn-sm" onClick={() => setShowPaymentForm(false)}>Cancel</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Items Table */}
                                 <div style={{ marginBottom: '16px' }}>
@@ -10574,6 +10738,234 @@ ${componentResults.map(c => {
             );
         };
 
+        // ============ PAYMENT ANALYTICS ============
+        const PaymentAnalytics = ({ quotations }) => {
+            const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
+            const [monthFilter, setMonthFilter] = useState(new Date().getMonth());
+
+            const invoices = (quotations || []).filter(q => q.type === 'invoice');
+
+            // Compute totals
+            const stats = (() => {
+                const now = new Date();
+                const thisYear = now.getFullYear();
+                const thisMonth = now.getMonth();
+
+                let totalInvoiced = 0;
+                let totalPaid = 0;
+                let totalDue = 0;
+                let yearInvoiced = 0;
+                let yearPaid = 0;
+                let monthInvoiced = 0;
+                let monthPaid = 0;
+
+                const paymentsByMonth = {}; // 'YYYY-MM' -> total paid in that month
+                const customerOutstanding = {}; // name -> amount
+                const recentPayments = [];
+
+                invoices.forEach(inv => {
+                    const total = Number(inv.grandTotal) || 0;
+                    const paid = calcPaidAmount(inv);
+                    const due = Math.max(0, total - paid);
+                    totalInvoiced += total;
+                    totalPaid += paid;
+                    totalDue += due;
+
+                    const invDate = new Date(inv.date);
+                    if (invDate.getFullYear() === thisYear) {
+                        yearInvoiced += total;
+                    }
+                    if (invDate.getFullYear() === thisYear && invDate.getMonth() === thisMonth) {
+                        monthInvoiced += total;
+                    }
+
+                    if (due > 0) {
+                        const name = inv.customer?.name || 'Unknown';
+                        customerOutstanding[name] = (customerOutstanding[name] || 0) + due;
+                    }
+
+                    (inv.payments || []).forEach(p => {
+                        const pDate = new Date(p.date);
+                        const key = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+                        paymentsByMonth[key] = (paymentsByMonth[key] || 0) + (Number(p.amount) || 0);
+                        if (pDate.getFullYear() === thisYear) yearPaid += Number(p.amount) || 0;
+                        if (pDate.getFullYear() === thisYear && pDate.getMonth() === thisMonth) monthPaid += Number(p.amount) || 0;
+
+                        recentPayments.push({
+                            ...p,
+                            invoiceNumber: inv.number,
+                            customerName: inv.customer?.name || 'Unknown',
+                            invoiceDate: inv.date
+                        });
+                    });
+                });
+
+                recentPayments.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+                const customerOutstandingSorted = Object.entries(customerOutstanding)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10);
+
+                // Filtered for selected year
+                const yearInvoices = invoices.filter(i => new Date(i.date).getFullYear() === yearFilter);
+                const yearTotal = yearInvoices.reduce((s, i) => s + (Number(i.grandTotal) || 0), 0);
+                const yearPaidFiltered = yearInvoices.reduce((s, i) => s + calcPaidAmount(i), 0);
+                const yearDueFiltered = yearTotal - yearPaidFiltered;
+
+                // Month breakdown for filtered year
+                const monthBreakdown = Array.from({ length: 12 }, (_, m) => {
+                    const monthInvs = yearInvoices.filter(i => new Date(i.date).getMonth() === m);
+                    const invoiced = monthInvs.reduce((s, i) => s + (Number(i.grandTotal) || 0), 0);
+                    // Payments received in this month (regardless of invoice date)
+                    let received = 0;
+                    invoices.forEach(inv => {
+                        (inv.payments || []).forEach(p => {
+                            const pd = new Date(p.date);
+                            if (pd.getFullYear() === yearFilter && pd.getMonth() === m) received += Number(p.amount) || 0;
+                        });
+                    });
+                    return { month: m, invoiced, received };
+                });
+
+                return {
+                    totalInvoiced, totalPaid, totalDue,
+                    yearInvoiced, yearPaid,
+                    monthInvoiced, monthPaid,
+                    paymentsByMonth, customerOutstandingSorted, recentPayments,
+                    yearTotal, yearPaidFiltered, yearDueFiltered, monthBreakdown
+                };
+            })();
+
+            const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const years = Array.from(new Set(invoices.map(i => new Date(i.date).getFullYear()))).sort((a, b) => b - a);
+            if (years.length === 0) years.push(new Date().getFullYear());
+
+            const Card = ({ label, value, color = '#3B82F6', sub }) => (
+                <div style={{ background: 'white', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 6 }}>{label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+                    {sub && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{sub}</div>}
+                </div>
+            );
+
+            const maxBarValue = Math.max(...stats.monthBreakdown.map(m => Math.max(m.invoiced, m.received)), 1);
+
+            return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <h1 className="page-title">Payment Analytics</h1>
+                            <p className="page-subtitle">Track invoice totals, payments received, and outstanding amounts</p>
+                        </div>
+                    </div>
+
+                    {/* Headline cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
+                        <Card label="This Month — Invoiced" value={formatCurrency(stats.monthInvoiced)} color="#3B82F6" />
+                        <Card label="This Month — Received" value={formatCurrency(stats.monthPaid)} color="#10B981" />
+                        <Card label="This Year — Invoiced" value={formatCurrency(stats.yearInvoiced)} color="#3B82F6" />
+                        <Card label="This Year — Received" value={formatCurrency(stats.yearPaid)} color="#10B981" />
+                        <Card label="Total Outstanding" value={formatCurrency(stats.totalDue)} color="#EF4444" sub={`across all unpaid invoices`} />
+                    </div>
+
+                    {/* Year filter + month chart */}
+                    <div style={{ background: 'white', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', marginBottom: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                            <h3 style={{ margin: 0, color: 'var(--primary)' }}>Monthly Breakdown</h3>
+                            <select className="form-select" value={yearFilter} onChange={e => setYearFilter(Number(e.target.value))} style={{ width: 120 }}>
+                                {years.map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 4, alignItems: 'end', height: 160, marginBottom: 8 }}>
+                            {stats.monthBreakdown.map(mb => {
+                                const invH = (mb.invoiced / maxBarValue) * 140;
+                                const recH = (mb.received / maxBarValue) * 140;
+                                return (
+                                    <div key={mb.month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: 160 }} title={`${monthNames[mb.month]}: Invoiced ${formatCurrency(mb.invoiced)} | Received ${formatCurrency(mb.received)}`}>
+                                        <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+                                            <div style={{ width: 8, height: invH, background: '#3B82F6', borderRadius: '2px 2px 0 0' }}></div>
+                                            <div style={{ width: 8, height: recH, background: '#10B981', borderRadius: '2px 2px 0 0' }}></div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 4, fontSize: 10, color: '#6B7280', textAlign: 'center' }}>
+                            {monthNames.map(m => <div key={m}>{m}</div>)}
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12, fontSize: 12 }}>
+                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#3B82F6', marginRight: 4 }}></span>Invoiced</span>
+                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#10B981', marginRight: 4 }}></span>Received</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                            <div><div style={{ fontSize: 11, color: '#6B7280' }}>{yearFilter} Total Invoiced</div><div style={{ fontWeight: 700, color: '#3B82F6' }}>{formatCurrency(stats.yearTotal)}</div></div>
+                            <div><div style={{ fontSize: 11, color: '#6B7280' }}>{yearFilter} Received</div><div style={{ fontWeight: 700, color: '#10B981' }}>{formatCurrency(stats.yearPaidFiltered)}</div></div>
+                            <div><div style={{ fontSize: 11, color: '#6B7280' }}>{yearFilter} Outstanding</div><div style={{ fontWeight: 700, color: '#EF4444' }}>{formatCurrency(stats.yearDueFiltered)}</div></div>
+                        </div>
+                    </div>
+
+                    {/* Outstanding by Customer */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        <div style={{ background: 'white', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                            <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>Top Outstanding Customers</h3>
+                            {stats.customerOutstandingSorted.length === 0 ? (
+                                <div style={{ color: '#9CA3AF', textAlign: 'center', padding: 20 }}>No outstanding amounts. ✓</div>
+                            ) : (
+                                <table style={{ width: '100%', fontSize: 13 }}>
+                                    <thead>
+                                        <tr style={{ background: '#F9FAFB' }}>
+                                            <th style={{ padding: 8, textAlign: 'left' }}>Customer</th>
+                                            <th style={{ padding: 8, textAlign: 'right' }}>Outstanding</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {stats.customerOutstandingSorted.map(([name, amt]) => (
+                                            <tr key={name} style={{ borderTop: '1px solid var(--border)' }}>
+                                                <td style={{ padding: 8 }}>{name}</td>
+                                                <td style={{ padding: 8, textAlign: 'right', fontWeight: 600, color: '#EF4444' }}>{formatCurrency(amt)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+
+                        <div style={{ background: 'white', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                            <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>Recent Payments</h3>
+                            {stats.recentPayments.length === 0 ? (
+                                <div style={{ color: '#9CA3AF', textAlign: 'center', padding: 20 }}>No payments recorded yet</div>
+                            ) : (
+                                <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                                    <table style={{ width: '100%', fontSize: 12 }}>
+                                        <thead>
+                                            <tr style={{ background: '#F9FAFB', position: 'sticky', top: 0 }}>
+                                                <th style={{ padding: 6, textAlign: 'left' }}>Date</th>
+                                                <th style={{ padding: 6, textAlign: 'left' }}>Invoice</th>
+                                                <th style={{ padding: 6, textAlign: 'left' }}>Customer</th>
+                                                <th style={{ padding: 6, textAlign: 'right' }}>Amount</th>
+                                                <th style={{ padding: 6, textAlign: 'left' }}>Method</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {stats.recentPayments.slice(0, 30).map((p, i) => (
+                                                <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                                                    <td style={{ padding: 6 }}>{p.date}</td>
+                                                    <td style={{ padding: 6, fontFamily: 'monospace', fontSize: 11 }}>{p.invoiceNumber}</td>
+                                                    <td style={{ padding: 6 }}>{p.customerName}</td>
+                                                    <td style={{ padding: 6, textAlign: 'right', fontWeight: 600, color: '#10B981' }}>{formatCurrency(p.amount)}</td>
+                                                    <td style={{ padding: 6 }}>{p.method}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // ============ MAIN APP ============
         const App = () => {
             const [page, setPage] = useState('dashboard');
@@ -11112,6 +11504,7 @@ ${componentResults.map(c => {
                     case 'brochures': return <BrochureManager products={products} />;
                     case 'brands': return <BrandManager onBrandsChanged={() => setCustomBrandsVersion(v => v + 1)} />;
                     case 'recovery': return <DataRecovery items={items} setItems={setItems} />;
+                    case 'analytics': return <PaymentAnalytics quotations={quotations} />;
                     default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                 }
             };
@@ -11254,6 +11647,9 @@ ${componentResults.map(c => {
                                     </div>
                                     <div className={`nav-item ${page === 'brands' ? 'active' : ''}`} onClick={() => navigate('brands')}>
                                         <Icons.Box /> Brands
+                                    </div>
+                                    <div className={`nav-item ${page === 'analytics' ? 'active' : ''}`} onClick={() => navigate('analytics')}>
+                                        <Icons.Dashboard /> Payment Analytics
                                     </div>
                                     <div className={`nav-item ${page === 'recovery' ? 'active' : ''}`} onClick={() => navigate('recovery')}>
                                         <Icons.AlertTriangle /> Data Recovery
