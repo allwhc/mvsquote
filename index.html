@@ -5586,11 +5586,39 @@
                                                     {doc.type === 'invoice' ? (() => {
                                                         const ps = getPaymentStatus(doc);
                                                         const c = paymentStatusColor(ps.status);
+                                                        const handleStatusChange = (action) => {
+                                                            if (!action) return;
+                                                            if (action === 'paid') {
+                                                                // Open detail modal with payment form prefilled to full due amount
+                                                                setSelectedDoc(doc);
+                                                                setPaymentForm({ amount: ps.due > 0 ? ps.due.toString() : ps.total.toString(), date: new Date().toISOString().split('T')[0], method: 'UPI', reference: '', notes: 'Full payment' });
+                                                                setShowPaymentForm(true);
+                                                                setShowModal(true);
+                                                            } else if (action === 'partial') {
+                                                                setSelectedDoc(doc);
+                                                                setPaymentForm({ amount: '', date: new Date().toISOString().split('T')[0], method: 'UPI', reference: '', notes: 'Partial payment' });
+                                                                setShowPaymentForm(true);
+                                                                setShowModal(true);
+                                                            } else if (action === 'unpaid') {
+                                                                if (!confirm(`Mark ${doc.number} as Unpaid? This will delete all ${(doc.payments || []).length} recorded payment(s).`)) return;
+                                                                FirebaseQuotations.updateQuotation(doc.firebaseId, { payments: [] }).then(ok => {
+                                                                    if (!ok) { alert('Failed to update'); return; }
+                                                                    setQuotations(quotations.map(q => q.firebaseId === doc.firebaseId ? { ...q, payments: [] } : q));
+                                                                });
+                                                            }
+                                                        };
                                                         return (
-                                                            <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: c.bg, color: c.text, whiteSpace: 'nowrap' }}>
-                                                                {c.label}
-                                                                {ps.status === 'partial' && <span style={{ fontWeight: 400 }}> · ₹{Math.round(ps.paid).toLocaleString('en-IN')}/{Math.round(ps.total).toLocaleString('en-IN')}</span>}
-                                                            </span>
+                                                            <select
+                                                                value=""
+                                                                onChange={e => handleStatusChange(e.target.value)}
+                                                                style={{ padding: '3px 6px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: c.bg, color: c.text, border: `1px solid ${c.bg}`, cursor: 'pointer', whiteSpace: 'nowrap', minWidth: 100 }}
+                                                                title={ps.status === 'partial' ? `Paid: ${formatCurrency(ps.paid)} / Total: ${formatCurrency(ps.total)}` : ''}
+                                                            >
+                                                                <option value="" disabled hidden>{c.label}{ps.status === 'partial' ? ` · ${formatCurrency(ps.paid)}/${formatCurrency(ps.total)}` : ''}</option>
+                                                                <option value="paid">Mark Paid (full {formatCurrency(ps.due > 0 ? ps.due : ps.total)})</option>
+                                                                <option value="partial">Mark Partial...</option>
+                                                                <option value="unpaid">Mark Unpaid (clear all)</option>
+                                                            </select>
                                                         );
                                                     })() : <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>}
                                                 </td>
@@ -5867,9 +5895,27 @@
 
                     {selectedForLabels.length > 0 && (
                         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--primary)', color: 'white', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1000, boxShadow: '0 -2px 10px rgba(0,0,0,0.2)' }}>
-                            <span>{selectedForLabels.length} invoice(s) selected</span>
+                            <span>{selectedForLabels.length} document(s) selected</span>
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 <button className="btn" style={{ background: 'white', color: 'var(--primary)' }} onClick={printLabels}>Print Labels</button>
+                                <button className="btn" style={{ background: '#EF4444', color: 'white' }} onClick={async () => {
+                                    const pwd = prompt(`Enter admin password to delete ${selectedForLabels.length} document(s):`);
+                                    if (!pwd) return;
+                                    if (pwd !== 'admin123') { alert('Incorrect password.'); return; }
+                                    if (!confirm(`Permanently delete ${selectedForLabels.length} document(s)? This cannot be undone.`)) return;
+                                    const ids = new Set(selectedForLabels.map(d => d.id));
+                                    let failures = 0;
+                                    for (const sd of selectedForLabels) {
+                                        if (sd.firebaseId) {
+                                            try { await FirebaseQuotations.deleteQuotation(sd.firebaseId); }
+                                            catch(e) { console.error('Delete failed for', sd.number, e); failures++; }
+                                        }
+                                    }
+                                    setQuotations(quotations.filter(q => !ids.has(q.id)));
+                                    setSelectedForLabels([]);
+                                    if (failures > 0) alert(`${failures} document(s) failed to delete from cloud. They may still appear after refresh.`);
+                                    else alert(`Deleted ${ids.size} document(s).`);
+                                }}>🗑 Delete Selected</button>
                                 <button className="btn" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }} onClick={() => setSelectedForLabels([])}>Clear</button>
                             </div>
                         </div>
