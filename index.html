@@ -1604,13 +1604,40 @@
             try {
                 const res = await fetch(url);
                 const blob = await res.blob();
-                return await new Promise((resolve, reject) => {
+                const dataUrl = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onloadend = () => resolve(reader.result);
                     reader.onerror = reject;
                     reader.readAsDataURL(blob);
                 });
+                // Also load to determine natural dimensions for aspect-fit drawing
+                const dims = await new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+                    img.onerror = () => resolve({ w: 1, h: 1 });
+                    img.src = dataUrl;
+                });
+                return { dataUrl, width: dims.w, height: dims.h };
             } catch(e) { console.error('Failed to fetch image:', url, e); return null; }
+        };
+
+        // Compute aspect-fit position+size given a target box (boxX, boxY, boxW, boxH)
+        // Returns { x, y, w, h } centered within the box, preserving the image's natural aspect ratio.
+        const aspectFit = (img, boxX, boxY, boxW, boxH) => {
+            if (!img || !img.width || !img.height) return { x: boxX, y: boxY, w: boxW, h: boxH };
+            const imgRatio = img.width / img.height;
+            const boxRatio = boxW / boxH;
+            let w, h;
+            if (imgRatio > boxRatio) {
+                // image is wider than box → fit to width
+                w = boxW; h = boxW / imgRatio;
+            } else {
+                // image is taller (or square) than box → fit to height
+                h = boxH; w = boxH * imgRatio;
+            }
+            const x = boxX + (boxW - w) / 2;
+            const y = boxY + (boxH - h) / 2;
+            return { x, y, w, h };
         };
 
         // ============ FIREBASE BRANDS HELPERS (custom sub-brands) ============
@@ -9979,7 +10006,7 @@ ${componentResults.map(c => {
                         page: 'Page'
                     };
 
-                    // Preload all images
+                    // Preload all images (returns { dataUrl, width, height } or null)
                     setPdfProgress('Downloading images...');
                     const imageCache = {};
                     const allImageUrls = [brochure.coverImage, ...brochure.products.flatMap(p => [p.heroImage, ...(p.galleryImages || [])])].filter(Boolean);
@@ -9989,12 +10016,31 @@ ${componentResults.map(c => {
                         }
                     }
 
+                    // Measure brand logo dimensions for aspect-fit (logo is a data URL string)
+                    let logoMeta = null;
+                    if (brand.logo) {
+                        try {
+                            const dims = await new Promise((resolve) => {
+                                const img = new Image();
+                                img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+                                img.onerror = () => resolve(null);
+                                img.src = brand.logo;
+                            });
+                            if (dims) logoMeta = { dataUrl: brand.logo, width: dims.w, height: dims.h };
+                        } catch(e) {}
+                    }
+
                     // --- COVER PAGE ---
                     setPdfProgress('Building cover...');
                     pdf.setFillColor(...brandColor);
                     pdf.rect(0, 0, 210, 90, 'F');
 
-                    if (brand.logo) {
+                    if (logoMeta) {
+                        // Aspect-fit logo into a 40x40 box centered at top
+                        const fit = aspectFit(logoMeta, 85, 15, 40, 40);
+                        try { pdf.addImage(logoMeta.dataUrl, 'PNG', fit.x, fit.y, fit.w, fit.h); } catch(e) {}
+                    } else if (brand.logo) {
+                        // Fallback: render at fixed size if dimensions could not be measured
                         try { pdf.addImage(brand.logo, 'PNG', 85, 15, 40, 40); } catch(e) {}
                     }
                     pdf.setTextColor(255);
@@ -10006,9 +10052,11 @@ ${componentResults.map(c => {
                     pdf.setFontSize(12);
                     if (brand.tagline) pdf.text(brand.tagline, 105, 80, { align: 'center' });
 
-                    // Cover image
+                    // Cover image — aspect-fit into 180x100 box at (15, 100)
                     if (brochure.coverImage && imageCache[brochure.coverImage]) {
-                        try { pdf.addImage(imageCache[brochure.coverImage], 'JPEG', 15, 100, 180, 100, '', 'FAST'); } catch(e) {}
+                        const cm = imageCache[brochure.coverImage];
+                        const fit = aspectFit(cm, 15, 100, 180, 100);
+                        try { pdf.addImage(cm.dataUrl, 'JPEG', fit.x, fit.y, fit.w, fit.h, '', 'FAST'); } catch(e) {}
                     }
 
                     // Cover title (uses brochure's cover title which may be in English — kept as is)
@@ -10062,12 +10110,14 @@ ${componentResults.map(c => {
                         if (isHi) renderMixed(`${L.page} ${i + 2}`, 195, 8, { align: 'right' });
                         else pdf.text(`${L.page} ${i + 2}`, 195, 8, { align: 'right' });
 
-                        // Hero image
+                        // Hero image — aspect-fit into 180x70 box at (15, 20)
                         let imgHeight = 0;
                         if (p.heroImage && imageCache[p.heroImage]) {
+                            const hm = imageCache[p.heroImage];
+                            const fit = aspectFit(hm, 15, 20, 180, 70);
                             try {
-                                pdf.addImage(imageCache[p.heroImage], 'JPEG', 15, 20, 180, 70, '', 'FAST');
-                                imgHeight = 70;
+                                pdf.addImage(hm.dataUrl, 'JPEG', fit.x, fit.y, fit.w, fit.h, '', 'FAST');
+                                imgHeight = 70; // keep slot height fixed so layout below doesn't shift
                             } catch(e) {}
                         }
 
@@ -10171,7 +10221,9 @@ ${componentResults.map(c => {
                             let x = 15;
                             for (const gImg of p.galleryImages) {
                                 if (imageCache[gImg]) {
-                                    try { pdf.addImage(imageCache[gImg], 'JPEG', x, y, thumbSize, thumbSize, '', 'FAST'); } catch(e) {}
+                                    const gm = imageCache[gImg];
+                                    const fit = aspectFit(gm, x, y, thumbSize, thumbSize);
+                                    try { pdf.addImage(gm.dataUrl, 'JPEG', fit.x, fit.y, fit.w, fit.h, '', 'FAST'); } catch(e) {}
                                 }
                                 x += thumbSize + gap;
                                 if (x + thumbSize > 195) { x = 15; y += thumbSize + gap; }
@@ -10187,7 +10239,9 @@ ${componentResults.map(c => {
                             pdf.setTextColor(255);
                             setTextFont('bold');
                             pdf.setFontSize(12);
-                            const priceText = sanitizeForPdf(p.priceDisplay);
+                            // Append "/-" if not already present (Indian convention for prices)
+                            let priceText = sanitizeForPdf(p.priceDisplay);
+                            if (priceText && !/\/-\s*$/.test(priceText)) priceText = priceText.replace(/\s*$/, '') + '/-';
                             if (isHi) renderMixed(priceText, 105, y + 7, { align: 'center' });
                             else pdf.text(priceText, 105, y + 7, { align: 'center' });
                         }
