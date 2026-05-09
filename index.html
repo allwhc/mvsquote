@@ -4948,7 +4948,7 @@
         };
 
         // ============ SAVED DOCUMENTS ============
-        const SavedDocuments = ({ quotations, setQuotations, products, items, bom, subProducts, setEditingDoc, navigate }) => {
+        const SavedDocuments = ({ quotations, setQuotations, products, items, bom, subProducts, setEditingDoc, navigate, setPendingEnquiryDraft }) => {
             const [selectedDoc, setSelectedDoc] = useState(null);
             const [showModal, setShowModal] = useState(false);
             const [selectedForLabels, setSelectedForLabels] = useState([]);
@@ -5017,6 +5017,38 @@
                 if (pwd !== 'admin123') { alert('Incorrect password.'); return; }
                 setEditingDoc(doc);
                 navigate('quotation');
+            };
+
+            // Convert a saved doc into an enquiry — prefills the Enquiry form so user can review/add fields.
+            const convertToEnquiry = (doc) => {
+                if (!doc) return;
+                const isInvoice = doc.type === 'invoice';
+                const status = isInvoice
+                    ? ((calcPaidAmount(doc) >= (doc.grandTotal || 0)) ? 'Paid' : 'Invoice Sent')
+                    : 'Quote Sent';
+                const productNames = (doc.items || []).map(it => it.name).filter(Boolean).slice(0, 5).join(', ');
+                const draft = {
+                    customerName: doc.customer?.name || '',
+                    phone: doc.customer?.phone || '',
+                    email: (doc.customer?.email && doc.customer.email !== 'N/A') ? doc.customer.email : '',
+                    company: '',
+                    location: doc.customer?.placeOfSupply || '',
+                    source: 'Walk-in',
+                    brand: doc.brand || 'SenseFlow',
+                    status,
+                    priority: 'Warm',
+                    productsInterested: productNames,
+                    customization: '',
+                    assignedTo: '',
+                    nextFollowUp: '',
+                    expectedValue: doc.grandTotal ? String(doc.grandTotal) : '',
+                    quotationId: isInvoice ? '' : (doc.number || ''),
+                    invoiceId: isInvoice ? (doc.number || '') : '',
+                    notes: `Converted from ${isInvoice ? 'Invoice' : 'Quotation'} ${doc.number || ''} dated ${new Date(doc.date).toLocaleDateString('en-IN')}`,
+                    additionalContacts: []
+                };
+                setPendingEnquiryDraft(draft);
+                navigate('enquiries');
             };
 
             const updateStatus = async (id, newStatus) => {
@@ -5670,6 +5702,9 @@
                                                     <button className="btn btn-secondary btn-sm btn-icon" onClick={() => editDocument(doc)} title="Edit">
                                                         <Icons.Edit />
                                                     </button>
+                                                    <button className="btn btn-secondary btn-sm btn-icon" onClick={() => convertToEnquiry(doc)} title="Convert to Enquiry" style={{ background: '#EDE9FE', color: '#6D28D9' }}>
+                                                        <Icons.Enquiry />
+                                                    </button>
                                                     <button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteDocument(doc.id)} title="Delete">
                                                         <Icons.Trash />
                                                     </button>
@@ -5713,6 +5748,9 @@
                                         window.open(`https://mail.google.com/mail/?authuser=senseflow.in@gmail.com&view=cm&fs=1&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}${ccParam}`, '_blank');
                                     }} style={{ background: '#EA4335', color: 'white' }}>
                                         ✉ Send via Gmail
+                                </button>
+                                <button className="btn" onClick={() => { setShowModal(false); convertToEnquiry(selectedDoc); }} style={{ background: '#8B5CF6', color: 'white' }}>
+                                    📥 Convert to Enquiry
                                 </button>
                             </>
                         }
@@ -9035,7 +9073,7 @@ ${componentResults.map(c => {
         };
 
         // ============ ENQUIRY TRACKER COMPONENT ============
-        const EnquiryTracker = ({ products, navigate, setEditingDoc }) => {
+        const EnquiryTracker = ({ products, navigate, setEditingDoc, pendingDraft, setPendingDraft }) => {
             const [enquiries, setEnquiries] = useState([]);
             const [loading, setLoading] = useState(true);
             const [view, setView] = useState('list'); // list, form, detail
@@ -9074,6 +9112,46 @@ ${componentResults.map(c => {
             };
 
             useEffect(() => { loadData(); }, []);
+
+            // Consume pendingDraft from parent (set when "Convert to Enquiry" is clicked
+            // on a saved document). If a matching enquiry already exists, we edit it; else
+            // we open a new pre-filled form.
+            useEffect(() => {
+                if (!pendingDraft) return;
+                (async () => {
+                    const all = await FirebaseEnquiries.getAll();
+                    setEnquiries(all);
+                    const match = all.find(e => {
+                        if (pendingDraft.quotationId && e.quotationId === pendingDraft.quotationId) return true;
+                        if (pendingDraft.invoiceId && e.invoiceId === pendingDraft.invoiceId) return true;
+                        return false;
+                    });
+                    if (match) {
+                        const update = confirm(`An enquiry for "${match.customerName}" already exists for this document. Update existing enquiry instead of creating a new one?`);
+                        if (update) {
+                            // Open existing for edit, but merge new fields from draft (only if existing is empty)
+                            const merged = { ...match };
+                            ['customerName','phone','email','company','location','brand','expectedValue'].forEach(k => {
+                                if (!merged[k] && pendingDraft[k]) merged[k] = pendingDraft[k];
+                            });
+                            // Always update IDs so they link properly
+                            if (pendingDraft.quotationId) merged.quotationId = pendingDraft.quotationId;
+                            if (pendingDraft.invoiceId) merged.invoiceId = pendingDraft.invoiceId;
+                            handleEdit(merged);
+                        } else {
+                            // Create new anyway
+                            setForm({ ...emptyForm, ...pendingDraft });
+                            setEditingId(null);
+                            setView('form');
+                        }
+                    } else {
+                        setForm({ ...emptyForm, ...pendingDraft });
+                        setEditingId(null);
+                        setView('form');
+                    }
+                    setPendingDraft(null);
+                })();
+            }, [pendingDraft]);
 
             const handleSubmit = async () => {
                 if (!form.customerName.trim()) return alert('Customer name is required');
@@ -11079,6 +11157,9 @@ ${componentResults.map(c => {
             // Editing document state (for edit feature)
             const [editingDoc, setEditingDoc] = useState(null);
 
+            // Enquiry draft (set when converting a saved doc -> enquiry; consumed by EnquiryTracker)
+            const [pendingEnquiryDraft, setPendingEnquiryDraft] = useState(null);
+
             // Enquiry overdue badge count
             const [overdueEnquiries, setOverdueEnquiries] = useState(0);
             useEffect(() => {
@@ -11594,13 +11675,13 @@ ${componentResults.map(c => {
                     case 'items': return <ItemsMaster items={items} setItems={setItems} refreshFromFirebase={refreshFromFirebase} refreshing={refreshing} />;
                     case 'products': return <ProductsPage products={products} setProducts={setProducts} items={items} bom={bom} setBom={setBom} subProducts={subProducts} setSubProducts={setSubProducts} refreshFromFirebase={refreshFromFirebase} refreshing={refreshing} />;
                     case 'quotation': return <QuotationBuilder products={products} items={items} quotations={quotations} setQuotations={setQuotations} bom={bom} subProducts={subProducts} editingDoc={editingDoc} setEditingDoc={setEditingDoc} />;
-                    case 'documents': return <SavedDocuments quotations={quotations} setQuotations={setQuotations} products={products} items={items} bom={bom} subProducts={subProducts} setEditingDoc={setEditingDoc} navigate={navigate} />;
+                    case 'documents': return <SavedDocuments quotations={quotations} setQuotations={setQuotations} products={products} items={items} bom={bom} subProducts={subProducts} setEditingDoc={setEditingDoc} navigate={navigate} setPendingEnquiryDraft={setPendingEnquiryDraft} />;
                     case 'estimator': return <ComponentEstimator products={products} items={items} bom={bom} subProducts={subProducts} />;
                     case 'inventory': return <InventoryManagement items={items} products={products} bom={bom} subProducts={subProducts} />;
                     case 'inspection': return <SiteInspection products={products} />;
                     case 'tasks': return <TeamTasks />;
                     case 'projects': return <Projects />;
-                    case 'enquiries': return <EnquiryTracker products={products} navigate={navigate} setEditingDoc={setEditingDoc} />;
+                    case 'enquiries': return <EnquiryTracker products={products} navigate={navigate} setEditingDoc={setEditingDoc} pendingDraft={pendingEnquiryDraft} setPendingDraft={setPendingEnquiryDraft} />;
                     case 'brochures': return <BrochureManager products={products} />;
                     case 'brands': return <BrandManager onBrandsChanged={() => setCustomBrandsVersion(v => v + 1)} />;
                     case 'recovery': return <DataRecovery items={items} setItems={setItems} />;
