@@ -7014,6 +7014,20 @@ ${componentResults.map(c => {
 
         const INSP_DRAFT_KEY = 'mvs_inspection_draft';
 
+        // Fixed 8-section template for the simplified Site Notes step.
+        // Tech can skip any section. Notes is free text. Photos uploaded per section.
+        const SECTION_TEMPLATES = [
+            { key: 'oht', title: 'Overhead Tanks (OHT)', prompt: 'e.g., count, capacity, material, height, location, age, leaks' },
+            { key: 'ugt', title: 'Underground Tanks (UGT)', prompt: 'e.g., count, capacity, material, access, ventilation, condition' },
+            { key: 'monitoring', title: 'Tanks Needing Monitoring & Type', prompt: 'which tanks to monitor, sensor type (DIP / Ultrasonic), level / flow / quality' },
+            { key: 'pumps', title: 'Pump Control', prompt: 'pump count, phase (1Φ/3Φ), HP, type (submersible/surface), panel type, automation needs' },
+            { key: 'valves', title: 'Valves — Type, Pipe Material, Control', prompt: 'valve count & type (ball / gate / solenoid), pipe material (plastic / GI / CPVC), pipe size, control mode' },
+            { key: 'flowmeter', title: 'Flowmeter Requirements', prompt: 'count, pipe size, location, type of flow measurement, integration with pump/valve control' },
+            { key: 'connectivity', title: 'Connectivity — Cloud / On-premises, WiFi, Internet', prompt: 'cloud needed?, on-premises only?, WiFi coverage, RS-485 wiring feasible, mobile signal strength' },
+            { key: 'other', title: 'Other Site Notes', prompt: 'anything else worth noting — solar setup, terrace access, civil work needed, safety concerns' }
+        ];
+        const emptySection = (key, title) => ({ key, title, notes: '', photos: [] });
+
         const SiteInspection = ({ products }) => {
             const [view, setView] = useState('list'); // 'list' | 'form' | 'detail'
             const [inspections, setInspections] = useState([]);
@@ -7025,33 +7039,19 @@ ${componentResults.map(c => {
 
             // Form state
             const emptyForm = () => ({
+                _formVersion: 2,
                 photoFolderId: 'draft_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
                 customerName: '', contactPerson: '', phone: '',
                 gps: null, address: '',
                 propertyType: '', numBuildings: '', numFloors: '',
                 customerNotes: '',
-                tanks: [emptyTank()],
-                tanksInterconnected: 'No', tanksInterconnectedNotes: '',
-                tanksNotes: '',
-                clustered: 'Clustered (<50m)',
-                power: 'Yes', wifi: 'Yes', wifiNotes: '',
-                rs485Wiring: 'Yes', rs485Notes: '',
-                controlRoomDistance: '',
-                siteConditionPhotos: [],
-                siteExtraDetails: '',
-                siteNotes: '',
-                pumps: [],
-                pumpsNotes: '',
-                monitoring: ['Water Level'],
-                alerts: ['Overflow', 'Low Level'],
-                cloudMonitoring: 'Yes', cloudMonitoringNotes: '',
-                valveControl: false, valveControlDesc: '', valves: [],
-                flowmeterRequired: false, flowmeters: [],
-                submersiblePumpControl: false, submersiblePumpDesc: '',
-                singlePhaseMotorControl: false, singlePhaseMotorDesc: '',
-                pumpAutomation: 'No', pumpCount: '',
-                monitoringNotes: '',
+                sitePhotos: [],
+                // New: free-text sections (fixed 8)
+                sections: SECTION_TEMPLATES.map(t => emptySection(t.key, t.title)),
+                // Recommendations
                 suggestedProducts: [],
+                buildingTechnician: '', buildingTechnicianPhone: '',
+                onSiteContactName: '', onSiteContactPhone: '',
                 notes: '',
                 nextAction: '', nextFollowupDate: '',
                 referenceSource: '',
@@ -7081,14 +7081,21 @@ ${componentResults.map(c => {
             const startNewInspection = () => {
                 if (hasDraft()) {
                     const draft = loadDraft();
-                    const name = draft?.customerName || 'unnamed';
-                    const savedAt = draft?._draftSavedAt ? new Date(draft._draftSavedAt).toLocaleTimeString() : '';
-                    const resume = confirm(`You have a saved draft for "${name}" (saved at ${savedAt}).\n\nTap OK to resume draft, or Cancel to start fresh.`);
-                    if (resume) {
-                        setForm(draft);
-                    } else {
+                    // Discard drafts from older form versions — structure changed
+                    if (!draft || draft._formVersion !== 2) {
+                        alert('A draft from an older inspection form was discarded — the form structure has changed. Please start fresh.');
                         clearDraft();
                         setForm(emptyForm());
+                    } else {
+                        const name = draft.customerName || 'unnamed';
+                        const savedAt = draft._draftSavedAt ? new Date(draft._draftSavedAt).toLocaleTimeString() : '';
+                        const resume = confirm(`You have a saved draft for "${name}" (saved at ${savedAt}).\n\nTap OK to resume draft, or Cancel to start fresh.`);
+                        if (resume) {
+                            setForm(draft);
+                        } else {
+                            clearDraft();
+                            setForm(emptyForm());
+                        }
                     }
                 } else {
                     setForm(emptyForm());
@@ -7178,14 +7185,18 @@ ${componentResults.map(c => {
                 input.click();
             };
 
-            // Helper to find and patch a photo record across all photo arrays in the form
+            // Helper to find and patch a photo record across all photo arrays in the form.
+            // Patches photos in:
+            //   - new format: f.sections[*].photos
+            //   - legacy format (in case an old inspection is somehow loaded): siteConditionPhotos/sitePhotos/tanks[*].photos
             const patchPhoto = (f, filename, takenAt, patch) => {
                 const matches = (p) => p.filename === filename && p.takenAt === takenAt;
                 const patchArr = (arr) => (arr || []).map(p => matches(p) ? { ...p, ...patch } : p);
                 return {
                     ...f,
-                    siteConditionPhotos: patchArr(f.siteConditionPhotos),
+                    sections: (f.sections || []).map(s => ({ ...s, photos: patchArr(s.photos) })),
                     sitePhotos: patchArr(f.sitePhotos),
+                    siteConditionPhotos: patchArr(f.siteConditionPhotos),
                     tanks: (f.tanks || []).map(t => ({ ...t, photos: patchArr(t.photos) }))
                 };
             };
@@ -7228,8 +7239,9 @@ ${componentResults.map(c => {
                 if (!form.customerName || !form.inspectedBy) { alert('Customer name and Inspected By are required.'); return; }
                 // Check if any photos still uploading
                 const allPhotos = [
-                    ...(form.siteConditionPhotos || []),
+                    ...((form.sections || []).flatMap(s => s.photos || [])),
                     ...(form.sitePhotos || []),
+                    ...(form.siteConditionPhotos || []),
                     ...((form.tanks || []).flatMap(t => t.photos || []))
                 ];
                 const uploading = allPhotos.filter(p => p.uploading).length;
@@ -7271,7 +7283,7 @@ ${componentResults.map(c => {
             const statusLabel = s => ({ pending_quote: 'Pending Quote', quoted: 'Quoted', closed: 'Closed' }[s] || s);
             const statusClass = s => ({ pending_quote: 'insp-status-pending', quoted: 'insp-status-quoted', closed: 'insp-status-closed' }[s] || '');
 
-            const STEPS = ['Customer', 'Tanks', 'Site', 'Pumps', 'Monitoring', 'Recommend'];
+            const STEPS = ['Customer', 'Site Notes', 'Recommend'];
 
             // ---- RENDER: LIST ----
             if (view === 'list') return (
@@ -7385,57 +7397,94 @@ ${componentResults.map(c => {
                             </div>
                         </div>
 
-                        {/* Site Conditions */}
-                        <div className="card">
-                            <div className="card-header"><h3 className="card-title">Site Conditions</h3></div>
-                            <div className="card-body" style={{ fontSize: '14px' }}>
-                                <div><strong>Tank Layout:</strong> {selectedInsp.clustered}</div>
-                                <div><strong>Power Available:</strong> {selectedInsp.power}</div>
-                                <div><strong>WiFi Available:</strong> {selectedInsp.wifi}</div>
-                                <div><strong>Control Room Distance:</strong> {selectedInsp.controlRoomDistance ? selectedInsp.controlRoomDistance + ' meters' : '—'}</div>
-                                <div><strong>Pump Automation:</strong> {selectedInsp.pumpAutomation}{selectedInsp.pumpCount ? ` (${selectedInsp.pumpCount} pumps)` : ''}</div>
+                        {/* Site Notes (new format) */}
+                        {selectedInsp._formVersion === 2 && selectedInsp.sections && (
+                            <div className="card" style={{ gridColumn: '1 / -1' }}>
+                                <div className="card-header"><h3 className="card-title">Site Notes</h3></div>
+                                <div className="card-body">
+                                    {(selectedInsp.sections || []).filter(s => (s.notes && s.notes.trim()) || (s.photos && s.photos.length > 0)).map((s, idx) => (
+                                        <div key={s.key || idx} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                                            <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: 6 }}>{s.title || s.key}</div>
+                                            {s.notes && <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, marginBottom: 6 }}>{s.notes}</div>}
+                                            {(s.photos || []).length > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>📷 {s.photos.length} photo(s)</div>}
+                                        </div>
+                                    ))}
+                                    {(selectedInsp.sections || []).every(s => !((s.notes && s.notes.trim()) || (s.photos && s.photos.length > 0))) && (
+                                        <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No site notes added.</div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        {/* Tanks */}
-                        <div className="card" style={{ gridColumn: '1 / -1' }}>
-                            <div className="card-header"><h3 className="card-title">Tanks ({selectedInsp.tanks?.length || 0})</h3></div>
-                            <div className="table-container">
-                                <table>
-                                    <thead><tr><th>Label</th><th>Type</th><th>Material</th><th>H/D (ft)</th><th>Capacity</th><th>Wire Routing</th><th>Notes</th><th>Photos</th></tr></thead>
-                                    <tbody>
-                                        {(selectedInsp.tanks || []).map((t, i) => (
-                                            <tr key={i}>
-                                                <td><strong>{t.label || `Tank ${i+1}`}</strong></td>
-                                                <td>{t.type}</td>
-                                                <td>{t.material}</td>
-                                                <td>{t.height || '—'}</td>
-                                                <td>{t.capacity ? Number(t.capacity).toLocaleString() + ' L' : '—'}</td>
-                                                <td>{t.wireRouting || '—'}</td>
-                                                <td>{t.wireNotes || '—'}</td>
-                                                <td>{t.photos?.length > 0 ? <span style={{ color: 'var(--success)' }}>📷 {t.photos.length}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        {/* Site Conditions (legacy — only for old inspections) */}
+                        {!selectedInsp.sections && (selectedInsp.clustered || selectedInsp.power || selectedInsp.wifi) && (
+                            <div className="card">
+                                <div className="card-header"><h3 className="card-title">Site Conditions</h3></div>
+                                <div className="card-body" style={{ fontSize: '14px' }}>
+                                    <div><strong>Tank Layout:</strong> {selectedInsp.clustered}</div>
+                                    <div><strong>Power Available:</strong> {selectedInsp.power}</div>
+                                    <div><strong>WiFi Available:</strong> {selectedInsp.wifi}</div>
+                                    <div><strong>Control Room Distance:</strong> {selectedInsp.controlRoomDistance ? selectedInsp.controlRoomDistance + ' meters' : '—'}</div>
+                                    <div><strong>Pump Automation:</strong> {selectedInsp.pumpAutomation}{selectedInsp.pumpCount ? ` (${selectedInsp.pumpCount} pumps)` : ''}</div>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        {/* Requirements */}
-                        <div className="card">
-                            <div className="card-header"><h3 className="card-title">Requirements</h3></div>
-                            <div className="card-body" style={{ fontSize: '14px' }}>
-                                <div><strong>Monitor:</strong> {selectedInsp.monitoring?.join(', ') || '—'}</div>
-                                <div style={{ marginTop: '6px' }}><strong>Alerts:</strong> {selectedInsp.alerts?.join(', ') || '—'}</div>
-                                {selectedInsp.valveControl && <div style={{ marginTop: '6px' }}><strong>Valve Control:</strong> {selectedInsp.valveControlDesc || 'Yes'}</div>}
-                                {selectedInsp.submersiblePumpControl && <div style={{ marginTop: '6px' }}><strong>Submersible Pump:</strong> {selectedInsp.submersiblePumpDesc || 'Yes'}</div>}
-                                {selectedInsp.singlePhaseMotorControl && <div style={{ marginTop: '6px' }}><strong>Single Phase Motor:</strong> {selectedInsp.singlePhaseMotorDesc || 'Yes'}</div>}
+                        {/* Tanks (legacy) */}
+                        {!selectedInsp.sections && selectedInsp.tanks && selectedInsp.tanks.length > 0 && (
+                            <div className="card" style={{ gridColumn: '1 / -1' }}>
+                                <div className="card-header"><h3 className="card-title">Tanks ({selectedInsp.tanks?.length || 0})</h3></div>
+                                <div className="table-container">
+                                    <table>
+                                        <thead><tr><th>Label</th><th>Type</th><th>Material</th><th>H/D (ft)</th><th>Capacity</th><th>Wire Routing</th><th>Notes</th><th>Photos</th></tr></thead>
+                                        <tbody>
+                                            {(selectedInsp.tanks || []).map((t, i) => (
+                                                <tr key={i}>
+                                                    <td><strong>{t.label || `Tank ${i+1}`}</strong></td>
+                                                    <td>{t.type}</td>
+                                                    <td>{t.material}</td>
+                                                    <td>{t.height || '—'}</td>
+                                                    <td>{t.capacity ? Number(t.capacity).toLocaleString() + ' L' : '—'}</td>
+                                                    <td>{t.wireRouting || '—'}</td>
+                                                    <td>{t.wireNotes || '—'}</td>
+                                                    <td>{t.photos?.length > 0 ? <span style={{ color: 'var(--success)' }}>📷 {t.photos.length}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* Requirements (legacy) */}
+                        {!selectedInsp.sections && (selectedInsp.monitoring || selectedInsp.alerts || selectedInsp.valveControl) && (
+                            <div className="card">
+                                <div className="card-header"><h3 className="card-title">Requirements</h3></div>
+                                <div className="card-body" style={{ fontSize: '14px' }}>
+                                    <div><strong>Monitor:</strong> {selectedInsp.monitoring?.join(', ') || '—'}</div>
+                                    <div style={{ marginTop: '6px' }}><strong>Alerts:</strong> {selectedInsp.alerts?.join(', ') || '—'}</div>
+                                    {selectedInsp.valveControl && <div style={{ marginTop: '6px' }}><strong>Valve Control:</strong> {selectedInsp.valveControlDesc || 'Yes'}</div>}
+                                    {selectedInsp.submersiblePumpControl && <div style={{ marginTop: '6px' }}><strong>Submersible Pump:</strong> {selectedInsp.submersiblePumpDesc || 'Yes'}</div>}
+                                    {selectedInsp.singlePhaseMotorControl && <div style={{ marginTop: '6px' }}><strong>Single Phase Motor:</strong> {selectedInsp.singlePhaseMotorDesc || 'Yes'}</div>}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Contact people (new format) */}
+                        {selectedInsp._formVersion === 2 && (selectedInsp.onSiteContactName || selectedInsp.buildingTechnician) && (
+                            <div className="card">
+                                <div className="card-header"><h3 className="card-title">On-site Contacts</h3></div>
+                                <div className="card-body" style={{ fontSize: 14 }}>
+                                    {selectedInsp.onSiteContactName && <div><strong>Met:</strong> {selectedInsp.onSiteContactName}{selectedInsp.onSiteContactPhone ? ` (${selectedInsp.onSiteContactPhone})` : ''}</div>}
+                                    {selectedInsp.buildingTechnician && <div style={{ marginTop: 6 }}><strong>Building Technician:</strong> {selectedInsp.buildingTechnician}{selectedInsp.buildingTechnicianPhone ? ` (${selectedInsp.buildingTechnicianPhone})` : ''}</div>}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Photos Gallery */}
                         {(() => {
                             const allPhotos = [
+                                ...((selectedInsp.sections || []).flatMap(s => (s.photos || []).map(p => ({ ...p, section: s.title || s.key })))),
                                 ...(selectedInsp.siteConditionPhotos || []).map(p => ({ ...p, section: 'Site Condition' })),
                                 ...(selectedInsp.sitePhotos || []).map(p => ({ ...p, section: 'Site' })),
                                 ...(selectedInsp.tanks || []).flatMap((t, ti) => (t.photos || []).map(p => ({ ...p, section: `${t.label || `Tank ${ti+1}`}` })))
@@ -7610,447 +7659,80 @@ ${componentResults.map(c => {
                             </div>
                         )}
 
-                        {/* STEP 1: Tanks */}
+                        {/* STEP 1: Site Notes (free-text per fixed 8 sections) */}
                         {step === 1 && (
                             <div>
-                                <div className="form-group">
-                                    <label className="form-label">Property Type</label>
-                                    <div className="checklist-row">
-                                        {['Housing Society', 'Bungalow', 'Building', 'Chawl', 'Industrial', 'Other'].map(pt => (
-                                            <div key={pt} className={`checklist-item ${form.propertyType === pt ? 'checked' : ''}`}
-                                                onClick={() => setForm(f => ({ ...f, propertyType: pt }))}>
-                                                {form.propertyType === pt ? '✓ ' : ''}{pt}
-                                            </div>
-                                        ))}
-                                    </div>
+                                <div style={{ background: 'var(--bg)', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--text-muted)' }}>
+                                    Walk through the site and add notes + photos for each relevant section. Skip any that don't apply.
                                 </div>
-                                {['Housing Society', 'Building', 'Chawl'].includes(form.propertyType) && (
-                                    <div className="form-row" style={{ marginBottom: '16px' }}>
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
-                                            <label className="form-label">Number of Buildings / Wings</label>
-                                            <input type="number" className="form-input" value={form.numBuildings} onChange={e => setForm(f => ({ ...f, numBuildings: e.target.value }))} placeholder="e.g., 6" min="1" />
-                                        </div>
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
-                                            <label className="form-label">Floors per Building</label>
-                                            <input type="number" className="form-input" value={form.numFloors} onChange={e => setForm(f => ({ ...f, numFloors: e.target.value }))} placeholder="e.g., 12" min="1" />
-                                        </div>
-                                    </div>
-                                )}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                    <h3 style={{ color: 'var(--primary)' }}>Tanks ({form.tanks.length})</h3>
-                                    <button className="btn btn-secondary btn-sm" onClick={addTank}><Icons.Plus /> Add Tank</button>
-                                </div>
-                                {form.tanks.map((tank, idx) => (
-                                    <div key={idx} className="tank-card">
-                                        <div className="tank-card-header">
-                                            <span className="tank-card-label">{tank.label || `Tank ${idx + 1}`}</span>
-                                            {form.tanks.length > 1 && (
-                                                <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeTank(idx)}><Icons.X /></button>
-                                            )}
-                                        </div>
-                                        <div className="tank-grid" style={{ marginBottom: '10px' }}>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Label</label>
-                                                <input className="form-input" value={tank.label} onChange={e => updateTank(idx, 'label', e.target.value)} placeholder="e.g., OH-1, UG-3" />
-                                            </div>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Type</label>
-                                                <select className="form-select" value={tank.type} onChange={e => updateTank(idx, 'type', e.target.value)}>
-                                                    {TANK_TYPES.map(t => <option key={t}>{t}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Material</label>
-                                                <select className="form-select" value={tank.material} onChange={e => updateTank(idx, 'material', e.target.value)}>
-                                                    {TANK_MATERIALS.map(m => <option key={m}>{m}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Height/Depth (ft)</label>
-                                                <input type="number" className="form-input" value={tank.height} onChange={e => updateTank(idx, 'height', e.target.value)} placeholder="e.g., 8" />
-                                            </div>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Capacity (Litres)</label>
-                                                <input type="number" className="form-input" value={tank.capacity} onChange={e => updateTank(idx, 'capacity', e.target.value)} placeholder="e.g., 5000" />
-                                            </div>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Tank Photos</label>
-                                                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                                                    <button className="photo-btn" style={{ padding: '6px 10px', fontSize: '12px' }} onClick={() => addTankPhoto(idx)}>
-                                                        <Icons.Camera /> Add Photo
-                                                    </button>
-                                                    {(tank.photos || []).map((p, pi) => (
-                                                        <span key={pi} className="photo-record" style={{ cursor: 'pointer', background: p.uploadError ? '#FEE2E2' : (p.uploading ? '#FEF3C7' : '#D1FAE5'), color: p.uploadError ? '#991B1B' : (p.uploading ? '#92400E' : '#065F46') }} onClick={() => {
-                                                            setForm(f => {
-                                                                const tanks = [...f.tanks];
-                                                                tanks[idx] = { ...tanks[idx], photos: tanks[idx].photos.filter((_, x) => x !== pi) };
-                                                                return { ...f, tanks };
-                                                            });
-                                                        }}>{p.uploading ? '⏳' : (p.uploadError ? '⚠' : '☁')} {p.filename} ✕</span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="form-row" style={{ marginTop: '8px' }}>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Wire Routing Possible?</label>
-                                                <select className="form-select" value={tank.wireRouting} onChange={e => updateTank(idx, 'wireRouting', e.target.value)}>
-                                                    <option value="">Select</option>
-                                                    <option>Yes — Easy Access</option>
-                                                    <option>Yes — Conduit Required</option>
-                                                    <option>Partial — Some Challenges</option>
-                                                    <option>No — Wireless Only</option>
-                                                </select>
-                                            </div>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Wire Routing Notes</label>
-                                                <input className="form-input" value={tank.wireNotes} onChange={e => updateTank(idx, 'wireNotes', e.target.value)} placeholder="e.g., 20m cable, 2 bends needed" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                <button className="btn btn-secondary" style={{ width: '100%' }} onClick={addTank}><Icons.Plus /> Add Another Tank</button>
-
-                                <div style={{ marginTop: 20, padding: 16, background: 'var(--bg)', borderRadius: 8 }}>
-                                    <div className="form-row" style={{ marginBottom: 10 }}>
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
-                                            <label className="form-label">Tanks Interconnected?</label>
-                                            <select className="form-select" value={form.tanksInterconnected} onChange={e => setForm(f => ({ ...f, tanksInterconnected: e.target.value }))}>
-                                                <option>No</option><option>Yes</option><option>Partial</option>
-                                            </select>
-                                        </div>
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
-                                            <label className="form-label">Interconnection Notes</label>
-                                            <input className="form-input" value={form.tanksInterconnectedNotes} onChange={e => setForm(f => ({ ...f, tanksInterconnectedNotes: e.target.value }))} placeholder="e.g., OH-1 and OH-2 share balancing line" />
-                                        </div>
-                                    </div>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label">Tanks Section Notes</label>
-                                        <textarea className="form-textarea" rows="2" value={form.tanksNotes} onChange={e => setForm(f => ({ ...f, tanksNotes: e.target.value }))} placeholder="Any additional notes about tanks..." />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* STEP 2: Site Conditions */}
-                        {step === 2 && (
-                            <div>
-                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Site Conditions</h3>
-                                <div className="form-group">
-                                    <label className="form-label">Tank Layout</label>
-                                    <select className="form-select" value={form.clustered} onChange={e => setForm(f => ({ ...f, clustered: e.target.value }))}>
-                                        <option>Clustered (&lt;50m)</option>
-                                        <option>Spread (50-200m)</option>
-                                        <option>Far Apart (&gt;200m)</option>
-                                    </select>
-                                </div>
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label className="form-label">Power Available Near Tanks?</label>
-                                        <select className="form-select" value={form.power} onChange={e => setForm(f => ({ ...f, power: e.target.value }))}>
-                                            <option>Yes</option><option>No</option><option>Partial</option>
-                                        </select>
-                                    </div>
-                                    <div className="form-group">
-                                        <label className="form-label">WiFi / Internet Available at all locations?</label>
-                                        <select className="form-select" value={form.wifi} onChange={e => setForm(f => ({ ...f, wifi: e.target.value }))}>
-                                            <option>Yes</option><option>No</option><option>Partial</option><option>Can Arrange</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">WiFi Notes {form.wifi === 'Partial' && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(which areas lack WiFi)</span>}</label>
-                                    <input className="form-input" value={form.wifiNotes} onChange={e => setForm(f => ({ ...f, wifiNotes: e.target.value }))} placeholder="e.g., Tank 3 area has weak signal, router needed near UG tank" />
-                                </div>
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label className="form-label">RS-485 Wiring Possible?</label>
-                                        <select className="form-select" value={form.rs485Wiring} onChange={e => setForm(f => ({ ...f, rs485Wiring: e.target.value }))}>
-                                            <option>Yes</option><option>No</option><option>Needs new cable</option>
-                                        </select>
-                                    </div>
-                                    <div className="form-group">
-                                        <label className="form-label">RS-485 Notes</label>
-                                        <input className="form-input" value={form.rs485Notes} onChange={e => setForm(f => ({ ...f, rs485Notes: e.target.value }))} placeholder="e.g., conduit to be laid, 100m cable needed" />
-                                    </div>
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Distance to Control Room (meters)</label>
-                                    <input type="number" className="form-input" value={form.controlRoomDistance} onChange={e => setForm(f => ({ ...f, controlRoomDistance: e.target.value }))} placeholder="e.g., 50" style={{ maxWidth: '200px' }} />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Site Condition Photos</label>
-                                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                                        <button className="photo-btn" onClick={() => triggerCamera(photo => setForm(f => ({ ...f, siteConditionPhotos: [...(f.siteConditionPhotos || []), photo] })), 'site_condition')}>
-                                            <Icons.Camera /> Take Photo
-                                        </button>
-                                        {(form.siteConditionPhotos || []).map((p, i) => (
-                                            <span key={i} className="photo-record" style={{ cursor: 'pointer', background: p.uploadError ? '#FEE2E2' : (p.uploading ? '#FEF3C7' : '#D1FAE5'), color: p.uploadError ? '#991B1B' : (p.uploading ? '#92400E' : '#065F46') }} onClick={() => setForm(f => ({ ...f, siteConditionPhotos: f.siteConditionPhotos.filter((_, x) => x !== i) }))}>
-                                                {p.uploading ? '⏳' : (p.uploadError ? '⚠' : '☁')} {p.filename} ✕
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Photos upload to cloud in background. ⏳ uploading, ☁ uploaded, ⚠ failed.</div>
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Additional Site Details</label>
-                                    <textarea className="form-textarea" rows="3" value={form.siteExtraDetails} onChange={e => setForm(f => ({ ...f, siteExtraDetails: e.target.value }))} placeholder="e.g., Rooftop access via external staircase, corrosive environment near tank 3, CCTV room nearby, conduit already in place..." />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Site Section Notes</label>
-                                    <textarea className="form-textarea" rows="2" value={form.siteNotes} onChange={e => setForm(f => ({ ...f, siteNotes: e.target.value }))} placeholder="Any other site-related notes..." />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* STEP 3: Pumps & Control */}
-                        {step === 3 && (
-                            <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                    <h3 style={{ color: 'var(--primary)', margin: 0 }}>Pumps & Control ({form.pumps.length})</h3>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, pumps: [...f.pumps, emptyPump()] }))}><Icons.Plus /> Add Pump</button>
-                                </div>
-                                {form.pumps.length === 0 && (
-                                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg)', borderRadius: 8 }}>
-                                        No pumps added yet. Click "Add Pump" if pump monitoring/control is required.
-                                    </div>
-                                )}
-                                {form.pumps.map((pump, idx) => {
-                                    const updatePump = (key, val) => setForm(f => { const pumps = [...f.pumps]; pumps[idx] = { ...pumps[idx], [key]: val }; return { ...f, pumps }; });
-                                    const removePump = () => setForm(f => ({ ...f, pumps: f.pumps.filter((_, i) => i !== idx) }));
-                                    const typeOptions = pump.phase === 'Three-phase' ? PUMP_TYPES_THREE : PUMP_TYPES_SINGLE;
+                                {SECTION_TEMPLATES.map((tpl, idx) => {
+                                    const sec = (form.sections || []).find(s => s.key === tpl.key) || emptySection(tpl.key, tpl.title);
+                                    const updateSection = (patch) => setForm(f => {
+                                        const sections = [...(f.sections || [])];
+                                        const i = sections.findIndex(s => s.key === tpl.key);
+                                        if (i >= 0) sections[i] = { ...sections[i], ...patch };
+                                        else sections.push({ ...emptySection(tpl.key, tpl.title), ...patch });
+                                        return { ...f, sections };
+                                    });
+                                    const tagHint = 'section_' + tpl.key;
                                     return (
-                                        <div key={idx} className="tank-card">
-                                            <div className="tank-card-header">
-                                                <span className="tank-card-label">{pump.label || `Pump ${idx + 1}`}</span>
-                                                <button className="btn btn-danger btn-sm btn-icon" onClick={removePump}><Icons.X /></button>
+                                        <div key={tpl.key} style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                <div style={{ fontWeight: 700, color: 'var(--primary)' }}>{idx + 1}. {tpl.title}</div>
+                                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{(sec.photos || []).length} photo(s)</span>
                                             </div>
-                                            <div className="tank-grid" style={{ marginBottom: 10 }}>
-                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label">Label</label>
-                                                    <input className="form-input" value={pump.label} onChange={e => updatePump('label', e.target.value)} placeholder="e.g., P1, Main Pump" />
-                                                </div>
-                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label">Phase</label>
-                                                    <select className="form-select" value={pump.phase} onChange={e => { updatePump('phase', e.target.value); updatePump('type', (e.target.value === 'Three-phase' ? PUMP_TYPES_THREE : PUMP_TYPES_SINGLE)[0]); }}>
-                                                        <option>Single-phase</option><option>Three-phase</option>
-                                                    </select>
-                                                </div>
-                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label">Type</label>
-                                                    <select className="form-select" value={pump.type} onChange={e => updatePump('type', e.target.value)}>
-                                                        {typeOptions.map(t => <option key={t}>{t}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label">Capacity (HP)</label>
-                                                    <input className="form-input" value={pump.capacity} onChange={e => updatePump('capacity', e.target.value)} placeholder="e.g., 1.5" />
-                                                </div>
-                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label">Panel Type</label>
-                                                    <select className="form-select" value={pump.panelType} onChange={e => updatePump('panelType', e.target.value)}>
-                                                        {PANEL_TYPES.map(p => <option key={p}>{p}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                    <label className="form-label">Capacitor Type</label>
-                                                    <select className="form-select" value={pump.capacitorType} onChange={e => updatePump('capacitorType', e.target.value)}>
-                                                        {CAPACITOR_TYPES.map(c => <option key={c}>{c}</option>)}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div className="form-group" style={{ marginBottom: 10 }}>
-                                                <label className="form-label">Tanks Connected to This Pump</label>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                                    {form.tanks.length === 0 ? (
-                                                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No tanks added yet — go back to Tanks step</span>
-                                                    ) : form.tanks.map((tank, ti) => {
-                                                        const tlabel = tank.label || `Tank ${ti + 1}`;
-                                                        const checked = (pump.tanksConnected || []).includes(tlabel);
-                                                        return (
-                                                            <div key={ti} className={`checklist-item ${checked ? 'checked' : ''}`}
-                                                                onClick={() => {
-                                                                    const current = pump.tanksConnected || [];
-                                                                    const next = checked ? current.filter(t => t !== tlabel) : [...current, tlabel];
-                                                                    updatePump('tanksConnected', next);
-                                                                }}>
-                                                                {checked ? '✓ ' : ''}{tlabel}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                <label className="form-label">Pump Notes</label>
-                                                <input className="form-input" value={pump.notes} onChange={e => updatePump('notes', e.target.value)} placeholder="e.g., old pump, noisy, needs replacement" />
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{tpl.prompt}</div>
+                                            <textarea
+                                                className="form-textarea"
+                                                rows="3"
+                                                value={sec.notes || ''}
+                                                onChange={e => updateSection({ notes: e.target.value })}
+                                                placeholder="Type notes for this section..."
+                                                style={{ marginBottom: 8 }}
+                                            />
+                                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                                <button className="photo-btn" style={{ padding: '6px 10px', fontSize: 12 }} onClick={() => triggerCamera(photo => updateSection({ photos: [...(sec.photos || []), photo] }), tagHint)}>
+                                                    <Icons.Camera /> Add Photo
+                                                </button>
+                                                {(sec.photos || []).map((p, pi) => (
+                                                    <span key={pi} className="photo-record" style={{ cursor: 'pointer', background: p.uploadError ? '#FEE2E2' : (p.uploading ? '#FEF3C7' : '#D1FAE5'), color: p.uploadError ? '#991B1B' : (p.uploading ? '#92400E' : '#065F46') }} onClick={() => updateSection({ photos: sec.photos.filter((_, x) => x !== pi) })}>
+                                                        {p.uploading ? '⏳' : (p.uploadError ? '⚠' : '☁')} {p.filename} ✕
+                                                    </span>
+                                                ))}
                                             </div>
                                         </div>
                                     );
                                 })}
-                                {form.pumps.length > 0 && (
-                                    <button className="btn btn-secondary" style={{ width: '100%' }} onClick={() => setForm(f => ({ ...f, pumps: [...f.pumps, emptyPump()] }))}><Icons.Plus /> Add Another Pump</button>
-                                )}
-                                <div className="form-group" style={{ marginTop: 16 }}>
-                                    <label className="form-label">Pumps Section Notes</label>
-                                    <textarea className="form-textarea" rows="2" value={form.pumpsNotes} onChange={e => setForm(f => ({ ...f, pumpsNotes: e.target.value }))} placeholder="Overall pump setup notes, electrical requirements, etc." />
-                                </div>
                             </div>
                         )}
 
-                        {/* STEP 4: Monitoring & Automation */}
-                        {step === 4 && (
+                        {/* STEP 2: Recommend (last step) */}
+                        {step === 2 && (
                             <div>
-                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Monitoring & Control Requirements</h3>
-                                <div className="form-group">
-                                    <label className="form-label">What to Monitor?</label>
-                                    <div className="checklist-row">
-                                        {MONITORING_OPTIONS.map(opt => (
-                                            <div key={opt} className={`checklist-item ${form.monitoring.includes(opt) ? 'checked' : ''}`}
-                                                onClick={() => toggleCheck('monitoring', opt)}>
-                                                {form.monitoring.includes(opt) ? '✓ ' : ''}{opt}
-                                            </div>
-                                        ))}
+                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Recommendation & Follow-up</h3>
+
+                                {/* Contact people captured at the end */}
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="form-label">On-site Contact Person Name</label>
+                                        <input className="form-input" value={form.onSiteContactName || ''} onChange={e => setForm(f => ({ ...f, onSiteContactName: e.target.value }))} placeholder="Name of the person met on site" />
                                     </div>
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Alerts Required?</label>
-                                    <div className="checklist-row">
-                                        {ALERT_OPTIONS.map(opt => (
-                                            <div key={opt} className={`checklist-item ${form.alerts.includes(opt) ? 'checked' : ''}`}
-                                                onClick={() => toggleCheck('alerts', opt)}>
-                                                {form.alerts.includes(opt) ? '✓ ' : ''}{opt}
-                                            </div>
-                                        ))}
+                                    <div className="form-group">
+                                        <label className="form-label">On-site Contact Phone</label>
+                                        <input className="form-input" value={form.onSiteContactPhone || ''} onChange={e => setForm(f => ({ ...f, onSiteContactPhone: e.target.value }))} placeholder="e.g., +91 98xxxxxxxx" />
                                     </div>
                                 </div>
                                 <div className="form-row">
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label">Cloud Monitoring Required?</label>
-                                        <select className="form-select" value={form.cloudMonitoring} onChange={e => setForm(f => ({ ...f, cloudMonitoring: e.target.value }))}>
-                                            <option>Yes</option><option>No</option><option>Future</option>
-                                        </select>
+                                    <div className="form-group">
+                                        <label className="form-label">Building Technician / Maintenance Contact</label>
+                                        <input className="form-input" value={form.buildingTechnician || ''} onChange={e => setForm(f => ({ ...f, buildingTechnician: e.target.value }))} placeholder="Name" />
                                     </div>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label">Cloud Monitoring Notes</label>
-                                        <input className="form-input" value={form.cloudMonitoringNotes} onChange={e => setForm(f => ({ ...f, cloudMonitoringNotes: e.target.value }))} placeholder="e.g., needs mobile app access for residents" />
+                                    <div className="form-group">
+                                        <label className="form-label">Technician Phone</label>
+                                        <input className="form-input" value={form.buildingTechnicianPhone || ''} onChange={e => setForm(f => ({ ...f, buildingTechnicianPhone: e.target.value }))} placeholder="Phone" />
                                     </div>
                                 </div>
 
-                                {/* Valve Control with per-valve pipe sizes */}
-                                <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '12px', marginTop: 14 }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
-                                        <input type="checkbox" checked={form.valveControl} onChange={e => setForm(f => ({ ...f, valveControl: e.target.checked, valves: e.target.checked && (f.valves || []).length === 0 ? [emptyValve()] : (f.valves || []) }))} style={{ width: '18px', height: '18px' }} />
-                                        Valve Control
-                                    </label>
-                                    {form.valveControl && (
-                                        <div style={{ marginTop: 10 }}>
-                                            {(form.valves || []).map((v, vi) => {
-                                                const updateValve = (k, val) => setForm(f => { const vs = [...(f.valves || [])]; vs[vi] = { ...vs[vi], [k]: val }; return { ...f, valves: vs }; });
-                                                return (
-                                                    <div key={vi} style={{ background: 'white', padding: 10, borderRadius: 6, marginBottom: 8, border: '1px solid var(--border)' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                                            <span style={{ fontSize: 12, fontWeight: 600 }}>Valve {vi + 1}</span>
-                                                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => setForm(f => ({ ...f, valves: f.valves.filter((_, i) => i !== vi) }))}><Icons.X /></button>
-                                                        </div>
-                                                        <div className="tank-grid">
-                                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                <label className="form-label">Pipe Size</label>
-                                                                <select className="form-select" value={v.pipeSize} onChange={e => updateValve('pipeSize', e.target.value)}>
-                                                                    {PIPE_SIZES.map(s => <option key={s}>{s}</option>)}
-                                                                </select>
-                                                            </div>
-                                                            {v.pipeSize === 'Other' && (
-                                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                    <label className="form-label">Custom Pipe Size</label>
-                                                                    <input className="form-input" value={v.pipeSizeOther} onChange={e => updateValve('pipeSizeOther', e.target.value)} placeholder="e.g., 2.5 inch" />
-                                                                </div>
-                                                            )}
-                                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                <label className="form-label">Valve Type <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
-                                                                <select className="form-select" value={v.valveType} onChange={e => updateValve('valveType', e.target.value)}>
-                                                                    {VALVE_TYPES.map(t => <option key={t} value={t}>{t || '—'}</option>)}
-                                                                </select>
-                                                            </div>
-                                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                <label className="form-label">Location</label>
-                                                                <input className="form-input" value={v.location} onChange={e => updateValve('location', e.target.value)} placeholder="e.g., inlet to OH-1" />
-                                                            </div>
-                                                        </div>
-                                                        <div className="form-group" style={{ marginTop: 8, marginBottom: 0 }}>
-                                                            <input className="form-input" value={v.notes} onChange={e => updateValve('notes', e.target.value)} placeholder="Notes for this valve..." />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                            <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, valves: [...(f.valves || []), emptyValve()] }))}><Icons.Plus /> Add Valve</button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Flowmeter */}
-                                <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '12px', marginTop: 14 }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>
-                                        <input type="checkbox" checked={form.flowmeterRequired} onChange={e => setForm(f => ({ ...f, flowmeterRequired: e.target.checked, flowmeters: e.target.checked && (f.flowmeters || []).length === 0 ? [emptyFlowmeter()] : (f.flowmeters || []) }))} style={{ width: '18px', height: '18px' }} />
-                                        Flowmeter Required
-                                    </label>
-                                    {form.flowmeterRequired && (
-                                        <div style={{ marginTop: 10 }}>
-                                            {(form.flowmeters || []).map((fm, fi) => {
-                                                const updateFm = (k, val) => setForm(f => { const fms = [...(f.flowmeters || [])]; fms[fi] = { ...fms[fi], [k]: val }; return { ...f, flowmeters: fms }; });
-                                                return (
-                                                    <div key={fi} style={{ background: 'white', padding: 10, borderRadius: 6, marginBottom: 8, border: '1px solid var(--border)' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                                            <span style={{ fontSize: 12, fontWeight: 600 }}>Flowmeter {fi + 1}</span>
-                                                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => setForm(f => ({ ...f, flowmeters: f.flowmeters.filter((_, i) => i !== fi) }))}><Icons.X /></button>
-                                                        </div>
-                                                        <div className="tank-grid">
-                                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                <label className="form-label">Count</label>
-                                                                <input type="number" className="form-input" value={fm.count} onChange={e => updateFm('count', e.target.value)} placeholder="1" min="1" />
-                                                            </div>
-                                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                <label className="form-label">Pipe Size</label>
-                                                                <select className="form-select" value={fm.pipeSize} onChange={e => updateFm('pipeSize', e.target.value)}>
-                                                                    {PIPE_SIZES.map(s => <option key={s}>{s}</option>)}
-                                                                </select>
-                                                            </div>
-                                                            {fm.pipeSize === 'Other' && (
-                                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                    <label className="form-label">Custom Size</label>
-                                                                    <input className="form-input" value={fm.pipeSizeOther} onChange={e => updateFm('pipeSizeOther', e.target.value)} placeholder="e.g., 2.5 inch" />
-                                                                </div>
-                                                            )}
-                                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                <label className="form-label">Location</label>
-                                                                <input className="form-input" value={fm.location} onChange={e => updateFm('location', e.target.value)} placeholder="e.g., main inlet" />
-                                                            </div>
-                                                        </div>
-                                                        <div className="form-group" style={{ marginTop: 8, marginBottom: 0 }}>
-                                                            <input className="form-input" value={fm.notes} onChange={e => updateFm('notes', e.target.value)} placeholder="Notes for this flowmeter..." />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                            <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, flowmeters: [...(f.flowmeters || []), emptyFlowmeter()] }))}><Icons.Plus /> Add Flowmeter</button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="form-group" style={{ marginTop: 14 }}>
-                                    <label className="form-label">Monitoring Section Notes</label>
-                                    <textarea className="form-textarea" rows="2" value={form.monitoringNotes} onChange={e => setForm(f => ({ ...f, monitoringNotes: e.target.value }))} placeholder="Any overall monitoring/automation notes..." />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* STEP 5: Recommendation */}
-                        {step === 5 && (
-                            <div>
-                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Technician Recommendations</h3>
-                                <div className="form-group">
-                                    <label className="form-label">Notes / Observations</label>
-                                    <textarea className="form-textarea" rows="4" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g., Tanks on rooftop, cable tray needed, corrosive environment near tank 3..." />
-                                </div>
                                 <div className="form-row">
                                     <div className="form-group" style={{ marginBottom: 0 }}>
                                         <label className="form-label">Next Document Required</label>
@@ -8071,6 +7753,7 @@ ${componentResults.map(c => {
                                         <input type="date" className="form-input" value={form.nextFollowupDate} onChange={e => setForm(f => ({ ...f, nextFollowupDate: e.target.value }))} />
                                     </div>
                                 </div>
+
                                 {products.length > 0 && (
                                     <div className="form-group">
                                         <label className="form-label">Suggested Products <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '12px' }}>(optional — tap to select)</span></label>
@@ -8084,6 +7767,13 @@ ${componentResults.map(c => {
                                         </div>
                                     </div>
                                 )}
+
+                                <div className="form-group">
+                                    <label className="form-label">Other Remarks / Notes</label>
+                                    <textarea className="form-textarea" rows="4" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any final remarks for the office team..." />
+                                </div>
+                            </div>
+                        )}
                             </div>
                         )}
 
