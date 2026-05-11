@@ -7014,6 +7014,19 @@ ${componentResults.map(c => {
 
         const INSP_DRAFT_KEY = 'mvs_inspection_draft';
 
+        // Fixed 8 sections used by the simplified Site Notes step (each is free-text + photos)
+        const SECTION_TEMPLATES = [
+            { key: 'oht', title: 'Overhead Tanks (OHT)', prompt: 'e.g., count, capacity, material, height, location, age, leaks' },
+            { key: 'ugt', title: 'Underground Tanks (UGT)', prompt: 'e.g., count, capacity, material, access, ventilation, condition' },
+            { key: 'monitoring', title: 'Tanks Needing Monitoring & Type', prompt: 'which tanks to monitor, sensor type (DIP / Ultrasonic), level / flow / quality' },
+            { key: 'pumps', title: 'Pump Control', prompt: 'pump count, phase (1Phi/3Phi), HP, type (submersible/surface), panel type, automation needs' },
+            { key: 'valves', title: 'Valves — Type, Pipe Material, Control', prompt: 'valve count & type (ball / gate / solenoid), pipe material (plastic / GI / CPVC), pipe size, control mode' },
+            { key: 'flowmeter', title: 'Flowmeter Requirements', prompt: 'count, pipe size, location, type of flow measurement, integration with pump/valve control' },
+            { key: 'connectivity', title: 'Connectivity — Cloud / On-premises, WiFi, Internet', prompt: 'cloud needed?, on-premises only?, WiFi coverage, RS-485 wiring feasible, mobile signal strength' },
+            { key: 'other', title: 'Other Site Notes', prompt: 'anything else worth noting — solar setup, terrace access, civil work needed, safety concerns' }
+        ];
+        const emptySection = (key, title) => ({ key, title, notes: '', photos: [] });
+
         const SiteInspection = ({ products }) => {
             const [view, setView] = useState('list'); // 'list' | 'form' | 'detail'
             const [inspections, setInspections] = useState([]);
@@ -7025,33 +7038,19 @@ ${componentResults.map(c => {
 
             // Form state
             const emptyForm = () => ({
+                _formVersion: 2,
                 photoFolderId: 'draft_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
                 customerName: '', contactPerson: '', phone: '',
                 gps: null, address: '',
                 propertyType: '', numBuildings: '', numFloors: '',
                 customerNotes: '',
-                tanks: [emptyTank()],
-                tanksInterconnected: 'No', tanksInterconnectedNotes: '',
-                tanksNotes: '',
-                clustered: 'Clustered (<50m)',
-                power: 'Yes', wifi: 'Yes', wifiNotes: '',
-                rs485Wiring: 'Yes', rs485Notes: '',
-                controlRoomDistance: '',
-                siteConditionPhotos: [],
-                siteExtraDetails: '',
-                siteNotes: '',
-                pumps: [],
-                pumpsNotes: '',
-                monitoring: ['Water Level'],
-                alerts: ['Overflow', 'Low Level'],
-                cloudMonitoring: 'Yes', cloudMonitoringNotes: '',
-                valveControl: false, valveControlDesc: '', valves: [],
-                flowmeterRequired: false, flowmeters: [],
-                submersiblePumpControl: false, submersiblePumpDesc: '',
-                singlePhaseMotorControl: false, singlePhaseMotorDesc: '',
-                pumpAutomation: 'No', pumpCount: '',
-                monitoringNotes: '',
+                sitePhotos: [],
+                // NEW: free-text sections (fixed 8)
+                sections: SECTION_TEMPLATES.map(t => emptySection(t.key, t.title)),
+                // Recommendations
                 suggestedProducts: [],
+                buildingTechnician: '', buildingTechnicianPhone: '',
+                onSiteContactName: '', onSiteContactPhone: '',
                 notes: '',
                 nextAction: '', nextFollowupDate: '',
                 referenceSource: '',
@@ -7081,14 +7080,21 @@ ${componentResults.map(c => {
             const startNewInspection = () => {
                 if (hasDraft()) {
                     const draft = loadDraft();
-                    const name = draft?.customerName || 'unnamed';
-                    const savedAt = draft?._draftSavedAt ? new Date(draft._draftSavedAt).toLocaleTimeString() : '';
-                    const resume = confirm(`You have a saved draft for "${name}" (saved at ${savedAt}).\n\nTap OK to resume draft, or Cancel to start fresh.`);
-                    if (resume) {
-                        setForm(draft);
-                    } else {
+                    // Discard drafts from older form versions — structure changed
+                    if (!draft || draft._formVersion !== 2) {
+                        alert('A draft from the old inspection form was discarded — form structure has changed. Please start fresh.');
                         clearDraft();
                         setForm(emptyForm());
+                    } else {
+                        const name = draft.customerName || 'unnamed';
+                        const savedAt = draft._draftSavedAt ? new Date(draft._draftSavedAt).toLocaleTimeString() : '';
+                        const resume = confirm(`You have a saved draft for "${name}" (saved at ${savedAt}).\n\nTap OK to resume draft, or Cancel to start fresh.`);
+                        if (resume) {
+                            setForm(draft);
+                        } else {
+                            clearDraft();
+                            setForm(emptyForm());
+                        }
                     }
                 } else {
                     setForm(emptyForm());
@@ -7178,12 +7184,14 @@ ${componentResults.map(c => {
                 input.click();
             };
 
-            // Helper to find and patch a photo record across all photo arrays in the form
+            // Helper to find and patch a photo record across all photo arrays in the form.
+            // Patches photos in new sections format AND legacy locations.
             const patchPhoto = (f, filename, takenAt, patch) => {
                 const matches = (p) => p.filename === filename && p.takenAt === takenAt;
                 const patchArr = (arr) => (arr || []).map(p => matches(p) ? { ...p, ...patch } : p);
                 return {
                     ...f,
+                    sections: (f.sections || []).map(s => ({ ...s, photos: patchArr(s.photos) })),
                     siteConditionPhotos: patchArr(f.siteConditionPhotos),
                     sitePhotos: patchArr(f.sitePhotos),
                     tanks: (f.tanks || []).map(t => ({ ...t, photos: patchArr(t.photos) }))
@@ -7228,6 +7236,7 @@ ${componentResults.map(c => {
                 if (!form.customerName || !form.inspectedBy) { alert('Customer name and Inspected By are required.'); return; }
                 // Check if any photos still uploading
                 const allPhotos = [
+                    ...((form.sections || []).flatMap(s => s.photos || [])),
                     ...(form.siteConditionPhotos || []),
                     ...(form.sitePhotos || []),
                     ...((form.tanks || []).flatMap(t => t.photos || []))
@@ -7271,7 +7280,7 @@ ${componentResults.map(c => {
             const statusLabel = s => ({ pending_quote: 'Pending Quote', quoted: 'Quoted', closed: 'Closed' }[s] || s);
             const statusClass = s => ({ pending_quote: 'insp-status-pending', quoted: 'insp-status-quoted', closed: 'insp-status-closed' }[s] || '');
 
-            const STEPS = ['Customer', 'Tanks', 'Site', 'Pumps', 'Monitoring', 'Recommend'];
+            const STEPS = ['Customer', 'Site Notes', 'Recommend'];
 
             // ---- RENDER: LIST ----
             if (view === 'list') return (
@@ -7385,19 +7394,52 @@ ${componentResults.map(c => {
                             </div>
                         </div>
 
-                        {/* Site Conditions */}
-                        <div className="card">
-                            <div className="card-header"><h3 className="card-title">Site Conditions</h3></div>
-                            <div className="card-body" style={{ fontSize: '14px' }}>
-                                <div><strong>Tank Layout:</strong> {selectedInsp.clustered}</div>
-                                <div><strong>Power Available:</strong> {selectedInsp.power}</div>
-                                <div><strong>WiFi Available:</strong> {selectedInsp.wifi}</div>
-                                <div><strong>Control Room Distance:</strong> {selectedInsp.controlRoomDistance ? selectedInsp.controlRoomDistance + ' meters' : '—'}</div>
-                                <div><strong>Pump Automation:</strong> {selectedInsp.pumpAutomation}{selectedInsp.pumpCount ? ` (${selectedInsp.pumpCount} pumps)` : ''}</div>
+                        {/* Site Notes (new format) */}
+                        {selectedInsp.sections && (
+                            <div className="card" style={{ gridColumn: '1 / -1' }}>
+                                <div className="card-header"><h3 className="card-title">Site Notes</h3></div>
+                                <div className="card-body">
+                                    {(selectedInsp.sections || []).filter(s => (s.notes && s.notes.trim()) || (s.photos && s.photos.length > 0)).map((s, idx) => (
+                                        <div key={s.key || idx} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                                            <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: 6 }}>{s.title || s.key}</div>
+                                            {s.notes && <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, marginBottom: 6 }}>{s.notes}</div>}
+                                            {(s.photos || []).length > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>📷 {s.photos.length} photo(s)</div>}
+                                        </div>
+                                    ))}
+                                    {(selectedInsp.sections || []).every(s => !((s.notes && s.notes.trim()) || (s.photos && s.photos.length > 0))) && (
+                                        <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No site notes added.</div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        {/* Tanks */}
+                        {/* Contact people (new format) */}
+                        {selectedInsp.sections && (selectedInsp.onSiteContactName || selectedInsp.buildingTechnician) && (
+                            <div className="card">
+                                <div className="card-header"><h3 className="card-title">On-site Contacts</h3></div>
+                                <div className="card-body" style={{ fontSize: 14 }}>
+                                    {selectedInsp.onSiteContactName && <div><strong>Met:</strong> {selectedInsp.onSiteContactName}{selectedInsp.onSiteContactPhone ? ` (${selectedInsp.onSiteContactPhone})` : ''}</div>}
+                                    {selectedInsp.buildingTechnician && <div style={{ marginTop: 6 }}><strong>Building Technician:</strong> {selectedInsp.buildingTechnician}{selectedInsp.buildingTechnicianPhone ? ` (${selectedInsp.buildingTechnicianPhone})` : ''}</div>}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Site Conditions (legacy) */}
+                        {!selectedInsp.sections && (
+                            <div className="card">
+                                <div className="card-header"><h3 className="card-title">Site Conditions</h3></div>
+                                <div className="card-body" style={{ fontSize: '14px' }}>
+                                    <div><strong>Tank Layout:</strong> {selectedInsp.clustered}</div>
+                                    <div><strong>Power Available:</strong> {selectedInsp.power}</div>
+                                    <div><strong>WiFi Available:</strong> {selectedInsp.wifi}</div>
+                                    <div><strong>Control Room Distance:</strong> {selectedInsp.controlRoomDistance ? selectedInsp.controlRoomDistance + ' meters' : '—'}</div>
+                                    <div><strong>Pump Automation:</strong> {selectedInsp.pumpAutomation}{selectedInsp.pumpCount ? ` (${selectedInsp.pumpCount} pumps)` : ''}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tanks (legacy) */}
+                        {!selectedInsp.sections && (selectedInsp.tanks?.length > 0) && (
                         <div className="card" style={{ gridColumn: '1 / -1' }}>
                             <div className="card-header"><h3 className="card-title">Tanks ({selectedInsp.tanks?.length || 0})</h3></div>
                             <div className="table-container">
@@ -7420,8 +7462,10 @@ ${componentResults.map(c => {
                                 </table>
                             </div>
                         </div>
+                        )}
 
-                        {/* Requirements */}
+                        {/* Requirements (legacy) */}
+                        {!selectedInsp.sections && (
                         <div className="card">
                             <div className="card-header"><h3 className="card-title">Requirements</h3></div>
                             <div className="card-body" style={{ fontSize: '14px' }}>
@@ -7432,10 +7476,12 @@ ${componentResults.map(c => {
                                 {selectedInsp.singlePhaseMotorControl && <div style={{ marginTop: '6px' }}><strong>Single Phase Motor:</strong> {selectedInsp.singlePhaseMotorDesc || 'Yes'}</div>}
                             </div>
                         </div>
+                        )}
 
                         {/* Photos Gallery */}
                         {(() => {
                             const allPhotos = [
+                                ...((selectedInsp.sections || []).flatMap(s => (s.photos || []).map(p => ({ ...p, section: s.title || s.key })))),
                                 ...(selectedInsp.siteConditionPhotos || []).map(p => ({ ...p, section: 'Site Condition' })),
                                 ...(selectedInsp.sitePhotos || []).map(p => ({ ...p, section: 'Site' })),
                                 ...(selectedInsp.tanks || []).flatMap((t, ti) => (t.photos || []).map(p => ({ ...p, section: `${t.label || `Tank ${ti+1}`}` })))
@@ -7610,8 +7656,55 @@ ${componentResults.map(c => {
                             </div>
                         )}
 
-                        {/* STEP 1: Tanks */}
+                        {/* STEP 1: Site Notes (free-text per fixed 8 sections) */}
                         {step === 1 && (
+                            <div>
+                                <div style={{ background: 'var(--bg)', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--text-muted)' }}>
+                                    Walk through the site and add notes + photos for each relevant section. Skip any that do not apply.
+                                </div>
+                                {SECTION_TEMPLATES.map((tpl, idx) => {
+                                    const sec = (form.sections || []).find(s => s.key === tpl.key) || emptySection(tpl.key, tpl.title);
+                                    const updateSection = (patch) => setForm(f => {
+                                        const sections = [...(f.sections || [])];
+                                        const i = sections.findIndex(s => s.key === tpl.key);
+                                        if (i >= 0) sections[i] = { ...sections[i], ...patch };
+                                        else sections.push({ ...emptySection(tpl.key, tpl.title), ...patch });
+                                        return { ...f, sections };
+                                    });
+                                    const tagHint = 'section_' + tpl.key;
+                                    return (
+                                        <div key={tpl.key} style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 12 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                <div style={{ fontWeight: 700, color: 'var(--primary)' }}>{idx + 1}. {tpl.title}</div>
+                                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{(sec.photos || []).length} photo(s)</span>
+                                            </div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{tpl.prompt}</div>
+                                            <textarea
+                                                className="form-textarea"
+                                                rows="3"
+                                                value={sec.notes || ''}
+                                                onChange={e => updateSection({ notes: e.target.value })}
+                                                placeholder="Type notes for this section..."
+                                                style={{ marginBottom: 8 }}
+                                            />
+                                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                                <button className="photo-btn" style={{ padding: '6px 10px', fontSize: 12 }} onClick={() => triggerCamera(photo => updateSection({ photos: [...(sec.photos || []), photo] }), tagHint)}>
+                                                    <Icons.Camera /> Add Photo
+                                                </button>
+                                                {(sec.photos || []).map((p, pi) => (
+                                                    <span key={pi} className="photo-record" style={{ cursor: 'pointer', background: p.uploadError ? '#FEE2E2' : (p.uploading ? '#FEF3C7' : '#D1FAE5'), color: p.uploadError ? '#991B1B' : (p.uploading ? '#92400E' : '#065F46') }} onClick={() => updateSection({ photos: sec.photos.filter((_, x) => x !== pi) })}>
+                                                        {p.uploading ? '⏳' : (p.uploadError ? '⚠' : '☁')} {p.filename} ✕
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* STEP 1 (legacy): Tanks — disabled, kept only for reference */}
+                        {false && (
                             <div>
                                 <div className="form-group">
                                     <label className="form-label">Property Type</label>
@@ -7732,8 +7825,8 @@ ${componentResults.map(c => {
                             </div>
                         )}
 
-                        {/* STEP 2: Site Conditions */}
-                        {step === 2 && (
+                        {/* STEP 2 (legacy): Site Conditions — disabled */}
+                        {false && (
                             <div>
                                 <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Site Conditions</h3>
                                 <div className="form-group">
@@ -7803,8 +7896,8 @@ ${componentResults.map(c => {
                             </div>
                         )}
 
-                        {/* STEP 3: Pumps & Control */}
-                        {step === 3 && (
+                        {/* STEP 3 (legacy): Pumps & Control — disabled */}
+                        {false && (
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                                     <h3 style={{ color: 'var(--primary)', margin: 0 }}>Pumps & Control ({form.pumps.length})</h3>
@@ -7897,8 +7990,8 @@ ${componentResults.map(c => {
                             </div>
                         )}
 
-                        {/* STEP 4: Monitoring & Automation */}
-                        {step === 4 && (
+                        {/* STEP 4 (legacy): Monitoring & Automation — disabled */}
+                        {false && (
                             <div>
                                 <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Monitoring & Control Requirements</h3>
                                 <div className="form-group">
@@ -8043,14 +8136,33 @@ ${componentResults.map(c => {
                             </div>
                         )}
 
-                        {/* STEP 5: Recommendation */}
-                        {step === 5 && (
+                        {/* STEP 2: Recommendation & Follow-up */}
+                        {step === 2 && (
                             <div>
-                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Technician Recommendations</h3>
-                                <div className="form-group">
-                                    <label className="form-label">Notes / Observations</label>
-                                    <textarea className="form-textarea" rows="4" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g., Tanks on rooftop, cable tray needed, corrosive environment near tank 3..." />
+                                <h3 style={{ marginBottom: '16px', color: 'var(--primary)' }}>Recommendation & Follow-up</h3>
+
+                                {/* Contact people captured at the end */}
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="form-label">On-site Contact Person Name</label>
+                                        <input className="form-input" value={form.onSiteContactName || ''} onChange={e => setForm(f => ({ ...f, onSiteContactName: e.target.value }))} placeholder="Name of the person met on site" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">On-site Contact Phone</label>
+                                        <input className="form-input" value={form.onSiteContactPhone || ''} onChange={e => setForm(f => ({ ...f, onSiteContactPhone: e.target.value }))} placeholder="e.g., +91 98xxxxxxxx" />
+                                    </div>
                                 </div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="form-label">Building Technician / Maintenance Contact</label>
+                                        <input className="form-input" value={form.buildingTechnician || ''} onChange={e => setForm(f => ({ ...f, buildingTechnician: e.target.value }))} placeholder="Name" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Technician Phone</label>
+                                        <input className="form-input" value={form.buildingTechnicianPhone || ''} onChange={e => setForm(f => ({ ...f, buildingTechnicianPhone: e.target.value }))} placeholder="Phone" />
+                                    </div>
+                                </div>
+
                                 <div className="form-row">
                                     <div className="form-group" style={{ marginBottom: 0 }}>
                                         <label className="form-label">Next Document Required</label>
