@@ -3256,6 +3256,7 @@
             const [formData, setFormData] = useState({
                 sku: '', name: '', category: 'SenseFlow',
                 subBrand: '',
+                description: '',
                 hsn: '',
                 isService: false,
                 formBom: [], // Components from Items
@@ -3429,6 +3430,7 @@
                     name: formData.name,
                     category: formData.category,
                     subBrand: formData.subBrand || '',
+                    description: formData.description || '',
                     hsn: formData.hsn || '',
                     isService: !!formData.isService,
                     sellingPrice: formData.sellingPrice ? Number(formData.sellingPrice) : defaultSellingPrice,
@@ -3489,7 +3491,7 @@
             };
 
             const resetForm = () => {
-                setFormData({ sku: '', name: '', category: 'SenseFlow', subBrand: '', hsn: '', isService: false, formBom: [], formSubProducts: [], sellingPrice: '', mrp: '', d2cRate: 3, amazonRate: 12, flipkartRate: 11, dealerRate: 500, imageUrl: '' });
+                setFormData({ sku: '', name: '', category: 'SenseFlow', subBrand: '', description: '', hsn: '', isService: false, formBom: [], formSubProducts: [], sellingPrice: '', mrp: '', d2cRate: 3, amazonRate: 12, flipkartRate: 11, dealerRate: 500, imageUrl: '' });
                 setEditProduct(null);
                 setCircularError('');
             };
@@ -3539,6 +3541,7 @@
                     name: product.name,
                     category: product.category,
                     subBrand: product.subBrand || '',
+                    description: product.description || '',
                     hsn: product.hsn || '',
                     isService: !!product.isService,
                     formBom: productBom,
@@ -3769,6 +3772,11 @@
                         <div className="form-group">
                             <label className="form-label">Product Name <span>*</span></label>
                             <input type="text" className="form-input" placeholder="e.g., New Product Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Description <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional — auto-fills on quotations/invoices)</span></label>
+                            <textarea className="form-textarea" rows="3" value={formData.description || ''} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Short description that goes under the product name on quotations and invoices..." />
                         </div>
 
                         <div className="form-group">
@@ -4093,7 +4101,7 @@
                 setQuoteItems([...quoteItems, {
                     sku: product.sku,
                     name: product.name,
-                    description: '',
+                    description: product.description || '',
                     mrp: mrp,
                     minPrice: sellingPrice,
                     qty: 1,
