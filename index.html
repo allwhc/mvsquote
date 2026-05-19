@@ -4508,18 +4508,18 @@
 
                 // Footer — check if enough space, else add new page.
                 // Place footer right below content (no forced bottom-anchor).
-                const footerSpace = type === 'invoice' ? 65 : 25;
-                let footerY = notesEndY + 10;
+                const footerSpace = type === 'invoice' ? 50 : 20;
+                let footerY = notesEndY + 8;
                 if (footerY + footerSpace > 285) {
                     doc.addPage();
                     footerY = 20;
                 }
 
-                // Bank details - only on invoices
+                // Bank details - only on invoices (compact layout)
                 if (type === 'invoice') {
                     doc.setDrawColor(200);
                     doc.line(15, footerY, 195, footerY);
-                    footerY += 5;
+                    footerY += 4;
                     doc.setTextColor(...brandColor);
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(9);
@@ -4527,24 +4527,24 @@
                     doc.setFont('helvetica', 'normal');
                     doc.setFontSize(8);
                     doc.setTextColor(60);
-                    doc.text('Bank: ' + CONFIG.BANK.name + ', ' + CONFIG.BANK.branch, 15, footerY + 5);
-                    doc.text('A/C No: ' + CONFIG.BANK.account + '  |  IFSC: ' + CONFIG.BANK.ifsc, 15, footerY + 10);
-                    doc.text('UPI: ' + CONFIG.UPI_ID, 15, footerY + 15);
+                    doc.text('Bank: ' + CONFIG.BANK.name + ', ' + CONFIG.BANK.branch, 15, footerY + 4);
+                    doc.text('A/C No: ' + CONFIG.BANK.account + '  |  IFSC: ' + CONFIG.BANK.ifsc, 15, footerY + 8);
+                    doc.text('UPI: ' + CONFIG.UPI_ID, 15, footerY + 12);
 
-                    // UPI logo + QR code on the right
+                    // UPI logo + QR code on the right (compact 24mm QR)
                     try {
-                        doc.addImage(CONFIG.UPI_LOGO, 'PNG', 148, footerY + 2, 12, 12);
+                        doc.addImage(CONFIG.UPI_LOGO, 'PNG', 150, footerY + 1, 10, 10);
                         const qrDataUrl = generateUPIQR(grandTotal, brand.name);
-                        doc.addImage(qrDataUrl, 'PNG', 163, footerY - 2, 30, 30);
-                        doc.setFontSize(7);
+                        doc.addImage(qrDataUrl, 'PNG', 168, footerY - 2, 24, 24);
+                        doc.setFontSize(6.5);
                         doc.setTextColor(100);
                         const scanText = grandTotal && grandTotal <= 100000
                             ? 'Scan to Pay Rs. ' + Number(grandTotal).toLocaleString('en-IN')
                             : 'Scan to Pay';
-                        doc.text(scanText, 178, footerY + 30, { align: 'center' });
+                        doc.text(scanText, 180, footerY + 24, { align: 'center' });
                     } catch(e) {}
 
-                    footerY += 34;
+                    footerY += 26;
                 }
 
                 // Brand of MV Solutions line - for sub-brands
@@ -5412,18 +5412,18 @@
 
                 // Footer — check if enough space, else add new page.
                 // Place footer right below content (no forced bottom-anchor).
-                const footerSpace2 = type === 'invoice' ? 65 : 25;
-                let footerY = notesEndY + 10;
+                const footerSpace2 = type === 'invoice' ? 50 : 20;
+                let footerY = notesEndY + 8;
                 if (footerY + footerSpace2 > 285) {
                     pdf.addPage();
                     footerY = 20;
                 }
 
-                // Bank details - only on invoices
+                // Bank details - only on invoices (compact layout)
                 if (type === 'invoice') {
                     pdf.setDrawColor(200);
                     pdf.line(15, footerY, 195, footerY);
-                    footerY += 5;
+                    footerY += 4;
                     pdf.setTextColor(...brandColor);
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(9);
@@ -5431,24 +5431,24 @@
                     pdf.setFont('helvetica', 'normal');
                     pdf.setFontSize(8);
                     pdf.setTextColor(60);
-                    pdf.text('Bank: ' + CONFIG.BANK.name + ', ' + CONFIG.BANK.branch, 15, footerY + 5);
-                    pdf.text('A/C No: ' + CONFIG.BANK.account + '  |  IFSC: ' + CONFIG.BANK.ifsc, 15, footerY + 10);
-                    pdf.text('UPI: ' + CONFIG.UPI_ID, 15, footerY + 15);
+                    pdf.text('Bank: ' + CONFIG.BANK.name + ', ' + CONFIG.BANK.branch, 15, footerY + 4);
+                    pdf.text('A/C No: ' + CONFIG.BANK.account + '  |  IFSC: ' + CONFIG.BANK.ifsc, 15, footerY + 8);
+                    pdf.text('UPI: ' + CONFIG.UPI_ID, 15, footerY + 12);
 
-                    // UPI logo + QR code on the right
+                    // UPI logo + QR code on the right (compact 24mm QR)
                     try {
-                        pdf.addImage(CONFIG.UPI_LOGO, 'PNG', 148, footerY + 2, 12, 12);
+                        pdf.addImage(CONFIG.UPI_LOGO, 'PNG', 150, footerY + 1, 10, 10);
                         const qrDataUrl = generateUPIQR(doc.grandTotal, brand.name);
-                        pdf.addImage(qrDataUrl, 'PNG', 163, footerY - 2, 30, 30);
-                        pdf.setFontSize(7);
+                        pdf.addImage(qrDataUrl, 'PNG', 168, footerY - 2, 24, 24);
+                        pdf.setFontSize(6.5);
                         pdf.setTextColor(100);
                         const scanText = doc.grandTotal && doc.grandTotal <= 100000
                             ? 'Scan to Pay Rs. ' + Number(doc.grandTotal).toLocaleString('en-IN')
                             : 'Scan to Pay';
-                        pdf.text(scanText, 178, footerY + 30, { align: 'center' });
+                        pdf.text(scanText, 180, footerY + 24, { align: 'center' });
                     } catch(e) {}
 
-                    footerY += 34;
+                    footerY += 26;
                 }
 
                 // Brand of MV Solutions line - for sub-brands
