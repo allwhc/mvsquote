@@ -4287,13 +4287,17 @@
 
                 let tableHead, tableData, colStyles;
                 const itemsRef = quoteItems;
-                // Build product cell: name bold, description smaller gray below
+                // Build product cell: name bold, description smaller gray below.
+                // autoTable estimates row height from content at the cell's fontSize. Our
+                // didDrawCell renders name at 9pt + desc at 7.5pt with extra padding, so
+                // the natural estimate can be too short and the desc overflows below.
+                // Workaround: pre-compute the required text and let autoTable use fontSize 9
+                // (matches the largest font we actually draw) so the row reserves enough height.
                 const productCell = (item) => {
                     const name = item.name || '';
                     const desc = item.description || '';
                     if (!desc) return { content: name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
-                    // Use content with name + \n + desc for height calculation, custom draw handles styling
-                    return { content: name + '\n' + desc, styles: { fontStyle: 'normal', textColor: [30, 30, 30], fontSize: 8 } };
+                    return { content: name + '\n' + desc, styles: { fontStyle: 'normal', textColor: [30, 30, 30], fontSize: 9 } };
                 };
                 const showHsn = (type === 'invoice');
                 if (hasDiscount) {
@@ -4502,14 +4506,13 @@
                     notesEndY = bulletY;
                 }
 
-                // Footer — check if enough space, else add new page
+                // Footer — check if enough space, else add new page.
+                // Place footer right below content (no forced bottom-anchor).
                 const footerSpace = type === 'invoice' ? 65 : 25;
                 let footerY = notesEndY + 10;
                 if (footerY + footerSpace > 285) {
                     doc.addPage();
                     footerY = 20;
-                } else {
-                    footerY = Math.max(footerY, 297 - footerSpace - 10);
                 }
 
                 // Bank details - only on invoices
@@ -5197,7 +5200,7 @@
                     const name = item.name || '';
                     const desc = item.description || '';
                     if (!desc) return { content: name, styles: { fontStyle: 'bold', textColor: [30, 30, 30] } };
-                    return { content: name + '\n' + desc, styles: { fontStyle: 'normal', textColor: [30, 30, 30], fontSize: 8 } };
+                    return { content: name + '\n' + desc, styles: { fontStyle: 'normal', textColor: [30, 30, 30], fontSize: 9 } };
                 };
                 const showHsn2 = (type === 'invoice');
                 if (hasDiscount) {
@@ -5407,14 +5410,13 @@
                     notesEndY = bulletY;
                 }
 
-                // Footer — check if enough space, else add new page
+                // Footer — check if enough space, else add new page.
+                // Place footer right below content (no forced bottom-anchor).
                 const footerSpace2 = type === 'invoice' ? 65 : 25;
                 let footerY = notesEndY + 10;
                 if (footerY + footerSpace2 > 285) {
                     pdf.addPage();
                     footerY = 20;
-                } else {
-                    footerY = Math.max(footerY, 297 - footerSpace2 - 10);
                 }
 
                 // Bank details - only on invoices
