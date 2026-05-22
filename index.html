@@ -4248,7 +4248,7 @@
                     if (customer.phone) doc.text('Ph: ' + customer.phone, 20, 89);
                     let billY = customer.phone ? 93 : 89;
                     if (customer.email) { doc.text('Email: ' + customer.email, 20, billY); billY += 4; }
-                    if (customer.address) { const al = doc.splitTextToSize(customer.address, 75); doc.text(al, 20, billY); billY += al.length * 4; }
+                    if (customer.address) { const al = doc.splitTextToSize('Address: ' + customer.address, 75); doc.text(al, 20, billY); billY += al.length * 4; }
                     if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 20, billY + 1); doc.setFontSize(9); billY += 5; }
                     if (type === 'invoice') {
                         doc.setFontSize(8);
@@ -4272,7 +4272,7 @@
                     let billY2 = customer.phone ? 80 : 76;
                     if (customer.email) { doc.text('Email: ' + customer.email, 100, billY2); billY2 += 4; }
                     billY2 = Math.max(billY2, 83);
-                    if (customer.address) { const al = doc.splitTextToSize(customer.address, 85); doc.text(al, 100, billY2); billY2 += al.length * 4; }
+                    if (customer.address) { const al = doc.splitTextToSize('Address: ' + customer.address, 85); doc.text(al, 100, billY2); billY2 += al.length * 4; }
                     if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 100, billY2 + 1); doc.setFontSize(9); billY2 += 5; }
                     if (type === 'invoice') {
                         doc.setFontSize(8);
@@ -5157,7 +5157,7 @@
                     if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 20, 89);
                     let billY3 = doc.customer.phone ? 93 : 89;
                     if (doc.customer.email) { pdf.text('Email: ' + doc.customer.email, 20, billY3); billY3 += 4; }
-                    if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 75); pdf.text(al, 20, billY3); billY3 += al.length * 4; }
+                    if (doc.customer.address) { const al = pdf.splitTextToSize('Address: ' + doc.customer.address, 75); pdf.text(al, 20, billY3); billY3 += al.length * 4; }
                     if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 20, billY3 + 1); pdf.setFontSize(9); billY3 += 5; }
                     if (type === 'invoice') {
                         pdf.setFontSize(8);
@@ -5181,7 +5181,7 @@
                     let billY4 = doc.customer.phone ? 80 : 76;
                     if (doc.customer.email) { pdf.text('Email: ' + doc.customer.email, 100, billY4); billY4 += 4; }
                     billY4 = Math.max(billY4, 83);
-                    if (doc.customer.address) { const al = pdf.splitTextToSize(doc.customer.address, 85); pdf.text(al, 100, billY4); billY4 += al.length * 4; }
+                    if (doc.customer.address) { const al = pdf.splitTextToSize('Address: ' + doc.customer.address, 85); pdf.text(al, 100, billY4); billY4 += al.length * 4; }
                     if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 100, billY4 + 1); pdf.setFontSize(9); billY4 += 5; }
                     if (type === 'invoice') {
                         pdf.setFontSize(8);
