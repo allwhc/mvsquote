@@ -4272,7 +4272,9 @@
                     return rows * 4 + 2; // 4mm per row + small bottom pad
                 };
 
-                const billRowsHeight = hasShipTo ? calcBillToHeight(20, 75) : calcBillToHeight(100, 85);
+                // When no Ship-To, fields stack below the name on the LEFT at full width.
+                // When Ship-To is present, fields stack below name on the left half only.
+                const billRowsHeight = hasShipTo ? calcBillToHeight(20, 75) : calcBillToHeight(20, 170);
                 // Top of box at 68. Name baseline at 83 -> 15mm above box top is the area used by labels.
                 // From baseline 89 onwards rows are drawn. So total box height = (89 - 68) + billRowsHeight = 21 + billRowsHeight
                 const billBoxHeight = Math.max(30, 21 + billRowsHeight);
@@ -4329,7 +4331,8 @@
                         drawLabeledLine('Address: ', deliveryAddress.address, 115, dlY, 75, 9);
                     }
                 } else {
-                    renderCustFields(100, 85);
+                    // No ship-to: fields stack below the name on the LEFT at full width
+                    renderCustFields(20, 170);
                 }
 
                 // Make sure the table sits below the bill-to box (default startY 104 is fine for short blocks)
@@ -4561,7 +4564,7 @@
 
                 // Footer — check if enough space, else add new page.
                 // Place footer right below content (no forced bottom-anchor).
-                const footerSpace = type === 'invoice' ? 50 : 20;
+                const footerSpace = type === 'invoice' ? 50 : 14;
                 let footerY = notesEndY + 8;
                 if (footerY + footerSpace > 285) {
                     doc.addPage();
@@ -5230,7 +5233,8 @@
                     return rows * 4 + 2;
                 };
 
-                const billRowsHeight2 = hasShipTo2 ? calcBillToHeight2(20, 75) : calcBillToHeight2(100, 85);
+                // When no Ship-To, fields stack below name on the LEFT at full width.
+                const billRowsHeight2 = hasShipTo2 ? calcBillToHeight2(20, 75) : calcBillToHeight2(20, 170);
                 const billBoxHeight2 = Math.max(30, 21 + billRowsHeight2);
                 pdf.setFillColor(241, 245, 249);
                 pdf.rect(15, 68, 180, billBoxHeight2, 'F');
@@ -5283,7 +5287,8 @@
                         drawLabeledLine2('Address: ', doc.deliveryAddress.address, 115, dlY, 75, 9);
                     }
                 } else {
-                    renderCustFields2(100, 85);
+                    // No ship-to: fields stack below the name on the LEFT at full width
+                    renderCustFields2(20, 170);
                 }
 
                 const tableStartY2 = Math.max(104, 68 + billBoxHeight2 + 6);
@@ -5509,7 +5514,7 @@
 
                 // Footer — check if enough space, else add new page.
                 // Place footer right below content (no forced bottom-anchor).
-                const footerSpace2 = type === 'invoice' ? 50 : 20;
+                const footerSpace2 = type === 'invoice' ? 50 : 14;
                 let footerY = notesEndY + 8;
                 if (footerY + footerSpace2 > 285) {
                     pdf.addPage();
