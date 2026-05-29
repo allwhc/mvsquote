@@ -4229,10 +4229,55 @@
                 doc.text(`No: ${docNumber}`, 160, 52);
                 doc.text(`Date: ${today}`, 160, 58);
 
-                // Customer
+                // Customer block — dynamic height, bold labels
                 const hasShipTo = !sameAsDelivery && deliveryAddress && deliveryAddress.name;
+
+                // Helper to draw a "Label: value" line where label is bold and value is normal
+                const drawLabeledLine = (label, value, x, y, valueWrapWidth, fontSize) => {
+                    if (!value) return 0;
+                    const lblFont = fontSize || 9;
+                    doc.setFontSize(lblFont);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(60);
+                    doc.text(label, x, y);
+                    const lblW = doc.getTextWidth(label) + 1.2;
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(80);
+                    if (valueWrapWidth) {
+                        const valW = valueWrapWidth - lblW;
+                        const wrapped = doc.splitTextToSize(value, valW);
+                        doc.text(wrapped, x + lblW, y);
+                        return wrapped.length; // lines used
+                    }
+                    doc.text(value, x + lblW, y);
+                    return 1;
+                };
+
+                // Pre-compute the bill-to side height
+                // Layout per row: 4mm row height for 9pt, fields stacked starting at y=89 (after name)
+                const calcBillToHeight = (col1X, wrapWidth) => {
+                    let rows = 0;
+                    if (customer.phone) rows += 1;
+                    if (customer.email) rows += 1;
+                    if (customer.address) {
+                        // splitTextToSize length depends on label width too; approximate using full
+                        doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+                        const lblW = doc.getTextWidth('Address: ') + 1.2;
+                        doc.setFont('helvetica', 'normal');
+                        const lines = doc.splitTextToSize(customer.address, wrapWidth - lblW);
+                        rows += lines.length;
+                    }
+                    if (customer.gst) rows += 1;
+                    if (type === 'invoice') rows += 2; // Place of Supply + Reverse Charge
+                    return rows * 4 + 2; // 4mm per row + small bottom pad
+                };
+
+                const billRowsHeight = hasShipTo ? calcBillToHeight(20, 75) : calcBillToHeight(100, 85);
+                // Top of box at 68. Name baseline at 83 -> 15mm above box top is the area used by labels.
+                // From baseline 89 onwards rows are drawn. So total box height = (89 - 68) + billRowsHeight = 21 + billRowsHeight
+                const billBoxHeight = Math.max(30, 21 + billRowsHeight);
                 doc.setFillColor(241, 245, 249);
-                doc.rect(15, 68, 180, 30, 'F');
+                doc.rect(15, 68, 180, billBoxHeight, 'F');
 
                 doc.setTextColor(100);
                 doc.setFontSize(9);
@@ -4243,20 +4288,33 @@
                 doc.text(customer.name, 20, 83);
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(9);
-                doc.setTextColor(100);
-                if (hasShipTo) {
-                    if (customer.phone) doc.text('Ph: ' + customer.phone, 20, 89);
-                    let billY = customer.phone ? 93 : 89;
-                    if (customer.email) { doc.text('Email: ' + customer.email, 20, billY); billY += 4; }
-                    if (customer.address) { const al = doc.splitTextToSize('Address: ' + customer.address, 75); doc.text(al, 20, billY); billY += al.length * 4; }
-                    if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 20, billY + 1); doc.setFontSize(9); billY += 5; }
-                    if (type === 'invoice') {
-                        doc.setFontSize(8);
-                        doc.text('Place of Supply: ' + (customer.placeOfSupply || CONFIG.BUSINESS_STATE), 20, billY + 1); billY += 4;
-                        doc.text('Reverse Charge: No', 20, billY + 1);
-                        doc.setFontSize(9);
+                doc.setTextColor(80);
+
+                // Render fields with bold labels
+                const renderCustFields = (x, wrapW) => {
+                    let y = 89;
+                    if (customer.phone) { drawLabeledLine('Ph: ', customer.phone, x, y, wrapW, 9); y += 4; }
+                    if (customer.email) { drawLabeledLine('Email: ', customer.email, x, y, wrapW, 9); y += 4; }
+                    if (customer.address) {
+                        const used = drawLabeledLine('Address: ', customer.address, x, y, wrapW, 9);
+                        y += used * 4;
                     }
+                    if (customer.gst) {
+                        drawLabeledLine('GSTIN: ', customer.gst, x, y, wrapW, 8.5); y += 4;
+                    }
+                    if (type === 'invoice') {
+                        drawLabeledLine('Place of Supply: ', (customer.placeOfSupply || CONFIG.BUSINESS_STATE), x, y, wrapW, 8.5); y += 4;
+                        drawLabeledLine('Reverse Charge: ', 'No', x, y, wrapW, 8.5); y += 4;
+                    }
+                    return y;
+                };
+
+                if (hasShipTo) {
+                    renderCustFields(20, 75);
                     // SHIP TO column
+                    doc.setTextColor(100);
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'normal');
                     doc.text('SHIP TO:', 115, 76);
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(11);
@@ -4264,23 +4322,18 @@
                     doc.text(deliveryAddress.name, 115, 83);
                     doc.setFont('helvetica', 'normal');
                     doc.setFontSize(9);
-                    doc.setTextColor(100);
-                    if (deliveryAddress.phone) doc.text('Ph: ' + deliveryAddress.phone, 115, 89);
-                    if (deliveryAddress.address) { const al2 = doc.splitTextToSize(deliveryAddress.address, 75); doc.text(al2, 115, 94); }
-                } else {
-                    if (customer.phone) doc.text('Ph: ' + customer.phone, 100, 76);
-                    let billY2 = customer.phone ? 80 : 76;
-                    if (customer.email) { doc.text('Email: ' + customer.email, 100, billY2); billY2 += 4; }
-                    billY2 = Math.max(billY2, 83);
-                    if (customer.address) { const al = doc.splitTextToSize('Address: ' + customer.address, 85); doc.text(al, 100, billY2); billY2 += al.length * 4; }
-                    if (customer.gst) { doc.setFontSize(8); doc.text('GSTIN: ' + customer.gst, 100, billY2 + 1); doc.setFontSize(9); billY2 += 5; }
-                    if (type === 'invoice') {
-                        doc.setFontSize(8);
-                        doc.text('Place of Supply: ' + (customer.placeOfSupply || CONFIG.BUSINESS_STATE), 100, billY2 + 1); billY2 += 4;
-                        doc.text('Reverse Charge: No', 100, billY2 + 1);
-                        doc.setFontSize(9);
+                    doc.setTextColor(80);
+                    if (deliveryAddress.phone) drawLabeledLine('Ph: ', deliveryAddress.phone, 115, 89, 75, 9);
+                    if (deliveryAddress.address) {
+                        const dlY = deliveryAddress.phone ? 93 : 89;
+                        drawLabeledLine('Address: ', deliveryAddress.address, 115, dlY, 75, 9);
                     }
+                } else {
+                    renderCustFields(100, 85);
                 }
+
+                // Make sure the table sits below the bill-to box (default startY 104 is fine for short blocks)
+                const tableStartY = Math.max(104, 68 + billBoxHeight + 6);
 
                 // Table - smart columns based on discount usage
                 const hasDiscount = quoteItems.some(item => item.discount > 0);
@@ -4331,7 +4384,7 @@
                 }
 
                 doc.autoTable({
-                    startY: 104,
+                    startY: tableStartY,
                     head: tableHead,
                     body: tableData,
                     theme: 'striped',
@@ -5137,10 +5190,50 @@
                 pdf.text(`No: ${doc.number}`, 160, 52);
                 pdf.text('Date: ' + formatDate(doc.date), 160, 59);
 
-                // Customer Info
+                // Customer Info — dynamic height, bold labels
                 const hasShipTo2 = doc.deliveryAddress && doc.deliveryAddress.name;
+                const cust = doc.customer || {};
+
+                const drawLabeledLine2 = (label, value, x, y, valueWrapWidth, fontSize) => {
+                    if (!value) return 0;
+                    const lblFont = fontSize || 9;
+                    pdf.setFontSize(lblFont);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setTextColor(60);
+                    pdf.text(label, x, y);
+                    const lblW = pdf.getTextWidth(label) + 1.2;
+                    pdf.setFont('helvetica', 'normal');
+                    pdf.setTextColor(80);
+                    if (valueWrapWidth) {
+                        const valW = valueWrapWidth - lblW;
+                        const wrapped = pdf.splitTextToSize(value, valW);
+                        pdf.text(wrapped, x + lblW, y);
+                        return wrapped.length;
+                    }
+                    pdf.text(value, x + lblW, y);
+                    return 1;
+                };
+
+                const calcBillToHeight2 = (col1X, wrapWidth) => {
+                    let rows = 0;
+                    if (cust.phone) rows += 1;
+                    if (cust.email) rows += 1;
+                    if (cust.address) {
+                        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9);
+                        const lblW = pdf.getTextWidth('Address: ') + 1.2;
+                        pdf.setFont('helvetica', 'normal');
+                        const lines = pdf.splitTextToSize(cust.address, wrapWidth - lblW);
+                        rows += lines.length;
+                    }
+                    if (cust.gst) rows += 1;
+                    if (type === 'invoice') rows += 2;
+                    return rows * 4 + 2;
+                };
+
+                const billRowsHeight2 = hasShipTo2 ? calcBillToHeight2(20, 75) : calcBillToHeight2(100, 85);
+                const billBoxHeight2 = Math.max(30, 21 + billRowsHeight2);
                 pdf.setFillColor(241, 245, 249);
-                pdf.rect(15, 68, 180, 30, 'F');
+                pdf.rect(15, 68, 180, billBoxHeight2, 'F');
 
                 pdf.setTextColor(100);
                 pdf.setFontSize(9);
@@ -5148,24 +5241,34 @@
                 pdf.setFont('helvetica', 'bold');
                 pdf.setFontSize(11);
                 pdf.setTextColor(30);
-                pdf.text(doc.customer.name || 'N/A', 20, 83);
-
+                pdf.text(cust.name || 'N/A', 20, 83);
                 pdf.setFont('helvetica', 'normal');
                 pdf.setFontSize(9);
-                pdf.setTextColor(100);
-                if (hasShipTo2) {
-                    if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 20, 89);
-                    let billY3 = doc.customer.phone ? 93 : 89;
-                    if (doc.customer.email) { pdf.text('Email: ' + doc.customer.email, 20, billY3); billY3 += 4; }
-                    if (doc.customer.address) { const al = pdf.splitTextToSize('Address: ' + doc.customer.address, 75); pdf.text(al, 20, billY3); billY3 += al.length * 4; }
-                    if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 20, billY3 + 1); pdf.setFontSize(9); billY3 += 5; }
-                    if (type === 'invoice') {
-                        pdf.setFontSize(8);
-                        pdf.text('Place of Supply: ' + (doc.customer.placeOfSupply || CONFIG.BUSINESS_STATE), 20, billY3 + 1); billY3 += 4;
-                        pdf.text('Reverse Charge: No', 20, billY3 + 1);
-                        pdf.setFontSize(9);
+                pdf.setTextColor(80);
+
+                const renderCustFields2 = (x, wrapW) => {
+                    let y = 89;
+                    if (cust.phone) { drawLabeledLine2('Ph: ', cust.phone, x, y, wrapW, 9); y += 4; }
+                    if (cust.email) { drawLabeledLine2('Email: ', cust.email, x, y, wrapW, 9); y += 4; }
+                    if (cust.address) {
+                        const used = drawLabeledLine2('Address: ', cust.address, x, y, wrapW, 9);
+                        y += used * 4;
                     }
-                    // SHIP TO column
+                    if (cust.gst) {
+                        drawLabeledLine2('GSTIN: ', cust.gst, x, y, wrapW, 8.5); y += 4;
+                    }
+                    if (type === 'invoice') {
+                        drawLabeledLine2('Place of Supply: ', (cust.placeOfSupply || CONFIG.BUSINESS_STATE), x, y, wrapW, 8.5); y += 4;
+                        drawLabeledLine2('Reverse Charge: ', 'No', x, y, wrapW, 8.5); y += 4;
+                    }
+                    return y;
+                };
+
+                if (hasShipTo2) {
+                    renderCustFields2(20, 75);
+                    pdf.setTextColor(100);
+                    pdf.setFontSize(9);
+                    pdf.setFont('helvetica', 'normal');
                     pdf.text('SHIP TO:', 115, 76);
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(11);
@@ -5173,23 +5276,17 @@
                     pdf.text(doc.deliveryAddress.name, 115, 83);
                     pdf.setFont('helvetica', 'normal');
                     pdf.setFontSize(9);
-                    pdf.setTextColor(100);
-                    if (doc.deliveryAddress.phone) pdf.text('Ph: ' + doc.deliveryAddress.phone, 115, 89);
-                    if (doc.deliveryAddress.address) { const al2 = pdf.splitTextToSize(doc.deliveryAddress.address, 75); pdf.text(al2, 115, 94); }
-                } else {
-                    if (doc.customer.phone) pdf.text('Ph: ' + doc.customer.phone, 100, 76);
-                    let billY4 = doc.customer.phone ? 80 : 76;
-                    if (doc.customer.email) { pdf.text('Email: ' + doc.customer.email, 100, billY4); billY4 += 4; }
-                    billY4 = Math.max(billY4, 83);
-                    if (doc.customer.address) { const al = pdf.splitTextToSize('Address: ' + doc.customer.address, 85); pdf.text(al, 100, billY4); billY4 += al.length * 4; }
-                    if (doc.customer.gst) { pdf.setFontSize(8); pdf.text('GSTIN: ' + doc.customer.gst, 100, billY4 + 1); pdf.setFontSize(9); billY4 += 5; }
-                    if (type === 'invoice') {
-                        pdf.setFontSize(8);
-                        pdf.text('Place of Supply: ' + (doc.customer.placeOfSupply || CONFIG.BUSINESS_STATE), 100, billY4 + 1); billY4 += 4;
-                        pdf.text('Reverse Charge: No', 100, billY4 + 1);
-                        pdf.setFontSize(9);
+                    pdf.setTextColor(80);
+                    if (doc.deliveryAddress.phone) drawLabeledLine2('Ph: ', doc.deliveryAddress.phone, 115, 89, 75, 9);
+                    if (doc.deliveryAddress.address) {
+                        const dlY = doc.deliveryAddress.phone ? 93 : 89;
+                        drawLabeledLine2('Address: ', doc.deliveryAddress.address, 115, dlY, 75, 9);
                     }
+                } else {
+                    renderCustFields2(100, 85);
                 }
+
+                const tableStartY2 = Math.max(104, 68 + billBoxHeight2 + 6);
 
                 // Table - smart columns based on discount usage
                 const hasDiscount = doc.items.some(item => (item.discount || 0) > 0);
@@ -5234,7 +5331,7 @@
                 }
 
                 pdf.autoTable({
-                    startY: 104,
+                    startY: tableStartY2,
                     head: tableHead,
                     body: tableData,
                     theme: 'striped',
