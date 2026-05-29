@@ -4272,9 +4272,8 @@
                     return rows * 4 + 2; // 4mm per row + small bottom pad
                 };
 
-                // When no Ship-To, fields stack below the name on the LEFT at full width.
-                // When Ship-To is present, fields stack below name on the left half only.
-                const billRowsHeight = hasShipTo ? calcBillToHeight(20, 75) : calcBillToHeight(20, 170);
+                // Layout: name on left half, details on right half — saves vertical space.
+                const billRowsHeight = hasShipTo ? calcBillToHeight(20, 75) : calcBillToHeight(100, 95);
                 // Top of box at 68. Name baseline at 83 -> 15mm above box top is the area used by labels.
                 // From baseline 89 onwards rows are drawn. So total box height = (89 - 68) + billRowsHeight = 21 + billRowsHeight
                 const billBoxHeight = Math.max(30, 21 + billRowsHeight);
@@ -4331,8 +4330,8 @@
                         drawLabeledLine('Address: ', deliveryAddress.address, 115, dlY, 75, 9);
                     }
                 } else {
-                    // No ship-to: fields stack below the name on the LEFT at full width
-                    renderCustFields(20, 170);
+                    // No ship-to: name stays on the left, details on the right (saves vertical space)
+                    renderCustFields(100, 95);
                 }
 
                 // Make sure the table sits below the bill-to box (default startY 104 is fine for short blocks)
@@ -5233,8 +5232,8 @@
                     return rows * 4 + 2;
                 };
 
-                // When no Ship-To, fields stack below name on the LEFT at full width.
-                const billRowsHeight2 = hasShipTo2 ? calcBillToHeight2(20, 75) : calcBillToHeight2(20, 170);
+                // Layout: name on left half, details on right half — saves vertical space.
+                const billRowsHeight2 = hasShipTo2 ? calcBillToHeight2(20, 75) : calcBillToHeight2(100, 95);
                 const billBoxHeight2 = Math.max(30, 21 + billRowsHeight2);
                 pdf.setFillColor(241, 245, 249);
                 pdf.rect(15, 68, 180, billBoxHeight2, 'F');
@@ -5287,8 +5286,8 @@
                         drawLabeledLine2('Address: ', doc.deliveryAddress.address, 115, dlY, 75, 9);
                     }
                 } else {
-                    // No ship-to: fields stack below the name on the LEFT at full width
-                    renderCustFields2(20, 170);
+                    // No ship-to: name stays on the left, details on the right (saves vertical space)
+                    renderCustFields2(100, 95);
                 }
 
                 const tableStartY2 = Math.max(104, 68 + billBoxHeight2 + 6);
