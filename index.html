@@ -11554,8 +11554,7 @@ ${componentResults.map(c => {
                             setLastSync(new Date().toISOString());
                             setTimeout(() => setIsLoading(false), 500);
 
-                            // Background: sync from Sheets to keep state updated
-                            setTimeout(() => backgroundSyncFromSheets(), 3000);
+                            // (Background Sheets sync removed — Firebase is the source of truth)
                             return;
                         }
                     } catch(e) {
@@ -11772,31 +11771,14 @@ ${componentResults.map(c => {
             };
 
             // Background sync from Sheets (runs silently after Firebase load)
+            // backgroundSyncFromSheets — DISABLED.
+            // It used to fetch products/items from Google Sheets and overwrite Firebase-loaded
+            // React state. The Sheets sync payload (syncToGoogleSheets) doesn't include newer
+            // fields like description, subBrand, hsn, isService, imageUrl — so whenever this
+            // ran 3 seconds after load, those fields silently disappeared from the UI.
+            // Firebase is the source of truth; we no longer pull from Sheets.
             const backgroundSyncFromSheets = async () => {
-                if (!FirebaseCatalog.isMigrated()) return;
-                try {
-                    const response = await fetch(`${CONFIG.API_URL}?action=getAllData`);
-                    const result = await response.json();
-                    if (result.success && result.data) {
-                        if (result.data.items && result.data.items.length > 0) {
-                            const enriched = enrichItems(result.data.items);
-                            setItems(enriched);
-                            if (result.data.products) setProducts(result.data.products);
-                            if (result.data.bom) setBom(result.data.bom);
-                            if (result.data.subProducts) setSubProducts(result.data.subProducts);
-
-                            localStorage.setItem('mvs_data_v4', JSON.stringify({
-                                items: result.data.items,
-                                products: result.data.products,
-                                bom: result.data.bom,
-                                subProducts: result.data.subProducts
-                            }));
-                            setLastSync(new Date().toISOString());
-                        }
-                    }
-                } catch(e) {
-                    console.log('Background Sheets sync failed (non-critical):', e);
-                }
+                return;
             };
 
             // Auto-save to Firebase: DISABLED.
