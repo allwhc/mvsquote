@@ -4274,9 +4274,10 @@
 
                 // Layout: name on left half, details on right half — saves vertical space.
                 const billRowsHeight = hasShipTo ? calcBillToHeight(20, 75) : calcBillToHeight(100, 95);
-                // Top of box at 68. Name baseline at 83 -> 15mm above box top is the area used by labels.
-                // From baseline 89 onwards rows are drawn. So total box height = (89 - 68) + billRowsHeight = 21 + billRowsHeight
-                const billBoxHeight = Math.max(30, 21 + billRowsHeight);
+                // Box height: right column starts at y=76 (top of box area), so its bottom is 76 + billRowsHeight.
+                // For ship-to case, fields start at y=89, so bottom is 89 + billRowsHeight.
+                const billBoxBottom = hasShipTo ? (89 - 68 + billRowsHeight) : (76 - 68 + billRowsHeight + 2);
+                const billBoxHeight = Math.max(30, billBoxBottom);
                 doc.setFillColor(241, 245, 249);
                 doc.rect(15, 68, 180, billBoxHeight, 'F');
 
@@ -4291,9 +4292,9 @@
                 doc.setFontSize(9);
                 doc.setTextColor(80);
 
-                // Render fields with bold labels
-                const renderCustFields = (x, wrapW) => {
-                    let y = 89;
+                // Render fields with bold labels — startY controls where the first field sits
+                const renderCustFields = (x, wrapW, startY) => {
+                    let y = startY != null ? startY : 89;
                     if (customer.phone) { drawLabeledLine('Ph: ', customer.phone, x, y, wrapW, 9); y += 4; }
                     if (customer.email) { drawLabeledLine('Email: ', customer.email, x, y, wrapW, 9); y += 4; }
                     if (customer.address) {
@@ -4330,8 +4331,9 @@
                         drawLabeledLine('Address: ', deliveryAddress.address, 115, dlY, 75, 9);
                     }
                 } else {
-                    // No ship-to: name stays on the left, details on the right (saves vertical space)
-                    renderCustFields(100, 95);
+                    // No ship-to: name stays on the left, details on the right.
+                    // Start at y=76 (same row as 'BILL TO:' label) so the top-right area isn't wasted.
+                    renderCustFields(100, 95, 76);
                 }
 
                 // Make sure the table sits below the bill-to box (default startY 104 is fine for short blocks)
@@ -5234,7 +5236,9 @@
 
                 // Layout: name on left half, details on right half — saves vertical space.
                 const billRowsHeight2 = hasShipTo2 ? calcBillToHeight2(20, 75) : calcBillToHeight2(100, 95);
-                const billBoxHeight2 = Math.max(30, 21 + billRowsHeight2);
+                // Right column starts at y=76 when no ship-to (top of box area).
+                const billBoxBottom2 = hasShipTo2 ? (89 - 68 + billRowsHeight2) : (76 - 68 + billRowsHeight2 + 2);
+                const billBoxHeight2 = Math.max(30, billBoxBottom2);
                 pdf.setFillColor(241, 245, 249);
                 pdf.rect(15, 68, 180, billBoxHeight2, 'F');
 
@@ -5249,8 +5253,8 @@
                 pdf.setFontSize(9);
                 pdf.setTextColor(80);
 
-                const renderCustFields2 = (x, wrapW) => {
-                    let y = 89;
+                const renderCustFields2 = (x, wrapW, startY) => {
+                    let y = startY != null ? startY : 89;
                     if (cust.phone) { drawLabeledLine2('Ph: ', cust.phone, x, y, wrapW, 9); y += 4; }
                     if (cust.email) { drawLabeledLine2('Email: ', cust.email, x, y, wrapW, 9); y += 4; }
                     if (cust.address) {
@@ -5286,8 +5290,9 @@
                         drawLabeledLine2('Address: ', doc.deliveryAddress.address, 115, dlY, 75, 9);
                     }
                 } else {
-                    // No ship-to: name stays on the left, details on the right (saves vertical space)
-                    renderCustFields2(100, 95);
+                    // No ship-to: name stays on the left, details on the right.
+                    // Start at y=76 (same row as 'BILL TO:' label) so the top-right area isn't wasted.
+                    renderCustFields2(100, 95, 76);
                 }
 
                 const tableStartY2 = Math.max(104, 68 + billBoxHeight2 + 6);
