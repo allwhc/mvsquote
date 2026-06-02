@@ -6541,12 +6541,12 @@ ${componentResults.map(c => {
                                     min="1"
                                 />
                             </div>
-                            <button className="btn btn-primary" onClick={addProduct} disabled={!selectedProduct}>
+                            <button className="btn btn-primary" onClick={addProduct} disabled={!selectedProduct} style={{ width: 140, justifyContent: 'center' }}>
                                 <Icons.Plus /> Add Product
                             </button>
                         </div>
 
-                        {/* Items row (searchable) */}
+                        {/* Items row (searchable) — aligned with the Products row */}
                         <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 12 }}>
                             <div className="form-group" style={{ flex: 2, minWidth: '200px', marginBottom: 0 }}>
                                 <label className="form-label">Select Item</label>
@@ -6567,11 +6567,15 @@ ${componentResults.map(c => {
                                     min="1"
                                 />
                             </div>
-                            <button className="btn btn-primary" onClick={addItem} disabled={!selectedItem}>
+                            <button className="btn btn-primary" onClick={addItem} disabled={!selectedItem} style={{ width: 140, justifyContent: 'center' }}>
                                 <Icons.Plus /> Add Item
                             </button>
-                            <button className="btn btn-secondary" onClick={addCustomItem}>
-                                <Icons.Plus /> Custom Item
+                        </div>
+
+                        {/* Custom Item button on its own row (clearly an alternative path) */}
+                        <div style={{ marginTop: 10 }}>
+                            <button className="btn btn-secondary btn-sm" onClick={addCustomItem}>
+                                <Icons.Plus /> Add Custom Item (one-off, not saved)
                             </button>
                         </div>
 
