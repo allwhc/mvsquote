@@ -6511,7 +6511,7 @@ ${componentResults.map(c => {
             return (
                 <div className="page-container">
                     <div className="page-header">
-                        <h1 className="page-title"><Icons.Calculator /> Component Estimator</h1>
+                        <h1 className="page-title">Component Estimator</h1>
                         <p className="page-subtitle">Calculate total components needed for multiple products</p>
                     </div>
 
@@ -6541,7 +6541,7 @@ ${componentResults.map(c => {
                                     min="1"
                                 />
                             </div>
-                            <button className="btn btn-primary" onClick={addProduct} disabled={!selectedProduct} style={{ width: 140, justifyContent: 'center' }}>
+                            <button className="btn btn-primary" onClick={addProduct} disabled={!selectedProduct} style={{ minWidth: 130, justifyContent: 'center', whiteSpace: 'nowrap' }}>
                                 <Icons.Plus /> Add Product
                             </button>
                         </div>
@@ -6567,7 +6567,7 @@ ${componentResults.map(c => {
                                     min="1"
                                 />
                             </div>
-                            <button className="btn btn-primary" onClick={addItem} disabled={!selectedItem} style={{ width: 140, justifyContent: 'center' }}>
+                            <button className="btn btn-primary" onClick={addItem} disabled={!selectedItem} style={{ minWidth: 130, justifyContent: 'center', whiteSpace: 'nowrap' }}>
                                 <Icons.Plus /> Add Item
                             </button>
                         </div>
