@@ -1841,6 +1841,54 @@
             }
         };
 
+        // ============ FINANCE / BOOKS (external sales, purchases, expenses) ============
+        // Generic CRUD over 3 separate Firestore collections with a localStorage cache per kind.
+        const FINANCE_KINDS = {
+            external_sales: { coll: 'external_sales', ls: 'mvs_external_sales' },
+            purchases:      { coll: 'purchases',      ls: 'mvs_purchases' },
+            expenses:       { coll: 'expenses',       ls: 'mvs_expenses' }
+        };
+        const EXPENSE_CATEGORIES = ['Rent', 'Salary', 'Electricity', 'Internet', 'Travel', 'Fuel', 'Marketing', 'Office Supplies', 'Bank Charges', 'GST Paid', 'Professional Fees', 'Repairs', 'Other'];
+        const SALES_CHANNELS = ['Amazon', 'Flipkart', 'Walk-in', 'Direct', 'Website', 'WhatsApp', 'Other'];
+
+        const FirebaseFinance = {
+            async add(kind, record) {
+                const cfg = FINANCE_KINDS[kind]; if (!cfg) throw new Error('Bad kind: ' + kind);
+                const docRef = await db.collection(cfg.coll).add({
+                    ...record,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                const cached = JSON.parse(localStorage.getItem(cfg.ls) || '[]');
+                cached.unshift({ ...record, id: docRef.id, createdAt: new Date().toISOString() });
+                localStorage.setItem(cfg.ls, JSON.stringify(cached));
+                return docRef.id;
+            },
+            async getAll(kind) {
+                const cfg = FINANCE_KINDS[kind]; if (!cfg) throw new Error('Bad kind: ' + kind);
+                try {
+                    const snap = await db.collection(cfg.coll).orderBy('date', 'desc').get();
+                    const rows = snap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate?.()?.toISOString() || d.data().createdAt }));
+                    localStorage.setItem(cfg.ls, JSON.stringify(rows));
+                    return rows;
+                } catch (e) {
+                    console.error('Finance read failed (' + kind + '), using cache:', e);
+                    return JSON.parse(localStorage.getItem(cfg.ls) || '[]');
+                }
+            },
+            async update(kind, id, data) {
+                const cfg = FINANCE_KINDS[kind]; if (!cfg) throw new Error('Bad kind: ' + kind);
+                await db.collection(cfg.coll).doc(id).update(data);
+                const cached = JSON.parse(localStorage.getItem(cfg.ls) || '[]');
+                localStorage.setItem(cfg.ls, JSON.stringify(cached.map(r => r.id === id ? { ...r, ...data } : r)));
+            },
+            async remove(kind, id) {
+                const cfg = FINANCE_KINDS[kind]; if (!cfg) throw new Error('Bad kind: ' + kind);
+                await db.collection(cfg.coll).doc(id).delete();
+                const cached = JSON.parse(localStorage.getItem(cfg.ls) || '[]');
+                localStorage.setItem(cfg.ls, JSON.stringify(cached.filter(r => r.id !== id)));
+            }
+        };
+
         // ============ NO HARDCODED DATA - Loads from Google Sheets ============
         const INITIAL_ITEMS = [];
         const INITIAL_PRODUCTS = [];
@@ -11476,13 +11524,6 @@ ${componentResults.map(c => {
 
             return (
                 <div>
-                    <div className="page-header">
-                        <div>
-                            <h1 className="page-title">Payment Analytics</h1>
-                            <p className="page-subtitle">Track invoice totals, payments received, and outstanding amounts</p>
-                        </div>
-                    </div>
-
                     {/* Headline cards */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
                         <Card label="This Month — Invoiced" value={formatCurrency(stats.monthInvoiced)} color="#3B82F6" />
@@ -11586,6 +11627,466 @@ ${componentResults.map(c => {
                             )}
                         </div>
                     </div>
+                </div>
+            );
+        };
+
+        // ============ FINANCE — GENERIC LEDGER TAB ============
+        // A reusable list+form tab used for external_sales / purchases / expenses.
+        // `fields` is the schema; `kind` is the FINANCE_KINDS key.
+        const FinanceLedger = ({ kind, title, fields, defaults, columns, totalLabel = 'Total' }) => {
+            const [rows, setRows] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [showForm, setShowForm] = useState(false);
+            const [editing, setEditing] = useState(null);
+            const [form, setForm] = useState(defaults);
+            const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
+            const [monthFilter, setMonthFilter] = useState('all'); // 'all' or 0-11
+
+            const refresh = async () => {
+                setLoading(true);
+                try { setRows(await FirebaseFinance.getAll(kind)); }
+                catch (e) { console.error(e); alert('Failed to load: ' + e.message); }
+                setLoading(false);
+            };
+
+            useEffect(() => { refresh(); }, [kind]);
+
+            const openAdd = () => { setEditing(null); setForm({ ...defaults, date: new Date().toISOString().slice(0, 10) }); setShowForm(true); };
+            const openEdit = (r) => { setEditing(r); setForm({ ...defaults, ...r }); setShowForm(true); };
+            const closeForm = () => { setShowForm(false); setEditing(null); };
+
+            const save = async () => {
+                if (!form.date) { alert('Date is required'); return; }
+                if (!form.amount || Number(form.amount) <= 0) { alert('Amount must be > 0'); return; }
+                try {
+                    const payload = { ...form, amount: Number(form.amount) || 0, gstPercent: Number(form.gstPercent) || 0, gstAmount: Number(form.gstAmount) || 0, qty: Number(form.qty) || 0 };
+                    if (editing) await FirebaseFinance.update(kind, editing.id, payload);
+                    else await FirebaseFinance.add(kind, payload);
+                    closeForm();
+                    refresh();
+                } catch (e) { alert('Save failed: ' + e.message); }
+            };
+
+            const remove = async (r) => {
+                if (!confirm('Delete this entry?')) return;
+                try { await FirebaseFinance.remove(kind, r.id); refresh(); }
+                catch (e) { alert('Delete failed: ' + e.message); }
+            };
+
+            // Auto-fill GST amount when % + amount entered
+            const onAmountOrPct = (patch) => {
+                const next = { ...form, ...patch };
+                const amt = Number(next.amount) || 0;
+                const pct = Number(next.gstPercent) || 0;
+                if (pct > 0 && amt > 0) next.gstAmount = +(amt * pct / 100).toFixed(2);
+                setForm(next);
+            };
+
+            const years = Array.from(new Set(rows.map(r => new Date(r.date).getFullYear()))).sort((a, b) => b - a);
+            if (years.length === 0) years.push(new Date().getFullYear());
+
+            const filtered = rows.filter(r => {
+                const d = new Date(r.date);
+                if (d.getFullYear() !== yearFilter) return false;
+                if (monthFilter !== 'all' && d.getMonth() !== Number(monthFilter)) return false;
+                return true;
+            });
+
+            const total = filtered.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+            const totalGst = filtered.reduce((s, r) => s + (Number(r.gstAmount) || 0), 0);
+            const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+            return (
+                <div>
+                    {/* Filter + Add */}
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+                        <select className="form-select" value={yearFilter} onChange={e => setYearFilter(Number(e.target.value))} style={{ width: 110 }}>
+                            {years.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                        <select className="form-select" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} style={{ width: 140 }}>
+                            <option value="all">All months</option>
+                            {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                        </select>
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <div style={{ fontSize: 13, color: '#6B7280' }}>{totalLabel}: <strong style={{ color: 'var(--primary)', fontSize: 16 }}>{formatCurrency(total)}</strong>{totalGst > 0 && <span style={{ marginLeft: 8, fontSize: 11 }}>(GST: {formatCurrency(totalGst)})</span>}</div>
+                            <button className="btn btn-primary" onClick={openAdd}>+ Add {title}</button>
+                        </div>
+                    </div>
+
+                    {/* Table */}
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: 30, color: '#6B7280' }}>Loading...</div>
+                    ) : filtered.length === 0 ? (
+                        <div className="card" style={{ textAlign: 'center', padding: 30, color: '#6B7280' }}>No entries for this period. Click "+ Add {title}" to record one.</div>
+                    ) : (
+                        <div className="table-container">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        {columns.map(c => <th key={c.key} style={c.align === 'right' ? { textAlign: 'right' } : undefined}>{c.label}</th>)}
+                                        <th style={{ textAlign: 'right' }}>Amount</th>
+                                        <th style={{ textAlign: 'right' }}>GST</th>
+                                        <th style={{ textAlign: 'center', width: 100 }}>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filtered.map(r => (
+                                        <tr key={r.id}>
+                                            <td style={{ whiteSpace: 'nowrap' }}>{formatDate(r.date)}</td>
+                                            {columns.map(c => (
+                                                <td key={c.key} style={c.align === 'right' ? { textAlign: 'right' } : undefined}>
+                                                    {c.format ? c.format(r[c.key], r) : (r[c.key] || '-')}
+                                                </td>
+                                            ))}
+                                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(r.amount)}</td>
+                                            <td style={{ textAlign: 'right', fontSize: 12, color: '#6B7280' }}>{r.gstAmount > 0 ? `${formatCurrency(r.gstAmount)} (${r.gstPercent}%)` : '-'}</td>
+                                            <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                <button onClick={() => openEdit(r)} title="Edit" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: 4 }}>✎</button>
+                                                <button onClick={() => remove(r)} title="Delete" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#DC2626', padding: 4, fontSize: 16 }}>✕</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* Modal form */}
+                    {showForm && (
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={closeForm}>
+                            <div style={{ background: 'white', borderRadius: 12, padding: 20, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                                <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>{editing ? 'Edit' : 'Add'} {title}</h3>
+
+                                <div className="form-group">
+                                    <label className="form-label">Date *</label>
+                                    <input type="date" className="form-input" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />
+                                </div>
+
+                                {fields.map(f => (
+                                    <div className="form-group" key={f.key}>
+                                        <label className="form-label">{f.label}{f.required && ' *'}</label>
+                                        {f.type === 'select' ? (
+                                            <select className="form-select" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })}>
+                                                <option value="">— Select —</option>
+                                                {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                                            </select>
+                                        ) : f.type === 'textarea' ? (
+                                            <textarea className="form-textarea" rows="2" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder || ''} />
+                                        ) : f.type === 'number' ? (
+                                            <input type="number" className="form-input" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder || ''} />
+                                        ) : (
+                                            <input className="form-input" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder || ''} />
+                                        )}
+                                    </div>
+                                ))}
+
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="form-label">Amount (₹) *</label>
+                                        <input type="number" className="form-input" value={form.amount || ''} onChange={e => onAmountOrPct({ amount: e.target.value })} placeholder="0" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Payment Mode</label>
+                                        <select className="form-select" value={form.paymentMode || ''} onChange={e => setForm({ ...form, paymentMode: e.target.value })}>
+                                            <option value="">—</option>
+                                            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* GST (optional) */}
+                                <div style={{ background: '#F9FAFB', padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                                    <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8, fontWeight: 600 }}>GST Details (optional)</div>
+                                    <div className="form-row">
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" style={{ fontSize: 11 }}>GSTIN</label>
+                                            <input className="form-input" value={form.gstin || ''} onChange={e => setForm({ ...form, gstin: e.target.value })} placeholder="22AAAAA0000A1Z5" />
+                                        </div>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" style={{ fontSize: 11 }}>GST %</label>
+                                            <input type="number" className="form-input" value={form.gstPercent || ''} onChange={e => onAmountOrPct({ gstPercent: e.target.value })} placeholder="18" />
+                                        </div>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" style={{ fontSize: 11 }}>GST Amount</label>
+                                            <input type="number" className="form-input" value={form.gstAmount || ''} onChange={e => setForm({ ...form, gstAmount: e.target.value })} placeholder="auto" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="form-label">Notes</label>
+                                    <textarea className="form-textarea" rows="2" value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })} />
+                                </div>
+
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                    <button className="btn btn-secondary" onClick={closeForm}>Cancel</button>
+                                    <button className="btn btn-primary" onClick={save}>{editing ? 'Update' : 'Save'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ============ FINANCE — SUMMARY TAB ============
+        const FinanceSummary = ({ quotations }) => {
+            const [extSales, setExtSales] = useState([]);
+            const [purchases, setPurchases] = useState([]);
+            const [expenses, setExpenses] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
+
+            useEffect(() => {
+                (async () => {
+                    setLoading(true);
+                    try {
+                        const [s, p, e] = await Promise.all([
+                            FirebaseFinance.getAll('external_sales'),
+                            FirebaseFinance.getAll('purchases'),
+                            FirebaseFinance.getAll('expenses')
+                        ]);
+                        setExtSales(s); setPurchases(p); setExpenses(e);
+                    } catch (err) { console.error(err); }
+                    setLoading(false);
+                })();
+            }, []);
+
+            const invoices = (quotations || []).filter(q => q.type === 'invoice');
+            const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+            const allYears = Array.from(new Set([
+                ...invoices.map(i => new Date(i.date).getFullYear()),
+                ...extSales.map(r => new Date(r.date).getFullYear()),
+                ...purchases.map(r => new Date(r.date).getFullYear()),
+                ...expenses.map(r => new Date(r.date).getFullYear()),
+                new Date().getFullYear()
+            ])).sort((a, b) => b - a);
+
+            const sumByMonth = (records, amtField = 'amount') => {
+                const arr = Array(12).fill(0);
+                records.forEach(r => {
+                    const d = new Date(r.date);
+                    if (d.getFullYear() === yearFilter) arr[d.getMonth()] += Number(r[amtField]) || 0;
+                });
+                return arr;
+            };
+
+            const invoicedByMonth = sumByMonth(invoices.map(i => ({ date: i.date, amount: Number(i.grandTotal) || 0 })));
+            const extSalesByMonth = sumByMonth(extSales);
+            const purchasesByMonth = sumByMonth(purchases);
+            const expensesByMonth = sumByMonth(expenses);
+
+            const totalSalesByMonth = invoicedByMonth.map((v, i) => v + extSalesByMonth[i]);
+            const netByMonth = totalSalesByMonth.map((v, i) => v - purchasesByMonth[i] - expensesByMonth[i]);
+
+            const ytdSales = totalSalesByMonth.reduce((a, b) => a + b, 0);
+            const ytdPurchases = purchasesByMonth.reduce((a, b) => a + b, 0);
+            const ytdExpenses = expensesByMonth.reduce((a, b) => a + b, 0);
+            const ytdNet = ytdSales - ytdPurchases - ytdExpenses;
+
+            const maxVal = Math.max(...totalSalesByMonth, ...purchasesByMonth, ...expensesByMonth, 1);
+
+            const Card = ({ label, value, color, sub }) => (
+                <div style={{ background: 'white', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 6 }}>{label}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+                    {sub && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{sub}</div>}
+                </div>
+            );
+
+            if (loading) return <div style={{ padding: 30, textAlign: 'center', color: '#6B7280' }}>Loading summary...</div>;
+
+            return (
+                <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <h3 style={{ margin: 0, color: 'var(--primary)' }}>Year Summary</h3>
+                        <select className="form-select" value={yearFilter} onChange={e => setYearFilter(Number(e.target.value))} style={{ width: 110 }}>
+                            {allYears.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 20 }}>
+                        <Card label={`${yearFilter} Total Sales`} value={formatCurrency(ytdSales)} color="#3B82F6" sub={`Invoiced + External`} />
+                        <Card label={`${yearFilter} Purchases`} value={formatCurrency(ytdPurchases)} color="#F59E0B" />
+                        <Card label={`${yearFilter} Expenses`} value={formatCurrency(ytdExpenses)} color="#EF4444" />
+                        <Card label={`${yearFilter} Net`} value={formatCurrency(ytdNet)} color={ytdNet >= 0 ? '#10B981' : '#EF4444'} sub="Sales − Purchases − Expenses" />
+                    </div>
+
+                    {/* Monthly chart */}
+                    <div style={{ background: 'white', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', marginBottom: 16 }}>
+                        <h4 style={{ marginTop: 0, color: 'var(--primary)' }}>Monthly Breakdown — {yearFilter}</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 4, alignItems: 'end', height: 180, marginBottom: 8 }}>
+                            {monthNames.map((m, i) => {
+                                const sH = (totalSalesByMonth[i] / maxVal) * 160;
+                                const pH = (purchasesByMonth[i] / maxVal) * 160;
+                                const eH = (expensesByMonth[i] / maxVal) * 160;
+                                return (
+                                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: 180 }}
+                                         title={`${m}: Sales ${formatCurrency(totalSalesByMonth[i])} | Purchases ${formatCurrency(purchasesByMonth[i])} | Expenses ${formatCurrency(expensesByMonth[i])} | Net ${formatCurrency(netByMonth[i])}`}>
+                                        <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+                                            <div style={{ width: 8, height: sH, background: '#3B82F6', borderRadius: '2px 2px 0 0' }}></div>
+                                            <div style={{ width: 8, height: pH, background: '#F59E0B', borderRadius: '2px 2px 0 0' }}></div>
+                                            <div style={{ width: 8, height: eH, background: '#EF4444', borderRadius: '2px 2px 0 0' }}></div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 4, fontSize: 10, color: '#6B7280', textAlign: 'center' }}>
+                            {monthNames.map(m => <div key={m}>{m}</div>)}
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12, fontSize: 12, flexWrap: 'wrap' }}>
+                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#3B82F6', marginRight: 4 }}></span>Sales</span>
+                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#F59E0B', marginRight: 4 }}></span>Purchases</span>
+                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#EF4444', marginRight: 4 }}></span>Expenses</span>
+                        </div>
+                    </div>
+
+                    {/* Per-month table */}
+                    <div className="table-container">
+                        <table className="table">
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th style={{ textAlign: 'right' }}>Invoiced Sales</th>
+                                    <th style={{ textAlign: 'right' }}>External Sales</th>
+                                    <th style={{ textAlign: 'right' }}>Total Sales</th>
+                                    <th style={{ textAlign: 'right' }}>Purchases</th>
+                                    <th style={{ textAlign: 'right' }}>Expenses</th>
+                                    <th style={{ textAlign: 'right' }}>Net</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {monthNames.map((m, i) => (
+                                    <tr key={i}>
+                                        <td>{m}</td>
+                                        <td style={{ textAlign: 'right' }}>{formatCurrency(invoicedByMonth[i])}</td>
+                                        <td style={{ textAlign: 'right' }}>{formatCurrency(extSalesByMonth[i])}</td>
+                                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#3B82F6' }}>{formatCurrency(totalSalesByMonth[i])}</td>
+                                        <td style={{ textAlign: 'right', color: '#F59E0B' }}>{formatCurrency(purchasesByMonth[i])}</td>
+                                        <td style={{ textAlign: 'right', color: '#EF4444' }}>{formatCurrency(expensesByMonth[i])}</td>
+                                        <td style={{ textAlign: 'right', fontWeight: 700, color: netByMonth[i] >= 0 ? '#10B981' : '#EF4444' }}>{formatCurrency(netByMonth[i])}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot>
+                                <tr style={{ background: 'var(--bg-light)', fontWeight: 700 }}>
+                                    <td>TOTAL</td>
+                                    <td style={{ textAlign: 'right' }}>{formatCurrency(invoicedByMonth.reduce((a,b)=>a+b,0))}</td>
+                                    <td style={{ textAlign: 'right' }}>{formatCurrency(extSalesByMonth.reduce((a,b)=>a+b,0))}</td>
+                                    <td style={{ textAlign: 'right', color: '#3B82F6' }}>{formatCurrency(ytdSales)}</td>
+                                    <td style={{ textAlign: 'right', color: '#F59E0B' }}>{formatCurrency(ytdPurchases)}</td>
+                                    <td style={{ textAlign: 'right', color: '#EF4444' }}>{formatCurrency(ytdExpenses)}</td>
+                                    <td style={{ textAlign: 'right', color: ytdNet >= 0 ? '#10B981' : '#EF4444' }}>{formatCurrency(ytdNet)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            );
+        };
+
+        // ============ FINANCE — WRAPPER WITH TABS ============
+        const Finance = ({ quotations, products, items }) => {
+            const [tab, setTab] = useState('invoiced');
+
+            const productOptions = (products || []).map(p => p.sku + ' — ' + p.name);
+            const vendorOptions = Array.from(new Set((items || []).flatMap(i => (i.vendors || []).map(v => v.name).filter(Boolean))));
+
+            const tabBtn = (id, label) => (
+                <button
+                    key={id}
+                    onClick={() => setTab(id)}
+                    style={{
+                        padding: '10px 16px', border: 'none', borderBottom: tab === id ? '3px solid var(--primary)' : '3px solid transparent',
+                        background: 'transparent', cursor: 'pointer', fontWeight: tab === id ? 700 : 500,
+                        color: tab === id ? 'var(--primary)' : '#6B7280', fontSize: 14
+                    }}
+                >{label}</button>
+            );
+
+            return (
+                <div>
+                    <div className="page-header">
+                        <div>
+                            <h1 className="page-title">Finance</h1>
+                            <p className="page-subtitle">Sales, purchases, expenses and monthly P&L</p>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 18, overflowX: 'auto' }}>
+                        {tabBtn('invoiced', 'Invoiced Sales')}
+                        {tabBtn('external', 'External Sales')}
+                        {tabBtn('purchases', 'Purchases')}
+                        {tabBtn('expenses', 'Expenses')}
+                        {tabBtn('summary', 'Summary')}
+                    </div>
+
+                    {tab === 'invoiced' && <PaymentAnalytics quotations={quotations} />}
+                    {tab === 'external' && (
+                        <FinanceLedger
+                            kind="external_sales"
+                            title="External Sale"
+                            totalLabel="Sales"
+                            defaults={{ date: new Date().toISOString().slice(0,10), channel: '', product: '', description: '', qty: 1, amount: '', paymentMode: '', gstin: '', gstPercent: '', gstAmount: '', notes: '' }}
+                            fields={[
+                                { key: 'channel', label: 'Channel', type: 'select', options: SALES_CHANNELS, required: true },
+                                { key: 'product', label: 'Product / SKU', type: 'select', options: productOptions },
+                                { key: 'description', label: 'Description', type: 'text', placeholder: 'What was sold (free text)' },
+                                { key: 'qty', label: 'Quantity', type: 'number', placeholder: '1' }
+                            ]}
+                            columns={[
+                                { key: 'channel', label: 'Channel' },
+                                { key: 'product', label: 'Product' },
+                                { key: 'description', label: 'Description' },
+                                { key: 'qty', label: 'Qty', align: 'right' },
+                                { key: 'paymentMode', label: 'Mode' }
+                            ]}
+                        />
+                    )}
+                    {tab === 'purchases' && (
+                        <FinanceLedger
+                            kind="purchases"
+                            title="Purchase"
+                            totalLabel="Purchases"
+                            defaults={{ date: new Date().toISOString().slice(0,10), vendor: '', itemCode: '', description: '', qty: 1, amount: '', paymentMode: '', billNumber: '', gstin: '', gstPercent: '', gstAmount: '', notes: '' }}
+                            fields={[
+                                { key: 'vendor', label: 'Vendor', type: 'select', options: vendorOptions },
+                                { key: 'itemCode', label: 'Item Code (optional)', type: 'text' },
+                                { key: 'description', label: 'Description', type: 'text', placeholder: 'What was bought', required: true },
+                                { key: 'qty', label: 'Quantity', type: 'number', placeholder: '1' },
+                                { key: 'billNumber', label: 'Bill / Invoice Number', type: 'text' }
+                            ]}
+                            columns={[
+                                { key: 'vendor', label: 'Vendor' },
+                                { key: 'description', label: 'Description' },
+                                { key: 'qty', label: 'Qty', align: 'right' },
+                                { key: 'billNumber', label: 'Bill #' },
+                                { key: 'paymentMode', label: 'Mode' }
+                            ]}
+                        />
+                    )}
+                    {tab === 'expenses' && (
+                        <FinanceLedger
+                            kind="expenses"
+                            title="Expense"
+                            totalLabel="Expenses"
+                            defaults={{ date: new Date().toISOString().slice(0,10), category: '', description: '', amount: '', paymentMode: '', gstin: '', gstPercent: '', gstAmount: '', notes: '' }}
+                            fields={[
+                                { key: 'category', label: 'Category', type: 'select', options: EXPENSE_CATEGORIES, required: true },
+                                { key: 'description', label: 'Description', type: 'text', placeholder: 'What this expense was for', required: true }
+                            ]}
+                            columns={[
+                                { key: 'category', label: 'Category' },
+                                { key: 'description', label: 'Description' },
+                                { key: 'paymentMode', label: 'Mode' }
+                            ]}
+                        />
+                    )}
+                    {tab === 'summary' && <FinanceSummary quotations={quotations} />}
                 </div>
             );
         };
@@ -12113,7 +12614,7 @@ ${componentResults.map(c => {
                     case 'brochures': return <BrochureManager products={products} />;
                     case 'brands': return <BrandManager onBrandsChanged={() => setCustomBrandsVersion(v => v + 1)} />;
                     case 'recovery': return <DataRecovery items={items} setItems={setItems} />;
-                    case 'analytics': return <PaymentAnalytics quotations={quotations} />;
+                    case 'analytics': return <Finance quotations={quotations} products={products} items={items} />;
                     default: return <Dashboard items={items} products={products} quotations={quotations} bom={bom} subProducts={subProducts} />;
                 }
             };
@@ -12258,7 +12759,7 @@ ${componentResults.map(c => {
                                         <Icons.Box /> Brands
                                     </div>
                                     <div className={`nav-item ${page === 'analytics' ? 'active' : ''}`} onClick={() => navigate('analytics')}>
-                                        <Icons.Dashboard /> Payment Analytics
+                                        <Icons.Dashboard /> Finance
                                     </div>
                                     <div className={`nav-item ${page === 'recovery' ? 'active' : ''}`} onClick={() => navigate('recovery')}>
                                         <Icons.AlertTriangle /> Data Recovery
