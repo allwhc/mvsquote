@@ -6156,6 +6156,7 @@
             const [componentResults, setComponentResults] = useState([]);
             const [grandTotal, setGrandTotal] = useState(0);
             const [showVendorContact, setShowVendorContact] = useState(true);
+            const [selectedComponents, setSelectedComponents] = useState(new Set());
 
             const addProduct = () => {
                 if (!selectedProduct || quantity < 1) return;
@@ -6222,6 +6223,36 @@
                 const updated = componentResults.filter((_, i) => i !== idx);
                 setComponentResults(updated);
                 setGrandTotal(updated.reduce((s, c) => s + (c.total || 0), 0));
+                setSelectedComponents(prev => {
+                    const next = new Set();
+                    prev.forEach(k => { if (k !== componentResults[idx]?.code) next.add(k); });
+                    return next;
+                });
+            };
+
+            const toggleComponentSelected = (code) => {
+                setSelectedComponents(prev => {
+                    const next = new Set(prev);
+                    if (next.has(code)) next.delete(code); else next.add(code);
+                    return next;
+                });
+            };
+
+            const toggleSelectAllComponents = () => {
+                if (selectedComponents.size === componentResults.length) {
+                    setSelectedComponents(new Set());
+                } else {
+                    setSelectedComponents(new Set(componentResults.map(c => c.code)));
+                }
+            };
+
+            const removeSelectedComponents = () => {
+                if (selectedComponents.size === 0) return;
+                if (!confirm(`Remove ${selectedComponents.size} selected component(s)?`)) return;
+                const updated = componentResults.filter(c => !selectedComponents.has(c.code));
+                setComponentResults(updated);
+                setGrandTotal(updated.reduce((s, c) => s + (c.total || 0), 0));
+                setSelectedComponents(new Set());
             };
 
             // Recursive function to get all components for a product
@@ -6671,7 +6702,12 @@ ${componentResults.map(c => {
                         <div className="card">
                             <div className="card-header">
                                 <h3 className="card-title">Components Required ({componentResults.length} items)</h3>
-                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    {selectedComponents.size > 0 && (
+                                        <button className="btn btn-danger no-print" onClick={removeSelectedComponents} style={{ background: '#DC2626', color: 'white' }}>
+                                            ✕ Remove Selected ({selectedComponents.size})
+                                        </button>
+                                    )}
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                                         <input
                                             type="checkbox"
@@ -6693,6 +6729,15 @@ ${componentResults.map(c => {
                                 <table className="table">
                                     <thead>
                                         <tr>
+                                            <th style={{ textAlign: 'center', width: 36 }} className="no-print">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={componentResults.length > 0 && selectedComponents.size === componentResults.length}
+                                                    onChange={toggleSelectAllComponents}
+                                                    title="Select all"
+                                                    style={{ cursor: 'pointer' }}
+                                                />
+                                            </th>
                                             <th>Code</th>
                                             <th>Component Name</th>
                                             <th>Category</th>
@@ -6706,7 +6751,15 @@ ${componentResults.map(c => {
                                     </thead>
                                     <tbody>
                                         {componentResults.map((c, idx) => (
-                                            <tr key={idx}>
+                                            <tr key={idx} style={selectedComponents.has(c.code) ? { background: '#FEF3C7' } : undefined}>
+                                                <td style={{ textAlign: 'center' }} className="no-print">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedComponents.has(c.code)}
+                                                        onChange={() => toggleComponentSelected(c.code)}
+                                                        style={{ cursor: 'pointer' }}
+                                                    />
+                                                </td>
                                                 <td><span className="code-badge">{c.code}</span></td>
                                                 <td>{c.name}</td>
                                                 <td><span className="category-badge">{c.category}</span></td>
@@ -6743,6 +6796,7 @@ ${componentResults.map(c => {
                                     </tbody>
                                     <tfoot>
                                         <tr style={{ background: 'var(--bg-light)', fontWeight: '700' }}>
+                                            <td className="no-print"></td>
                                             <td colSpan="5" style={{ textAlign: 'right' }}>GRAND TOTAL:</td>
                                             <td style={{ textAlign: 'right', color: 'var(--primary)', fontSize: '16px' }}>{formatCurrency(grandTotal)}</td>
                                             <td colSpan={showVendorContact ? 2 : 1}></td>
