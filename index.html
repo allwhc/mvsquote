@@ -6210,6 +6210,20 @@
                 setItemList(itemList.filter(it => it.code !== id));
             };
 
+            // Edit component result row: change qty or remove. Recomputes grand total.
+            const updateComponentQty = (idx, newQty) => {
+                const q = Math.max(0, Number(newQty) || 0);
+                const updated = componentResults.map((c, i) => i === idx ? { ...c, qty: q, total: q * (c.price || 0) } : c);
+                setComponentResults(updated);
+                setGrandTotal(updated.reduce((s, c) => s + (c.total || 0), 0));
+            };
+
+            const removeComponentRow = (idx) => {
+                const updated = componentResults.filter((_, i) => i !== idx);
+                setComponentResults(updated);
+                setGrandTotal(updated.reduce((s, c) => s + (c.total || 0), 0));
+            };
+
             // Recursive function to get all components for a product
             const getProductComponents = (productSku, multiplier = 1, visited = new Set()) => {
                 if (visited.has(productSku)) return [];
@@ -6687,6 +6701,7 @@ ${componentResults.map(c => {
                                             <th style={{ textAlign: 'right' }}>Total</th>
                                             <th>Vendor</th>
                                             {showVendorContact && <th>Contact</th>}
+                                            <th style={{ textAlign: 'center', width: 60 }} className="no-print">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -6695,7 +6710,15 @@ ${componentResults.map(c => {
                                                 <td><span className="code-badge">{c.code}</span></td>
                                                 <td>{c.name}</td>
                                                 <td><span className="category-badge">{c.category}</span></td>
-                                                <td style={{ textAlign: 'right', fontWeight: '600' }}>{c.qty}</td>
+                                                <td style={{ textAlign: 'right', fontWeight: '600' }}>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={c.qty}
+                                                        onChange={e => updateComponentQty(idx, e.target.value)}
+                                                        style={{ width: 70, padding: '4px 6px', textAlign: 'right', border: '1px solid var(--border)', borderRadius: 4, fontWeight: 600 }}
+                                                    />
+                                                </td>
                                                 <td style={{ textAlign: 'right' }}>{formatCurrency(c.price)}</td>
                                                 <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--success)' }}>{formatCurrency(c.total)}</td>
                                                 <td style={{ fontSize: '13px', fontWeight: '500' }}>{c.vendor !== '-' ? c.vendor : '-'}</td>
@@ -6706,6 +6729,15 @@ ${componentResults.map(c => {
                                                         {!c.vendorPhone && !c.vendorEmail && '-'}
                                                     </td>
                                                 )}
+                                                <td style={{ textAlign: 'center' }} className="no-print">
+                                                    <button
+                                                        onClick={() => removeComponentRow(idx)}
+                                                        title="Remove row"
+                                                        style={{ background: 'transparent', border: 'none', color: 'var(--danger, #DC2626)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -6714,6 +6746,7 @@ ${componentResults.map(c => {
                                             <td colSpan="5" style={{ textAlign: 'right' }}>GRAND TOTAL:</td>
                                             <td style={{ textAlign: 'right', color: 'var(--primary)', fontSize: '16px' }}>{formatCurrency(grandTotal)}</td>
                                             <td colSpan={showVendorContact ? 2 : 1}></td>
+                                            <td className="no-print"></td>
                                         </tr>
                                     </tfoot>
                                 </table>
