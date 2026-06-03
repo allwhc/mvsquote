@@ -11653,7 +11653,18 @@ ${componentResults.map(c => {
             useEffect(() => { refresh(); }, [kind]);
 
             const openAdd = () => { setEditing(null); setForm({ ...defaults, date: new Date().toISOString().slice(0, 10) }); setShowForm(true); };
-            const openEdit = (r) => { setEditing(r); setForm({ ...defaults, ...r }); setShowForm(true); };
+            const openEdit = (r) => {
+                setEditing(r);
+                const next = { ...defaults, ...r };
+                // For searchable fields, auto-enable custom mode if the stored value isn't in options
+                fields.forEach(f => {
+                    if (f.type === 'searchable' && next[f.key] && !f.options.includes(next[f.key])) {
+                        next['__custom_' + f.key] = true;
+                    }
+                });
+                setForm(next);
+                setShowForm(true);
+            };
             const closeForm = () => { setShowForm(false); setEditing(null); };
 
             const save = async () => {
@@ -11661,6 +11672,7 @@ ${componentResults.map(c => {
                 if (!form.amount || Number(form.amount) <= 0) { alert('Amount must be > 0'); return; }
                 try {
                     const payload = { ...form, amount: Number(form.amount) || 0, gstPercent: Number(form.gstPercent) || 0, gstAmount: Number(form.gstAmount) || 0, qty: Number(form.qty) || 0 };
+                    Object.keys(payload).forEach(k => { if (k.startsWith('__custom_')) delete payload[k]; });
                     if (editing) await FirebaseFinance.update(kind, editing.id, payload);
                     else await FirebaseFinance.add(kind, payload);
                     closeForm();
@@ -11764,23 +11776,49 @@ ${componentResults.map(c => {
                                     <input type="date" className="form-input" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />
                                 </div>
 
-                                {fields.map(f => (
-                                    <div className="form-group" key={f.key}>
-                                        <label className="form-label">{f.label}{f.required && ' *'}</label>
-                                        {f.type === 'select' ? (
-                                            <select className="form-select" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })}>
-                                                <option value="">— Select —</option>
-                                                {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-                                            </select>
-                                        ) : f.type === 'textarea' ? (
-                                            <textarea className="form-textarea" rows="2" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder || ''} />
-                                        ) : f.type === 'number' ? (
-                                            <input type="number" className="form-input" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder || ''} />
-                                        ) : (
-                                            <input className="form-input" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder || ''} />
-                                        )}
-                                    </div>
-                                ))}
+                                {fields.map(f => {
+                                    const customFlag = '__custom_' + f.key;
+                                    const isCustom = !!form[customFlag];
+                                    return (
+                                        <div className="form-group" key={f.key}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <label className="form-label">{f.label}{f.required && ' *'}</label>
+                                                {f.type === 'searchable' && (
+                                                    <label style={{ fontSize: 11, color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isCustom}
+                                                            onChange={e => setForm({ ...form, [customFlag]: e.target.checked, [f.key]: '' })}
+                                                            style={{ cursor: 'pointer' }}
+                                                        />
+                                                        Custom (not in list)
+                                                    </label>
+                                                )}
+                                            </div>
+                                            {f.type === 'searchable' && !isCustom ? (
+                                                <SearchableSelect
+                                                    options={f.options.map(o => ({ value: o, label: o }))}
+                                                    value={form[f.key] || ''}
+                                                    onChange={v => setForm({ ...form, [f.key]: v })}
+                                                    placeholder={f.placeholder || `Search ${f.label.toLowerCase()}...`}
+                                                />
+                                            ) : f.type === 'searchable' && isCustom ? (
+                                                <input className="form-input" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={`Type ${f.label.toLowerCase()}...`} />
+                                            ) : f.type === 'select' ? (
+                                                <select className="form-select" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })}>
+                                                    <option value="">— Select —</option>
+                                                    {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                                                </select>
+                                            ) : f.type === 'textarea' ? (
+                                                <textarea className="form-textarea" rows="2" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder || ''} />
+                                            ) : f.type === 'number' ? (
+                                                <input type="number" className="form-input" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder || ''} />
+                                            ) : (
+                                                <input className="form-input" value={form[f.key] || ''} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder || ''} />
+                                            )}
+                                        </div>
+                                    );
+                                })}
 
                                 <div className="form-row">
                                     <div className="form-group">
@@ -12034,7 +12072,7 @@ ${componentResults.map(c => {
                             defaults={{ date: new Date().toISOString().slice(0,10), channel: '', product: '', description: '', qty: 1, amount: '', paymentMode: '', gstin: '', gstPercent: '', gstAmount: '', notes: '' }}
                             fields={[
                                 { key: 'channel', label: 'Channel', type: 'select', options: SALES_CHANNELS, required: true },
-                                { key: 'product', label: 'Product / SKU', type: 'select', options: productOptions },
+                                { key: 'product', label: 'Product / SKU', type: 'searchable', options: productOptions },
                                 { key: 'description', label: 'Description', type: 'text', placeholder: 'What was sold (free text)' },
                                 { key: 'qty', label: 'Quantity', type: 'number', placeholder: '1' }
                             ]}
@@ -12054,7 +12092,7 @@ ${componentResults.map(c => {
                             totalLabel="Purchases"
                             defaults={{ date: new Date().toISOString().slice(0,10), vendor: '', itemCode: '', description: '', qty: 1, amount: '', paymentMode: '', billNumber: '', gstin: '', gstPercent: '', gstAmount: '', notes: '' }}
                             fields={[
-                                { key: 'vendor', label: 'Vendor', type: 'select', options: vendorOptions },
+                                { key: 'vendor', label: 'Vendor', type: 'searchable', options: vendorOptions },
                                 { key: 'itemCode', label: 'Item Code (optional)', type: 'text' },
                                 { key: 'description', label: 'Description', type: 'text', placeholder: 'What was bought', required: true },
                                 { key: 'qty', label: 'Quantity', type: 'number', placeholder: '1' },
