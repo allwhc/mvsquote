@@ -4733,8 +4733,8 @@
                 <div>
                     <div className="page-header">
                         <div>
-                            <h1 className="page-title">{editingDoc ? `Edit ${editingDoc.number}` : 'Create Quotation / Invoice'}</h1>
-                            <p className="page-subtitle">{editingDoc ? 'Editing saved document - save to update' : 'Build quotation with MRP, Discount & generate PDF'}</p>
+                            <h1 className="page-title">{editingDoc && !editingDoc._isDraft ? `Edit ${editingDoc.number}` : (editingDoc && editingDoc._isDraft ? `New ${editingDoc._draftLabel || 'Quotation'} (from ${editingDoc._sourceNumber || 'template'})` : 'Create Quotation / Invoice')}</h1>
+                            <p className="page-subtitle">{editingDoc && !editingDoc._isDraft ? 'Editing saved document - save to update' : (editingDoc && editingDoc._isDraft ? 'Pre-filled draft — review and save to create a new document' : 'Build quotation with MRP, Discount & generate PDF')}</p>
                         </div>
                         {editingDoc && (
                             <button className="btn btn-secondary" onClick={() => {
@@ -5132,6 +5132,58 @@
                 if (!pwd) return;
                 if (pwd !== 'admin123') { alert('Incorrect password.'); return; }
                 setEditingDoc(doc);
+                navigate('quotation');
+            };
+
+            // Re-quote: copy customer info only, blank items/terms/notes/payments
+            const reQuoteFromDoc = (doc) => {
+                if (!doc) return;
+                const draft = {
+                    _isDraft: true,
+                    _sourceNumber: doc.number || '',
+                    _draftLabel: 'Quotation',
+                    customer: { ...(doc.customer || {}) },
+                    deliveryAddress: doc.deliveryAddress ? { ...doc.deliveryAddress } : null,
+                    sameAsDelivery: doc.sameAsDelivery !== false,
+                    brand: doc.brand || 'MV Solutions',
+                    includeGST: doc.includeGST !== false,
+                    items: [],
+                    notes: '',
+                    terms: [],
+                    discount: null,
+                    payments: [],
+                    poNumber: '',
+                    customerReference: '',
+                    type: 'quotation',
+                    status: 'sent'
+                };
+                setEditingDoc(draft);
+                navigate('quotation');
+            };
+
+            // Duplicate: copy everything (customer + items + terms + notes), clear numbers/dates/payments/PO
+            const duplicateDoc = (doc) => {
+                if (!doc) return;
+                const draft = {
+                    _isDraft: true,
+                    _sourceNumber: doc.number || '',
+                    _draftLabel: 'Quotation',
+                    customer: { ...(doc.customer || {}) },
+                    deliveryAddress: doc.deliveryAddress ? { ...doc.deliveryAddress } : null,
+                    sameAsDelivery: doc.sameAsDelivery !== false,
+                    brand: doc.brand || 'MV Solutions',
+                    includeGST: doc.includeGST !== false,
+                    items: (doc.items || []).map(it => ({ ...it })),
+                    notes: doc.notes || '',
+                    terms: [...(doc.terms || [])],
+                    discount: doc.discount ? { ...doc.discount } : null,
+                    payments: [],
+                    poNumber: '',
+                    customerReference: '',
+                    type: 'quotation',
+                    status: 'sent'
+                };
+                setEditingDoc(draft);
                 navigate('quotation');
             };
 
@@ -5865,6 +5917,12 @@
                                                     </button>
                                                     <button className="btn btn-secondary btn-sm btn-icon" onClick={() => editDocument(doc)} title="Edit">
                                                         <Icons.Edit />
+                                                    </button>
+                                                    <button className="btn btn-secondary btn-sm btn-icon" onClick={() => reQuoteFromDoc(doc)} title="Re-quote — copy customer info only" style={{ background: '#DBEAFE', color: '#1E40AF', fontWeight: 600 }}>
+                                                        ⎘
+                                                    </button>
+                                                    <button className="btn btn-secondary btn-sm btn-icon" onClick={() => duplicateDoc(doc)} title="Duplicate — copy everything (items, terms, notes)" style={{ background: '#D1FAE5', color: '#065F46', fontWeight: 600 }}>
+                                                        ⎘⎘
                                                     </button>
                                                     <button className="btn btn-secondary btn-sm btn-icon" onClick={() => convertToEnquiry(doc)} title="Convert to Enquiry" style={{ background: '#EDE9FE', color: '#6D28D9' }}>
                                                         <Icons.Enquiry />
