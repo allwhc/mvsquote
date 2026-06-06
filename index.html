@@ -4551,7 +4551,7 @@
                     doc.setTextColor(...brandColor);
                     doc.text(discountAmount > 0 ? 'Amount Payable:' : 'Grand Total:', 120, totalLabelY);
                     doc.setTextColor(16, 185, 129);
-                    doc.text(formatCurrencyPDF(grandTotal) + '/-', 188, totalLabelY, { align: 'right' });
+                    doc.text(formatCurrencyPDF(grandTotal) + '/-', 182, totalLabelY, { align: 'right' });
                     summaryOffset = (totalLabelY - finalY) + 8;
                 } else {
                     let noGstOffset = 0;
@@ -4581,7 +4581,7 @@
                     doc.setTextColor(...brandColor);
                     doc.text(discountAmount > 0 ? 'Amount Payable:' : 'Total:', 125, finalY + noGstOffset + 6);
                     doc.setTextColor(16, 185, 129);
-                    doc.text(formatCurrencyPDF(grandTotal) + '/-', 188, finalY + noGstOffset + 6, { align: 'right' });
+                    doc.text(formatCurrencyPDF(grandTotal) + '/-', 182, finalY + noGstOffset + 6, { align: 'right' });
                     summaryOffset = noGstOffset + 14;
                 }
 
@@ -5555,7 +5555,7 @@
                     pdf.setTextColor(...brandColor);
                     pdf.text(docDiscountAmt > 0 ? 'Amount Payable:' : 'Grand Total:', 120, totalLabelY);
                     pdf.setTextColor(16, 185, 129);
-                    pdf.text(formatCurrencyPDF(doc.grandTotal) + '/-', 188, totalLabelY, { align: 'right' });
+                    pdf.text(formatCurrencyPDF(doc.grandTotal) + '/-', 182, totalLabelY, { align: 'right' });
                     summaryOffset = (totalLabelY - finalY) + 8;
                 } else {
                     let noGstOffset = 0;
@@ -5586,7 +5586,7 @@
                     pdf.setTextColor(...brandColor);
                     pdf.text(docDiscountAmt > 0 ? 'Amount Payable:' : 'Total:', 125, finalY + noGstOffset + 6);
                     pdf.setTextColor(16, 185, 129);
-                    pdf.text(formatCurrencyPDF(doc.grandTotal) + '/-', 188, finalY + noGstOffset + 6, { align: 'right' });
+                    pdf.text(formatCurrencyPDF(doc.grandTotal) + '/-', 182, finalY + noGstOffset + 6, { align: 'right' });
                     summaryOffset = noGstOffset + 14;
                 }
 
