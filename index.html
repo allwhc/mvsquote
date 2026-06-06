@@ -4327,7 +4327,7 @@
                 const billBoxBottom = hasShipTo ? (89 - 68 + billRowsHeight) : (76 - 68 + billRowsHeight + 2);
                 const billBoxHeight = Math.max(30, billBoxBottom);
                 doc.setFillColor(241, 245, 249);
-                doc.rect(15, 68, 180, billBoxHeight, 'F');
+                doc.rect(18, 68, 174, billBoxHeight, 'F');
 
                 doc.setTextColor(100);
                 doc.setFontSize(9);
@@ -4381,7 +4381,7 @@
                 } else {
                     // No ship-to: name stays on the left, details on the right.
                     // Start at y=76 (same row as 'BILL TO:' label) so the top-right area isn't wasted.
-                    renderCustFields(100, 95, 76);
+                    renderCustFields(100, 92, 76);
                 }
 
                 // Make sure the table sits below the bill-to box (default startY 104 is fine for short blocks)
@@ -4413,7 +4413,7 @@
                         const netPrice = calculateNetPrice(item);
                         const row = [productCell(item)];
                         if (showHsn) row.push(item.hsn || '');
-                        row.push(item.qty.toString(), formatCurrencyPDF(item.mrp), item.discount + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty));
+                        row.push(item.qty.toString(), formatCurrencyPDF(item.mrp), item.discount + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty) + '/-');
                         return row;
                     });
                     colStyles = showHsn
@@ -4427,7 +4427,7 @@
                         const netPrice = calculateNetPrice(item);
                         const row = [productCell(item)];
                         if (showHsn) row.push(item.hsn || '');
-                        row.push(item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty));
+                        row.push(item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty) + '/-');
                         return row;
                     });
                     colStyles = showHsn
@@ -4443,8 +4443,8 @@
                     headStyles: { fillColor: brandColor, fontSize: 8.5, fontStyle: 'bold', cellPadding: 3, halign: 'center', valign: 'middle' },
                     bodyStyles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
                     columnStyles: colStyles,
-                    tableWidth: 180,
-                    margin: { left: 15, right: 15 },
+                    tableWidth: 174,
+                    margin: { left: 18, right: 18 },
                     willDrawCell: (data) => {
                         // For product cells with description, prevent default text draw
                         if (data.section === 'body' && data.column.index === 0) {
@@ -5340,7 +5340,7 @@
                 const billBoxBottom2 = hasShipTo2 ? (89 - 68 + billRowsHeight2) : (76 - 68 + billRowsHeight2 + 2);
                 const billBoxHeight2 = Math.max(30, billBoxBottom2);
                 pdf.setFillColor(241, 245, 249);
-                pdf.rect(15, 68, 180, billBoxHeight2, 'F');
+                pdf.rect(18, 68, 174, billBoxHeight2, 'F');
 
                 pdf.setTextColor(100);
                 pdf.setFontSize(9);
@@ -5392,7 +5392,7 @@
                 } else {
                     // No ship-to: name stays on the left, details on the right.
                     // Start at y=76 (same row as 'BILL TO:' label) so the top-right area isn't wasted.
-                    renderCustFields2(100, 95, 76);
+                    renderCustFields2(100, 92, 76);
                 }
 
                 const tableStartY2 = Math.max(104, 68 + billBoxHeight2 + 6);
@@ -5417,7 +5417,7 @@
                         const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
                         const row = [docProductCell(item)];
                         if (showHsn2) row.push(item.hsn || '');
-                        row.push(item.qty.toString(), formatCurrencyPDF(item.mrp), (item.discount || 0) + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty));
+                        row.push(item.qty.toString(), formatCurrencyPDF(item.mrp), (item.discount || 0) + '%', formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty) + '/-');
                         return row;
                     });
                     colStyles = showHsn2
@@ -5431,7 +5431,7 @@
                         const netPrice = item.mrp * (1 - (item.discount || 0) / 100);
                         const row = [docProductCell(item)];
                         if (showHsn2) row.push(item.hsn || '');
-                        row.push(item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty));
+                        row.push(item.qty.toString(), formatCurrencyPDF(netPrice), formatCurrencyPDF(netPrice * item.qty) + '/-');
                         return row;
                     });
                     colStyles = showHsn2
@@ -5447,8 +5447,8 @@
                     headStyles: { fillColor: brandColor, fontSize: 8.5, fontStyle: 'bold', cellPadding: 3, halign: 'center', valign: 'middle' },
                     bodyStyles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
                     columnStyles: colStyles,
-                    tableWidth: 180,
-                    margin: { left: 15, right: 15 },
+                    tableWidth: 174,
+                    margin: { left: 18, right: 18 },
                     willDrawCell: (data) => {
                         if (data.section === 'body' && data.column.index === 0) {
                             const item = docItemsRef[data.row.index];
