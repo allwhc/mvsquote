@@ -4544,14 +4544,14 @@
 
                     doc.setDrawColor(...brandColor);
                     doc.setLineWidth(0.5);
-                    doc.line(120, totalLineY, 195, totalLineY);
+                    doc.line(120, totalLineY, 192, totalLineY);
 
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(14);
                     doc.setTextColor(...brandColor);
                     doc.text(discountAmount > 0 ? 'Amount Payable:' : 'Grand Total:', 120, totalLabelY);
                     doc.setTextColor(16, 185, 129);
-                    doc.text(formatCurrencyPDF(grandTotal), 195, totalLabelY, { align: 'right' });
+                    doc.text(formatCurrencyPDF(grandTotal) + '/-', 192, totalLabelY, { align: 'right' });
                     summaryOffset = (totalLabelY - finalY) + 8;
                 } else {
                     let noGstOffset = 0;
@@ -4574,14 +4574,14 @@
 
                     doc.setDrawColor(...brandColor);
                     doc.setLineWidth(0.5);
-                    doc.line(120, finalY + noGstOffset - 2, 195, finalY + noGstOffset - 2);
+                    doc.line(120, finalY + noGstOffset - 2, 192, finalY + noGstOffset - 2);
 
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(14);
                     doc.setTextColor(...brandColor);
                     doc.text(discountAmount > 0 ? 'Amount Payable:' : 'Total:', 125, finalY + noGstOffset + 6);
                     doc.setTextColor(16, 185, 129);
-                    doc.text(formatCurrencyPDF(grandTotal), 195, finalY + noGstOffset + 6, { align: 'right' });
+                    doc.text(formatCurrencyPDF(grandTotal) + '/-', 192, finalY + noGstOffset + 6, { align: 'right' });
                     summaryOffset = noGstOffset + 14;
                 }
 
@@ -5548,14 +5548,14 @@
 
                     pdf.setDrawColor(...brandColor);
                     pdf.setLineWidth(0.5);
-                    pdf.line(120, totalLineY, 195, totalLineY);
+                    pdf.line(120, totalLineY, 192, totalLineY);
 
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(14);
                     pdf.setTextColor(...brandColor);
                     pdf.text(docDiscountAmt > 0 ? 'Amount Payable:' : 'Grand Total:', 120, totalLabelY);
                     pdf.setTextColor(16, 185, 129);
-                    pdf.text(formatCurrencyPDF(doc.grandTotal), 195, totalLabelY, { align: 'right' });
+                    pdf.text(formatCurrencyPDF(doc.grandTotal) + '/-', 192, totalLabelY, { align: 'right' });
                     summaryOffset = (totalLabelY - finalY) + 8;
                 } else {
                     let noGstOffset = 0;
@@ -5579,14 +5579,14 @@
 
                     pdf.setDrawColor(...brandColor);
                     pdf.setLineWidth(0.5);
-                    pdf.line(120, finalY + noGstOffset - 2, 195, finalY + noGstOffset - 2);
+                    pdf.line(120, finalY + noGstOffset - 2, 192, finalY + noGstOffset - 2);
 
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(14);
                     pdf.setTextColor(...brandColor);
                     pdf.text(docDiscountAmt > 0 ? 'Amount Payable:' : 'Total:', 125, finalY + noGstOffset + 6);
                     pdf.setTextColor(16, 185, 129);
-                    pdf.text(formatCurrencyPDF(doc.grandTotal), 195, finalY + noGstOffset + 6, { align: 'right' });
+                    pdf.text(formatCurrencyPDF(doc.grandTotal) + '/-', 192, finalY + noGstOffset + 6, { align: 'right' });
                     summaryOffset = noGstOffset + 14;
                 }
 
