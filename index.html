@@ -12635,8 +12635,6 @@ ${componentResults.map(c => {
                         FirebaseCatalog.saveBom(bom),
                         FirebaseCatalog.saveSubProducts(subProducts)
                     ]);
-                    // Update prev ref so auto-save doesn't re-save
-                    firebaseSyncPrev.current = { items: [...items], products: [...products], bom: [...bom], subProducts: [...subProducts] };
                     setFirebaseSaveStatus('saved');
                     console.log('Firebase manual save complete');
                     setTimeout(() => setFirebaseSaveStatus('idle'), 3000);
@@ -12662,8 +12660,6 @@ ${componentResults.map(c => {
                     if (fbProducts) setProducts(fbProducts);
                     if (fbBom) setBom(fbBom);
                     if (fbSubProducts) setSubProducts(fbSubProducts);
-                    // Update prev ref so auto-save doesn't re-save stale diff
-                    firebaseSyncPrev.current = { items: fbItems || [], products: fbProducts || [], bom: fbBom || [], subProducts: fbSubProducts || [] };
                     console.log('Refreshed from Firebase');
                 } catch(e) {
                     console.error('Refresh from Firebase failed:', e);
