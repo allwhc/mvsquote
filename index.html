@@ -4317,11 +4317,22 @@
                     return rows * 4 + 2; // 4mm per row + small bottom pad
                 };
 
+                // Wrap long customer names so they don't run into the right-hand column.
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                const nameLines = doc.splitTextToSize(customer.name || '', hasShipTo ? 90 : 76);
+                const nameExtra = (nameLines.length - 1) * 5;
+                const shipNameLines = hasShipTo ? doc.splitTextToSize(deliveryAddress.name || '', 75) : [];
+                const shipNameExtra = Math.max(0, shipNameLines.length - 1) * 5;
+                doc.setFont('helvetica', 'normal');
+
                 // Layout: name on left half, details on right half — saves vertical space.
                 const billRowsHeight = hasShipTo ? calcBillToHeight(20, 75) : calcBillToHeight(100, 95);
                 // Box height: right column starts at y=76 (top of box area), so its bottom is 76 + billRowsHeight.
-                // For ship-to case, fields start at y=89, so bottom is 89 + billRowsHeight.
-                const billBoxBottom = hasShipTo ? (89 - 68 + billRowsHeight) : (76 - 68 + billRowsHeight + 2);
+                // For ship-to case, fields start at y=89 (+ wrapped name lines), so bottom is 89 + billRowsHeight.
+                const billBoxBottom = hasShipTo
+                    ? (89 - 68 + Math.max(nameExtra, shipNameExtra) + billRowsHeight)
+                    : Math.max(76 - 68 + billRowsHeight + 2, 83 + nameExtra + 5 - 68);
                 const billBoxHeight = Math.max(30, billBoxBottom);
                 doc.setFillColor(241, 245, 249);
                 doc.rect(18, 68, 174, billBoxHeight, 'F');
@@ -4332,7 +4343,7 @@
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(11);
                 doc.setTextColor(30);
-                doc.text(customer.name, 20, 83);
+                doc.text(nameLines, 20, 83, { lineHeightFactor: 1.2 });
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(9);
                 doc.setTextColor(80);
@@ -4357,7 +4368,7 @@
                 };
 
                 if (hasShipTo) {
-                    renderCustFields(20, 75);
+                    renderCustFields(20, 75, 89 + nameExtra);
                     // SHIP TO column
                     doc.setTextColor(100);
                     doc.setFontSize(9);
@@ -4366,13 +4377,13 @@
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(11);
                     doc.setTextColor(30);
-                    doc.text(deliveryAddress.name, 115, 83);
+                    doc.text(shipNameLines, 115, 83, { lineHeightFactor: 1.2 });
                     doc.setFont('helvetica', 'normal');
                     doc.setFontSize(9);
                     doc.setTextColor(80);
-                    if (deliveryAddress.phone) drawLabeledLine('Ph: ', deliveryAddress.phone, 115, 89, 75, 9);
+                    if (deliveryAddress.phone) drawLabeledLine('Ph: ', deliveryAddress.phone, 115, 89 + shipNameExtra, 75, 9);
                     if (deliveryAddress.address) {
-                        const dlY = deliveryAddress.phone ? 93 : 89;
+                        const dlY = (deliveryAddress.phone ? 93 : 89) + shipNameExtra;
                         drawLabeledLine('Address: ', deliveryAddress.address, 115, dlY, 75, 9);
                     }
                 } else {
@@ -5339,10 +5350,21 @@
                     return rows * 4 + 2;
                 };
 
+                // Wrap long customer names so they don't run into the right-hand column.
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(11);
+                const nameLines2 = pdf.splitTextToSize(cust.name || 'N/A', hasShipTo2 ? 90 : 76);
+                const nameExtra2 = (nameLines2.length - 1) * 5;
+                const shipNameLines2 = hasShipTo2 ? pdf.splitTextToSize(doc.deliveryAddress.name || '', 75) : [];
+                const shipNameExtra2 = Math.max(0, shipNameLines2.length - 1) * 5;
+                pdf.setFont('helvetica', 'normal');
+
                 // Layout: name on left half, details on right half — saves vertical space.
                 const billRowsHeight2 = hasShipTo2 ? calcBillToHeight2(20, 75) : calcBillToHeight2(100, 95);
                 // Right column starts at y=76 when no ship-to (top of box area).
-                const billBoxBottom2 = hasShipTo2 ? (89 - 68 + billRowsHeight2) : (76 - 68 + billRowsHeight2 + 2);
+                const billBoxBottom2 = hasShipTo2
+                    ? (89 - 68 + Math.max(nameExtra2, shipNameExtra2) + billRowsHeight2)
+                    : Math.max(76 - 68 + billRowsHeight2 + 2, 83 + nameExtra2 + 5 - 68);
                 const billBoxHeight2 = Math.max(30, billBoxBottom2);
                 pdf.setFillColor(241, 245, 249);
                 pdf.rect(18, 68, 174, billBoxHeight2, 'F');
@@ -5353,7 +5375,7 @@
                 pdf.setFont('helvetica', 'bold');
                 pdf.setFontSize(11);
                 pdf.setTextColor(30);
-                pdf.text(cust.name || 'N/A', 20, 83);
+                pdf.text(nameLines2, 20, 83, { lineHeightFactor: 1.2 });
                 pdf.setFont('helvetica', 'normal');
                 pdf.setFontSize(9);
                 pdf.setTextColor(80);
@@ -5377,7 +5399,7 @@
                 };
 
                 if (hasShipTo2) {
-                    renderCustFields2(20, 75);
+                    renderCustFields2(20, 75, 89 + nameExtra2);
                     pdf.setTextColor(100);
                     pdf.setFontSize(9);
                     pdf.setFont('helvetica', 'normal');
@@ -5385,13 +5407,13 @@
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(11);
                     pdf.setTextColor(30);
-                    pdf.text(doc.deliveryAddress.name, 115, 83);
+                    pdf.text(shipNameLines2, 115, 83, { lineHeightFactor: 1.2 });
                     pdf.setFont('helvetica', 'normal');
                     pdf.setFontSize(9);
                     pdf.setTextColor(80);
-                    if (doc.deliveryAddress.phone) drawLabeledLine2('Ph: ', doc.deliveryAddress.phone, 115, 89, 75, 9);
+                    if (doc.deliveryAddress.phone) drawLabeledLine2('Ph: ', doc.deliveryAddress.phone, 115, 89 + shipNameExtra2, 75, 9);
                     if (doc.deliveryAddress.address) {
-                        const dlY = doc.deliveryAddress.phone ? 93 : 89;
+                        const dlY = (doc.deliveryAddress.phone ? 93 : 89) + shipNameExtra2;
                         drawLabeledLine2('Address: ', doc.deliveryAddress.address, 115, dlY, 75, 9);
                     }
                 } else {
