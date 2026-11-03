@@ -4491,8 +4491,13 @@
                     }
                 });
 
-                // Summary
-                const finalY = doc.lastAutoTable.finalY + 12;
+                // Summary — move to a new page if the totals block won't fit below the table.
+                let finalY = doc.lastAutoTable.finalY + 12;
+                {
+                    const intra = (customer.placeOfSupply || CONFIG.BUSINESS_STATE) === CONFIG.BUSINESS_STATE;
+                    const summaryHeight = (includeGST ? (intra ? 30 : 24) : 10) + (discountAmount > 0 ? 16 : 0);
+                    if (finalY + summaryHeight > 285) { doc.addPage(); finalY = 25; }
+                }
 
                 let summaryOffset = 0;
 
@@ -4600,7 +4605,9 @@
                 ];
                 let notesEndY = finalY + summaryOffset;
                 if (allTermLines.length > 0) {
-                    const notesStartY = finalY + summaryOffset + 4;
+                    let notesStartY = finalY + summaryOffset + 4;
+                    // Keep the heading with at least the first bullet on the same page.
+                    if (notesStartY > 265) { doc.addPage(); notesStartY = 20; }
                     doc.setTextColor(...brandColor);
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(10);
@@ -5510,13 +5517,18 @@
                     }
                 });
 
-                // Summary
-                const finalY = pdf.lastAutoTable.finalY + 12;
+                // Summary — move to a new page if the totals block won't fit below the table.
+                let finalY = pdf.lastAutoTable.finalY + 12;
 
                 let summaryOffset = 0;
 
                 const docDiscount = doc.discount || null;
                 const docDiscountAmt = docDiscount ? (docDiscount.amount || 0) : 0;
+                {
+                    const intra = (doc.customer?.placeOfSupply || CONFIG.BUSINESS_STATE) === CONFIG.BUSINESS_STATE;
+                    const summaryHeight = (docIncludeGST ? (intra ? 30 : 24) : 10) + (docDiscountAmt > 0 ? 16 : 0);
+                    if (finalY + summaryHeight > 285) { pdf.addPage(); finalY = 25; }
+                }
 
                 if (docIncludeGST) {
                     pdf.setFontSize(11);
@@ -5624,7 +5636,9 @@
                 ];
                 let notesEndY = finalY + summaryOffset;
                 if (docTermLines.length > 0) {
-                    const notesStartY = finalY + summaryOffset + 4;
+                    let notesStartY = finalY + summaryOffset + 4;
+                    // Keep the heading with at least the first bullet on the same page.
+                    if (notesStartY > 265) { pdf.addPage(); notesStartY = 20; }
                     pdf.setTextColor(...brandColor);
                     pdf.setFont('helvetica', 'bold');
                     pdf.setFontSize(10);
