@@ -883,6 +883,8 @@
                 { id: 'warranty_sensor', category: 'Warranty', text: 'Sensor degradation under harsh water chemistry (alkaline, acidic, or chemically treated water) is not covered under warranty.' },
                 { id: 'warranty_void', category: 'Warranty', text: 'Warranty is void if the device is opened, tampered with, or serviced by unauthorised personnel.' },
                 { id: 'warranty_amc', category: 'Warranty', text: 'Post-warranty support and Annual Maintenance Contract (AMC) plans available on request.' },
+                { id: 'warranty_extended', category: 'Warranty', text: '**Extended Warranty – ₹2,000/- per Device for One Additional Year**\nCustomers may opt for an additional one-year warranty by paying ₹2,000/- per device.\nThe extended warranty includes:\n• Coverage for the controller unit.\n• Coverage for the associated sensor.\n• Repair or replacement of defective controller or sensor units, subject to warranty terms and conditions.\nThe extended warranty shall commence immediately after the expiry of the standard warranty period.' },
+                { id: 'amc_plan', category: 'Warranty', text: '**Annual Maintenance Contract (AMC) – ₹2,500/- per Device per Year**\nThe AMC shall be applicable from the second year onwards and includes:\n• One (1) preventive maintenance visit per year.\n• Technical support and assistance for the installed device.\n• One (1) year of SenseFlow Cloud platform subscription charges.\n**Additional Site Visits:** Any additional site visit beyond the one preventive maintenance visit included in the AMC shall be charged at a fixed rate of ₹500/- per visit.\n**Note:** AMC covers routine maintenance and cloud subscription. Replacement of defective hardware components is not included unless covered under an active warranty.' },
                 { id: 'prices_tax', category: 'General', text: 'All prices are inclusive of applicable taxes.' },
                 { id: 'validity', category: 'General', text: 'This quotation is valid for 30 days from the date of issue.' },
                 { id: 'support', category: 'General', text: 'Technical support available via phone and email during business hours (Mon–Sat, 10 AM – 7 PM).' }
@@ -1599,10 +1601,53 @@
             return String(text).replace(/₹\s*/g, 'Rs. ').replace(/[\u202F\u00A0]/g, ' ');
         };
 
-        // Draw the "Terms & Conditions" list. Long terms often hold a heading followed by
-        // several sentences separated by line breaks or by runs of spaces before a
-        // capital letter; those become a bold heading line with each sentence on its
-        // own line beneath it.
+        // Lay out one paragraph that may contain **bold** spans into lines that fit `width`.
+        // Returns an array of lines; each line is an array of { text, bold, w } words.
+        const layoutRichText = (pdf, text, width, size, allBold) => {
+            const words = [];
+            sanitizeForPdf(text).split('**').forEach((seg, i) => {
+                const bold = allBold || i % 2 === 1;
+                seg.split(/\s+/).filter(Boolean).forEach(word => {
+                    pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+                    pdf.setFontSize(size);
+                    words.push({ text: word, bold, w: pdf.getTextWidth(word) });
+                });
+            });
+            pdf.setFont('helvetica', 'normal');
+            const spaceW = pdf.getTextWidth(' ');
+            const lines = [];
+            let line = [], lineW = 0;
+            words.forEach(word => {
+                const addW = (line.length ? spaceW : 0) + word.w;
+                if (line.length && lineW + addW > width) { lines.push(line); line = []; lineW = 0; }
+                lineW += (line.length ? spaceW : 0) + word.w;
+                line.push(word);
+            });
+            if (line.length) lines.push(line);
+            return { lines, spaceW };
+        };
+
+        // Draw a laid-out line, one text call per run of same-style words so spacing
+        // inside each run is the font's own.
+        const drawRichLine = (pdf, line, x, y, size, spaceW, color) => {
+            pdf.setFontSize(size);
+            for (let i = 0; i < line.length; ) {
+                let j = i;
+                while (j < line.length && line[j].bold === line[i].bold) j++;
+                const run = line.slice(i, j).map(w => w.text).join(' ');
+                pdf.setFont('helvetica', line[i].bold ? 'bold' : 'normal');
+                pdf.setTextColor(line[i].bold ? 40 : color);
+                pdf.text(run, x, y);
+                x += pdf.getTextWidth(run) + spaceW;
+                i = j;
+            }
+        };
+
+        // Draw the "Terms & Conditions" list. Each term keeps the line breaks typed or
+        // pasted into it, and **text** prints in bold. In a multi-line term with no **
+        // markers, the first line is used as a bold heading. Lines starting with "•" or
+        // "-" print as indented sub-points. Older terms saved as one line (pasted line
+        // breaks became runs of spaces) are split on runs of spaces before a capital.
         // Returns the y position just below the last line.
         const drawPdfTerms = (pdf, termLines, startY, brandColor) => {
             const PAGE_BOTTOM = 282, X_BULLET = 17, X_TEXT = 22, WIDTH = 170;
@@ -1615,30 +1660,41 @@
             pdf.text('Terms & Conditions:', 15, y);
             y += 7;
             termLines.forEach(raw => {
-                const parts = String(raw).split(/\n|\s{2,}(?=[A-Z(])/).map(t => sanitizeForPdf(t).replace(/\s+/g, ' ').trim()).filter(Boolean);
+                const str = String(raw || '').replace(/\r/g, '');
+                const parts = (str.includes('\n') ? str.split('\n') : str.split(/\s{2,}(?=[A-Z(])/))
+                    .map(t => t.replace(/[ \t]+/g, ' ').trim());
+                while (parts.length && !parts[parts.length - 1]) parts.pop();
+                while (parts.length && !parts[0]) parts.shift();
                 if (!parts.length) return;
-                const [head, ...rest] = parts;
-                pdf.setFont('helvetica', rest.length ? 'bold' : 'normal');
-                pdf.setFontSize(9);
-                const headLines = pdf.splitTextToSize(head, WIDTH);
-                if (y + headLines.length * LINE_H > PAGE_BOTTOM) { pdf.addPage(); y = 20; }
-                pdf.setTextColor(rest.length ? 40 : 60);
-                pdf.text('\u2022', X_BULLET, y);
-                pdf.text(headLines, X_TEXT, y, { lineHeightFactor: LINE_H / (9 * 0.3528) });
-                y += headLines.length * LINE_H;
-                pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(8.5);
-                pdf.setTextColor(80);
-                rest.forEach(part => {
-                    const lines = pdf.splitTextToSize(part, WIDTH);
-                    if (y + lines.length * SUB_LINE_H > PAGE_BOTTOM) { pdf.addPage(); y = 20; }
-                    pdf.text(lines, X_TEXT, y, { lineHeightFactor: SUB_LINE_H / (8.5 * 0.3528) });
-                    y += lines.length * SUB_LINE_H;
+                const autoHead = parts.length > 1 && !str.includes('**');
+                parts.forEach((part, i) => {
+                    if (!part) { y += 1.5; return; }
+                    const isHead = i === 0;
+                    const size = isHead ? 9 : 8.5;
+                    const lineH = isHead ? LINE_H : SUB_LINE_H;
+                    const sub = !isHead && /^[•\-–]\s*/.test(part);
+                    const textX = sub ? X_TEXT + 4 : X_TEXT;
+                    const body = sub ? part.replace(/^[•\-–]\s*/, '') : part;
+                    const { lines, spaceW } = layoutRichText(pdf, body, WIDTH - (textX - X_TEXT), size, isHead && autoHead);
+                    lines.forEach((line, li) => {
+                        if (y + lineH > PAGE_BOTTOM) { pdf.addPage(); y = 20; }
+                        if (isHead && li === 0) {
+                            pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(60);
+                            pdf.text('•', X_BULLET, y);
+                        }
+                        if (sub && li === 0) {
+                            pdf.setFont('helvetica', 'normal'); pdf.setFontSize(size); pdf.setTextColor(80);
+                            pdf.text('–', X_TEXT + 0.5, y);
+                        }
+                        drawRichLine(pdf, line, textX, y, size, spaceW, isHead ? 60 : 80);
+                        y += lineH;
+                    });
                 });
                 y += GAP;
             });
             pdf.setFont('helvetica', 'normal');
             pdf.setFontSize(9);
+            pdf.setTextColor(0);
             return y;
         };
 
@@ -1709,6 +1765,33 @@
                 catch(e) { console.error(e); return false; }
             }
         };
+
+        // ============ FIREBASE TERMS LIBRARY (editable suggested conditions) ============
+        // Stored as one document; when it doesn't exist yet, CONFIG.STANDARD_TERMS is used.
+        const FirebaseTermsLibrary = {
+            async get() {
+                try {
+                    const snap = await db.collection('app_settings').doc('terms_library').get();
+                    return snap.exists ? (snap.data().terms || null) : null;
+                } catch(e) { console.error('FirebaseTermsLibrary.get failed:', e); return null; }
+            },
+            async save(terms) {
+                try {
+                    await db.collection('app_settings').doc('terms_library').set({
+                        terms,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return true;
+                } catch(e) { console.error('FirebaseTermsLibrary.save failed:', e); return false; }
+            }
+        };
+
+        // Show a term the way the PDF prints it: line breaks kept, **text** in bold.
+        const RichTermText = ({ text }) => (
+            <span style={{ whiteSpace: 'pre-line' }}>
+                {String(text || '').split('**').map((seg, i) => i % 2 ? <b key={i}>{seg}</b> : seg)}
+            </span>
+        );
 
         // ============ FIREBASE BROCHURES HELPERS ============
         const FirebaseBrochures = {
@@ -4121,6 +4204,9 @@
             const [notes, setNotes] = useState('');
             const [selectedTerms, setSelectedTerms] = useState([]);
             const [customTerm, setCustomTerm] = useState('');
+            const [customTermCategory, setCustomTermCategory] = useState('General');
+            const [termsLibrary, setTermsLibrary] = useState(CONFIG.STANDARD_TERMS);
+            const [libEdit, setLibEdit] = useState(null); // { id, text, category } while editing a suggestion
             const [selectedProduct, setSelectedProduct] = useState('');
             const [selectedBrand, setSelectedBrand] = useState('SenseFlow');
             const [includeGST, setIncludeGST] = useState(true);
@@ -4173,6 +4259,41 @@
             };
             const removeTermById = (id) => {
                 setSelectedTerms(prev => prev.filter(t => t.id !== id));
+            };
+
+            // Suggested conditions library (shared via Firebase)
+            useEffect(() => {
+                FirebaseTermsLibrary.get().then(terms => { if (terms && terms.length) setTermsLibrary(terms); });
+            }, []);
+            const saveTermsLibrary = async (next) => {
+                const prev = termsLibrary;
+                setTermsLibrary(next);
+                if (!(await FirebaseTermsLibrary.save(next))) {
+                    setTermsLibrary(prev);
+                    alert('Could not save suggested conditions. Please check your connection and try again.');
+                    return false;
+                }
+                return true;
+            };
+            const saveCustomTermAsSuggestion = async () => {
+                const text = customTerm.trim();
+                if (!text) return;
+                const term = { id: 'lib_' + Date.now(), category: customTermCategory.trim() || 'General', text };
+                if (await saveTermsLibrary([...termsLibrary, term])) {
+                    setSelectedTerms(prev => [...prev, { id: term.id, text: term.text }]);
+                    setCustomTerm('');
+                }
+            };
+            const saveLibEdit = async () => {
+                if (!libEdit || !libEdit.text.trim()) return;
+                const next = termsLibrary.map(t => t.id === libEdit.id
+                    ? { ...t, text: libEdit.text.trim(), category: libEdit.category.trim() || t.category }
+                    : t);
+                if (await saveTermsLibrary(next)) setLibEdit(null);
+            };
+            const deleteLibTerm = async (term) => {
+                if (!confirm('Remove this condition from the suggested list?\n\nQuotes that already use it are not changed.')) return;
+                await saveTermsLibrary(termsLibrary.filter(t => t.id !== term.id));
             };
 
             const addItem = () => {
@@ -4992,16 +5113,37 @@
                                         <label className="form-label">Terms & Conditions</label>
                                         {/* Standard clause selector grouped by category */}
                                         <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', marginBottom: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-                                            {Object.entries(CONFIG.STANDARD_TERMS.reduce((acc, t) => { (acc[t.category] = acc[t.category] || []).push(t); return acc; }, {})).map(([cat, terms]) => (
+                                            {Object.entries(termsLibrary.reduce((acc, t) => { (acc[t.category] = acc[t.category] || []).push(t); return acc; }, {})).map(([cat, terms]) => (
                                                 <div key={cat} style={{ marginBottom: '8px' }}>
                                                     <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>{cat}</div>
                                                     {terms.map(term => {
                                                         const isSelected = selectedTerms.some(t => t.id === term.id);
+                                                        if (libEdit && libEdit.id === term.id) {
+                                                            return (
+                                                                <div key={term.id} style={{ padding: '6px 0' }}>
+                                                                    <textarea className="form-textarea" rows={Math.min(10, libEdit.text.split('\n').length + 1)} value={libEdit.text}
+                                                                        onChange={e => setLibEdit({ ...libEdit, text: e.target.value })}
+                                                                        style={{ fontSize: '12px', width: '100%', resize: 'vertical' }} />
+                                                                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px', alignItems: 'center' }}>
+                                                                        <input className="form-input" list="term-categories" value={libEdit.category} onChange={e => setLibEdit({ ...libEdit, category: e.target.value })}
+                                                                            placeholder="Category" style={{ flex: 1, fontSize: '12px' }} />
+                                                                        <button type="button" className="btn btn-sm btn-primary" onClick={saveLibEdit}>Save</button>
+                                                                        <button type="button" className="btn btn-sm" onClick={() => setLibEdit(null)}>Cancel</button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
                                                         return (
-                                                            <label key={term.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '4px 0', cursor: 'pointer', fontSize: '13px', color: isSelected ? 'var(--text)' : 'var(--text-muted)' }}>
-                                                                <input type="checkbox" checked={isSelected} onChange={() => toggleTerm(term)} style={{ marginTop: '2px', flexShrink: 0 }} />
-                                                                <span>{term.text}</span>
-                                                            </label>
+                                                            <div key={term.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                                                                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '4px 0', cursor: 'pointer', fontSize: '13px', flex: 1, color: isSelected ? 'var(--text)' : 'var(--text-muted)' }}>
+                                                                    <input type="checkbox" checked={isSelected} onChange={() => toggleTerm(term)} style={{ marginTop: '2px', flexShrink: 0 }} />
+                                                                    <RichTermText text={term.text} />
+                                                                </label>
+                                                                <button type="button" title="Edit suggestion" onClick={() => setLibEdit({ id: term.id, text: term.text, category: term.category })}
+                                                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px', padding: '4px', flexShrink: 0 }}>✎</button>
+                                                                <button type="button" title="Remove from suggestions" onClick={() => deleteLibTerm(term)}
+                                                                    style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '15px', padding: '4px', flexShrink: 0 }}>×</button>
+                                                            </div>
                                                         );
                                                     })}
                                                 </div>
@@ -5014,7 +5156,7 @@
                                                 {selectedTerms.map((t, idx) => (
                                                     <div key={t.id} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', marginBottom: '4px' }}>
                                                         <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', flexShrink: 0 }}>{idx + 1}.</span>
-                                                        <textarea className="form-textarea" rows="1" value={t.text} onChange={e => updateTermText(t.id, e.target.value)}
+                                                        <textarea className="form-textarea" rows={Math.min(10, String(t.text || '').split('\n').length)} value={t.text} onChange={e => updateTermText(t.id, e.target.value)}
                                                             style={{ fontSize: '12px', flex: 1, resize: 'vertical', minHeight: '30px' }} />
                                                         <button type="button" onClick={() => removeTermById(t.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '16px', flexShrink: 0, padding: '4px' }}>×</button>
                                                     </div>
@@ -5022,11 +5164,21 @@
                                             </div>
                                         )}
                                         {/* Custom term */}
-                                        <div style={{ display: 'flex', gap: '6px' }}>
-                                            <input className="form-input" value={customTerm} onChange={e => setCustomTerm(e.target.value)} placeholder="Add custom condition..."
-                                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomTerm(); } }}
-                                                style={{ flex: 1, fontSize: '12px' }} />
-                                            <button type="button" className="btn btn-sm" onClick={addCustomTerm} style={{ flexShrink: 0 }}>+ Add</button>
+                                        <textarea className="form-textarea" rows={Math.min(10, Math.max(2, customTerm.split('\n').length))} value={customTerm} onChange={e => setCustomTerm(e.target.value)}
+                                            placeholder="Add custom condition... (paste or type; line breaks are kept)"
+                                            style={{ width: '100%', fontSize: '12px', resize: 'vertical' }} />
+                                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <button type="button" className="btn btn-sm" onClick={addCustomTerm} style={{ flexShrink: 0 }}>+ Add to this quote</button>
+                                            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>or save to suggestions under</span>
+                                            <input className="form-input" list="term-categories" value={customTermCategory} onChange={e => setCustomTermCategory(e.target.value)}
+                                                placeholder="Category" style={{ width: '140px', fontSize: '12px' }} />
+                                            <button type="button" className="btn btn-sm" onClick={saveCustomTermAsSuggestion} style={{ flexShrink: 0 }}>★ Save as suggestion</button>
+                                        </div>
+                                        <datalist id="term-categories">
+                                            {[...new Set(termsLibrary.map(t => t.category))].map(c => <option key={c} value={c} />)}
+                                        </datalist>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                            Tip: each new line prints on its own line. Wrap text in **double asterisks** for <b>bold</b>. Start a line with "-" or "•" for an indented sub-point.
                                         </div>
                                         {/* Legacy free-text notes */}
                                         <textarea className="form-textarea" rows="2" placeholder="Additional notes (optional)..." value={notes} onChange={e => setNotes(e.target.value)} style={{ marginTop: '8px', fontSize: '12px' }} />
