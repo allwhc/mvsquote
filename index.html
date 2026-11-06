@@ -1646,12 +1646,12 @@
         // Draw the "Terms & Conditions" list. Each term keeps the line breaks typed or
         // pasted into it, and **text** prints in bold. In a multi-line term with no **
         // markers, the first line is used as a bold heading. Lines starting with "•" or
-        // "-" print as indented sub-points. Older terms saved as one line (pasted line
+        // "-" print as indented bullet points; other lines are separated as paragraphs. Older terms saved as one line (pasted line
         // breaks became runs of spaces) are split on runs of spaces before a capital.
         // Returns the y position just below the last line.
         const drawPdfTerms = (pdf, termLines, startY, brandColor) => {
             const PAGE_BOTTOM = 282, X_BULLET = 17, X_TEXT = 22, WIDTH = 170;
-            const LINE_H = 4, SUB_LINE_H = 3.7, GAP = 2.2;
+            const LINE_H = 4, SUB_LINE_H = 3.8, GAP = 2.2, PARA_GAP = 1.8;
             let y = startY;
             if (y > 265) { pdf.addPage(); y = 20; }
             pdf.setTextColor(...brandColor);
@@ -1667,29 +1667,31 @@
                 while (parts.length && !parts[0]) parts.shift();
                 if (!parts.length) return;
                 const autoHead = parts.length > 1 && !str.includes('**');
+                const isSub = t => /^[•\-–]\s*/.test(t);
+                let prevSub = null;
                 parts.forEach((part, i) => {
-                    if (!part) { y += 1.5; return; }
+                    if (!part) return; // blank lines are covered by paragraph spacing
                     const isHead = i === 0;
+                    const sub = !isHead && isSub(part);
+                    // Space between paragraphs, but keep consecutive sub-points together.
+                    if (prevSub !== null && !(sub && prevSub)) y += PARA_GAP;
+                    prevSub = sub;
                     const size = isHead ? 9 : 8.5;
                     const lineH = isHead ? LINE_H : SUB_LINE_H;
-                    const sub = !isHead && /^[•\-–]\s*/.test(part);
-                    const textX = sub ? X_TEXT + 4 : X_TEXT;
+                    const textX = sub ? X_TEXT + 5 : X_TEXT;
                     const body = sub ? part.replace(/^[•\-–]\s*/, '') : part;
                     const { lines, spaceW } = layoutRichText(pdf, body, WIDTH - (textX - X_TEXT), size, isHead && autoHead);
                     lines.forEach((line, li) => {
                         if (y + lineH > PAGE_BOTTOM) { pdf.addPage(); y = 20; }
-                        if (isHead && li === 0) {
+                        if (li === 0 && (isHead || sub)) {
                             pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(60);
-                            pdf.text('•', X_BULLET, y);
+                            pdf.text('\u2022', isHead ? X_BULLET : X_TEXT + 1.2, y);
                         }
-                        if (sub && li === 0) {
-                            pdf.setFont('helvetica', 'normal'); pdf.setFontSize(size); pdf.setTextColor(80);
-                            pdf.text('–', X_TEXT + 0.5, y);
-                        }
-                        drawRichLine(pdf, line, textX, y, size, spaceW, isHead ? 60 : 80);
+                        drawRichLine(pdf, line, textX, y, size, spaceW, 60);
                         y += lineH;
                     });
                 });
+                if (parts.filter(Boolean).length > 1) y += PARA_GAP;
                 y += GAP;
             });
             pdf.setFont('helvetica', 'normal');
