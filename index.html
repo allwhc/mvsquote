@@ -1774,7 +1774,7 @@
             async get() {
                 try {
                     const snap = await db.collection('app_settings').doc('terms_library').get();
-                    return snap.exists ? (snap.data().terms || null) : null;
+                    return snap.exists && Array.isArray(snap.data().terms) ? snap.data().terms : null;
                 } catch(e) { console.error('FirebaseTermsLibrary.get failed:', e); return null; }
             },
             async save(terms) {
@@ -4265,7 +4265,7 @@
 
             // Suggested conditions library (shared via Firebase)
             useEffect(() => {
-                FirebaseTermsLibrary.get().then(terms => { if (terms && terms.length) setTermsLibrary(terms); });
+                FirebaseTermsLibrary.get().then(terms => { if (terms) setTermsLibrary(terms); });
             }, []);
             const saveTermsLibrary = async (next) => {
                 const prev = termsLibrary;
