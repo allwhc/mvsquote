@@ -1599,6 +1599,49 @@
             return String(text).replace(/₹\s*/g, 'Rs. ').replace(/[\u202F\u00A0]/g, ' ');
         };
 
+        // Draw the "Terms & Conditions" list. Long terms often hold a heading followed by
+        // several sentences separated by line breaks or by runs of spaces before a
+        // capital letter; those become a bold heading line with each sentence on its
+        // own line beneath it.
+        // Returns the y position just below the last line.
+        const drawPdfTerms = (pdf, termLines, startY, brandColor) => {
+            const PAGE_BOTTOM = 282, X_BULLET = 17, X_TEXT = 22, WIDTH = 170;
+            const LINE_H = 4, SUB_LINE_H = 3.7, GAP = 2.2;
+            let y = startY;
+            if (y > 265) { pdf.addPage(); y = 20; }
+            pdf.setTextColor(...brandColor);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(10);
+            pdf.text('Terms & Conditions:', 15, y);
+            y += 7;
+            termLines.forEach(raw => {
+                const parts = String(raw).split(/\n|\s{2,}(?=[A-Z(])/).map(t => sanitizeForPdf(t).replace(/\s+/g, ' ').trim()).filter(Boolean);
+                if (!parts.length) return;
+                const [head, ...rest] = parts;
+                pdf.setFont('helvetica', rest.length ? 'bold' : 'normal');
+                pdf.setFontSize(9);
+                const headLines = pdf.splitTextToSize(head, WIDTH);
+                if (y + headLines.length * LINE_H > PAGE_BOTTOM) { pdf.addPage(); y = 20; }
+                pdf.setTextColor(rest.length ? 40 : 60);
+                pdf.text('\u2022', X_BULLET, y);
+                pdf.text(headLines, X_TEXT, y, { lineHeightFactor: LINE_H / (9 * 0.3528) });
+                y += headLines.length * LINE_H;
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(8.5);
+                pdf.setTextColor(80);
+                rest.forEach(part => {
+                    const lines = pdf.splitTextToSize(part, WIDTH);
+                    if (y + lines.length * SUB_LINE_H > PAGE_BOTTOM) { pdf.addPage(); y = 20; }
+                    pdf.text(lines, X_TEXT, y, { lineHeightFactor: SUB_LINE_H / (8.5 * 0.3528) });
+                    y += lines.length * SUB_LINE_H;
+                });
+                y += GAP;
+            });
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(9);
+            return y;
+        };
+
         // Fetch image as base64 for PDF embedding
         const fetchImageAsBase64 = async (url) => {
             try {
@@ -4623,25 +4666,7 @@
                 ];
                 let notesEndY = finalY + summaryOffset;
                 if (allTermLines.length > 0) {
-                    let notesStartY = finalY + summaryOffset + 4;
-                    // Keep the heading with at least the first bullet on the same page.
-                    if (notesStartY > 265) { doc.addPage(); notesStartY = 20; }
-                    doc.setTextColor(...brandColor);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(10);
-                    doc.text('Terms & Conditions:', 15, notesStartY);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setFontSize(9);
-                    doc.setTextColor(60);
-                    let bulletY = notesStartY + 7;
-                    allTermLines.forEach(line => {
-                        if (bulletY > 270) { doc.addPage(); bulletY = 20; }
-                        const wrapped = doc.splitTextToSize(line.trim(), 165);
-                        doc.text('\u2022', 17, bulletY);
-                        doc.text(wrapped, 22, bulletY);
-                        bulletY += wrapped.length * 4.5 + 2;
-                    });
-                    notesEndY = bulletY;
+                    notesEndY = drawPdfTerms(doc, allTermLines, finalY + summaryOffset + 4, brandColor);
                 }
 
                 // Footer — check if enough space, else add new page.
@@ -5672,25 +5697,7 @@
                 ];
                 let notesEndY = finalY + summaryOffset;
                 if (docTermLines.length > 0) {
-                    let notesStartY = finalY + summaryOffset + 4;
-                    // Keep the heading with at least the first bullet on the same page.
-                    if (notesStartY > 265) { pdf.addPage(); notesStartY = 20; }
-                    pdf.setTextColor(...brandColor);
-                    pdf.setFont('helvetica', 'bold');
-                    pdf.setFontSize(10);
-                    pdf.text('Terms & Conditions:', 15, notesStartY);
-                    pdf.setFont('helvetica', 'normal');
-                    pdf.setFontSize(9);
-                    pdf.setTextColor(60);
-                    let bulletY = notesStartY + 7;
-                    docTermLines.forEach(line => {
-                        if (bulletY > 270) { pdf.addPage(); bulletY = 20; }
-                        const wrapped = pdf.splitTextToSize(line.trim(), 165);
-                        pdf.text('\u2022', 17, bulletY);
-                        pdf.text(wrapped, 22, bulletY);
-                        bulletY += wrapped.length * 4.5 + 2;
-                    });
-                    notesEndY = bulletY;
+                    notesEndY = drawPdfTerms(pdf, docTermLines, finalY + summaryOffset + 4, brandColor);
                 }
 
                 // Footer — check if enough space, else add new page.
