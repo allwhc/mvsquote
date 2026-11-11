@@ -5934,7 +5934,9 @@
                 });
             };
 
-            const printLabels = () => {
+            // copies = 2 prints each document's label twice (top and bottom of the same
+            // page) so it can be cut in half and stuck on two sides of the box.
+            const printLabels = (copies = 1) => {
                 if (selectedForLabels.length === 0) return;
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF();
@@ -5945,7 +5947,8 @@
                 const textIndent = marginLeft + 8;
                 const wrapWidth = 130; // wrap addresses at 130mm
 
-                selectedForLabels.forEach((doc, idx) => {
+                const labelDocs = selectedForLabels.flatMap(d => Array(copies).fill(d));
+                labelDocs.forEach((doc, idx) => {
                     const labelIdx = idx % 2; // 0 or 1
                     if (idx > 0 && labelIdx === 0) pdf.addPage();
 
@@ -6045,7 +6048,7 @@
                     }
                 });
 
-                pdf.save('courier-labels.pdf');
+                pdf.save(copies === 2 ? 'courier-labels-x2.pdf' : 'courier-labels.pdf');
                 setSelectedForLabels([]);
             };
 
@@ -6428,7 +6431,8 @@
                         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--primary)', color: 'white', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1000, boxShadow: '0 -2px 10px rgba(0,0,0,0.2)' }}>
                             <span>{selectedForLabels.length} document(s) selected</span>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                                <button className="btn" style={{ background: 'white', color: 'var(--primary)' }} onClick={printLabels}>Print Labels</button>
+                                <button className="btn" style={{ background: 'white', color: 'var(--primary)' }} onClick={() => printLabels(1)}>Print Labels</button>
+                                <button className="btn" style={{ background: 'white', color: 'var(--primary)' }} onClick={() => printLabels(2)} title="Same label twice on each page: cut in half and stick on two sides of the box">Print Labels ×2</button>
                                 <button className="btn" style={{ background: '#EF4444', color: 'white' }} onClick={async () => {
                                     const pwd = prompt(`Enter admin password to delete ${selectedForLabels.length} document(s):`);
                                     if (!pwd) return;
