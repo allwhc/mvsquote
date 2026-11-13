@@ -885,6 +885,7 @@
                 { id: 'warranty_amc', category: 'Warranty', text: 'Post-warranty support and Annual Maintenance Contract (AMC) plans available on request.' },
                 { id: 'warranty_extended', category: 'Warranty', text: '**Extended Warranty – ₹2,000/- per Device for One Additional Year**\nCustomers may opt for an additional one-year warranty by paying ₹2,000/- per device.\nThe extended warranty includes:\n• Coverage for the controller unit.\n• Coverage for the associated sensor.\n• Repair or replacement of defective controller or sensor units, subject to warranty terms and conditions.\nThe extended warranty shall commence immediately after the expiry of the standard warranty period.' },
                 { id: 'amc_plan', category: 'Warranty', text: '**Annual Maintenance Contract (AMC) – ₹2,500/- per Device per Year**\nThe AMC shall be applicable from the second year onwards and includes:\n• One (1) preventive maintenance visit per year.\n• Technical support and assistance for the installed device.\n• One (1) year of SenseFlow Cloud platform subscription charges.\n**Additional Site Visits:** Any additional site visit beyond the one preventive maintenance visit included in the AMC shall be charged at a fixed rate of ₹500/- per visit.\n**Note:** AMC covers routine maintenance and cloud subscription. Replacement of defective hardware components is not included unless covered under an active warranty.' },
+                { id: 'cloud_subscription', category: 'Cloud Services', text: '**Cloud Monitoring & Control Subscription – ₹2,500/- per Device per Year (Optional)**\nThe device operates fully offline as a standalone unit; a cloud subscription is not required for its core functions.\nCustomers who wish to monitor and control the pump remotely from anywhere may opt for the SenseFlow Cloud subscription, which includes:\n• Real-time tank level and pump status on the mobile and computer web dashboard.\n• Remote pump control from anywhere.\n• Overflow and low-level alerts on the dashboard.\nThe subscription is billed annually per device and requires an active 2.4GHz WiFi connection with internet access at the site.' },
                 { id: 'prices_tax', category: 'General', text: 'All prices are inclusive of applicable taxes.' },
                 { id: 'validity', category: 'General', text: 'This quotation is valid for 30 days from the date of issue.' },
                 { id: 'support', category: 'General', text: 'Technical support available via phone and email during business hours (Mon–Sat, 10 AM – 7 PM).' }
@@ -1770,17 +1771,21 @@
 
         // ============ FIREBASE TERMS LIBRARY (editable suggested conditions) ============
         // Stored as one document; when it doesn't exist yet, CONFIG.STANDARD_TERMS is used.
+        // removedDefaultIds remembers built-in terms the user deleted, so that terms newly
+        // added to CONFIG.STANDARD_TERMS still appear while deleted ones stay gone.
         const FirebaseTermsLibrary = {
             async get() {
                 try {
                     const snap = await db.collection('app_settings').doc('terms_library').get();
-                    return snap.exists && Array.isArray(snap.data().terms) ? snap.data().terms : null;
+                    if (!snap.exists || !Array.isArray(snap.data().terms)) return null;
+                    return { terms: snap.data().terms, removedDefaultIds: snap.data().removedDefaultIds || [] };
                 } catch(e) { console.error('FirebaseTermsLibrary.get failed:', e); return null; }
             },
-            async save(terms) {
+            async save(terms, removedDefaultIds) {
                 try {
                     await db.collection('app_settings').doc('terms_library').set({
                         terms,
+                        removedDefaultIds,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     return true;
@@ -4208,6 +4213,7 @@
             const [customTerm, setCustomTerm] = useState('');
             const [customTermCategory, setCustomTermCategory] = useState('General');
             const [termsLibrary, setTermsLibrary] = useState(CONFIG.STANDARD_TERMS);
+            const [removedDefaultIds, setRemovedDefaultIds] = useState([]);
             const [libEdit, setLibEdit] = useState(null); // { id, text, category } while editing a suggestion
             const [selectedProduct, setSelectedProduct] = useState('');
             const [selectedBrand, setSelectedBrand] = useState('SenseFlow');
@@ -4265,13 +4271,21 @@
 
             // Suggested conditions library (shared via Firebase)
             useEffect(() => {
-                FirebaseTermsLibrary.get().then(terms => { if (terms) setTermsLibrary(terms); });
+                FirebaseTermsLibrary.get().then(saved => {
+                    if (!saved) return;
+                    const ids = new Set(saved.terms.map(t => t.id));
+                    const newDefaults = CONFIG.STANDARD_TERMS.filter(t => !ids.has(t.id) && !saved.removedDefaultIds.includes(t.id));
+                    setTermsLibrary([...saved.terms, ...newDefaults]);
+                    setRemovedDefaultIds(saved.removedDefaultIds);
+                });
             }, []);
-            const saveTermsLibrary = async (next) => {
-                const prev = termsLibrary;
+            const saveTermsLibrary = async (next, nextRemoved = removedDefaultIds) => {
+                const prev = termsLibrary, prevRemoved = removedDefaultIds;
                 setTermsLibrary(next);
-                if (!(await FirebaseTermsLibrary.save(next))) {
+                setRemovedDefaultIds(nextRemoved);
+                if (!(await FirebaseTermsLibrary.save(next, nextRemoved))) {
                     setTermsLibrary(prev);
+                    setRemovedDefaultIds(prevRemoved);
                     alert('Could not save suggested conditions. Please check your connection and try again.');
                     return false;
                 }
@@ -4295,7 +4309,9 @@
             };
             const deleteLibTerm = async (term) => {
                 if (!confirm('Remove this condition from the suggested list?\n\nQuotes that already use it are not changed.')) return;
-                await saveTermsLibrary(termsLibrary.filter(t => t.id !== term.id));
+                const isDefault = CONFIG.STANDARD_TERMS.some(t => t.id === term.id);
+                await saveTermsLibrary(termsLibrary.filter(t => t.id !== term.id),
+                    isDefault ? [...new Set([...removedDefaultIds, term.id])] : removedDefaultIds);
             };
 
             const addItem = () => {
