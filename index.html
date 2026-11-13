@@ -1644,6 +1644,37 @@
             }
         };
 
+        // Lay out (and optionally draw) a product description inside its table cell.
+        // Line breaks are kept, **text** is bold, lines starting with "•", "-" or "–" are
+        // bullet points with a hanging indent, and other lines are separated as paragraphs.
+        // Returns the distance from the first baseline to the last one, used both to size
+        // the table row and to draw.
+        const pdfDescription = (pdf, text, x, y, width, draw) => {
+            const SIZE = 8, LINE_H = 3.5, PARA_GAP = 1.2, INDENT = 3.2;
+            const parts = String(text || '').replace(/\r/g, '').split('\n').map(t => t.replace(/[ \t]+/g, ' ').trim()).filter(Boolean);
+            let dy = 0, lastDy = 0, prevBullet = null;
+            parts.forEach(part => {
+                const bullet = /^[•\-–]\s*/.test(part);
+                if (prevBullet !== null && !(bullet && prevBullet)) dy += PARA_GAP;
+                prevBullet = bullet;
+                const body = bullet ? part.replace(/^[•\-–]\s*/, '') : part;
+                const textX = bullet ? x + INDENT : x;
+                const { lines, spaceW } = layoutRichText(pdf, body, width - (textX - x), SIZE, false);
+                lines.forEach((line, li) => {
+                    if (draw) {
+                        if (bullet && li === 0) {
+                            pdf.setFont('helvetica', 'normal'); pdf.setFontSize(SIZE); pdf.setTextColor(70);
+                            pdf.text('•', x, y + dy);
+                        }
+                        drawRichLine(pdf, line, textX, y + dy, SIZE, spaceW, 70);
+                    }
+                    lastDy = dy;
+                    dy += LINE_H;
+                });
+            });
+            return lastDy;
+        };
+
         // Draw the "Terms & Conditions" list. Each term keeps the line breaks typed or
         // pasted into it, and **text** prints in bold. In a multi-line term with no **
         // markers, the first line is used as a bold heading. Lines starting with "•" or
@@ -4626,7 +4657,7 @@
                 }
 
                 // Size product rows to the text actually drawn in didDrawCell (9pt name +
-                // 7.5pt description). Letting autoTable measure name+desc at 9pt reserved
+                // formatted 8pt description). Letting autoTable measure name+desc at 9pt reserved
                 // far more height than needed and left big gaps under each description.
                 {
                     const fixedW = Object.values(colStyles).reduce((w, c) => w + (typeof c.cellWidth === 'number' ? c.cellWidth : 0), 0);
@@ -4636,9 +4667,8 @@
                         if (!item || !item.description) return;
                         doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
                         const n = doc.splitTextToSize(item.name || '', prodTextW).length;
-                        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
-                        const d = doc.splitTextToSize(item.description, prodTextW).length;
-                        row[0] = { content: '', styles: { minCellHeight: 13 + n * 4 + (d - 1) * 3.05 } };
+                        const descH = pdfDescription(doc, item.description, 0, 0, prodTextW, false);
+                        row[0] = { content: '', styles: { minCellHeight: 13 + n * 4 + descH } };
                     });
                     doc.setFontSize(9);
                 }
@@ -4676,12 +4706,8 @@
                                 const nameLines = doc.splitTextToSize(item.name, cellW);
                                 doc.text(nameLines, cellX, curY);
                                 curY += nameLines.length * 4 + 2;
-                                // Draw description: normal, gray, 7.5pt
-                                doc.setFont('helvetica', 'normal');
-                                doc.setFontSize(7.5);
-                                doc.setTextColor(100, 100, 100);
-                                const descLines = doc.splitTextToSize(item.description, cellW);
-                                doc.text(descLines, cellX, curY);
+                                // Draw description: bullets, paragraphs and **bold**, 8pt
+                                pdfDescription(doc, item.description, cellX, curY, cellW, true);
                                 // Reset
                                 doc.setFont('helvetica', 'normal');
                                 doc.setFontSize(9);
@@ -5687,7 +5713,7 @@
                 }
 
                 // Size product rows to the text actually drawn in didDrawCell (9pt name +
-                // 7.5pt description). Letting autoTable measure name+desc at 9pt reserved
+                // formatted 8pt description). Letting autoTable measure name+desc at 9pt reserved
                 // far more height than needed and left big gaps under each description.
                 {
                     const fixedW = Object.values(colStyles).reduce((w, c) => w + (typeof c.cellWidth === 'number' ? c.cellWidth : 0), 0);
@@ -5697,9 +5723,8 @@
                         if (!item || !item.description) return;
                         pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9);
                         const n = pdf.splitTextToSize(item.name || '', prodTextW).length;
-                        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5);
-                        const d = pdf.splitTextToSize(item.description, prodTextW).length;
-                        row[0] = { content: '', styles: { minCellHeight: 13 + n * 4 + (d - 1) * 3.05 } };
+                        const descH = pdfDescription(pdf, item.description, 0, 0, prodTextW, false);
+                        row[0] = { content: '', styles: { minCellHeight: 13 + n * 4 + descH } };
                     });
                     pdf.setFontSize(9);
                 }
@@ -5735,11 +5760,7 @@
                                 const nameLines = pdf.splitTextToSize(item.name, cellW);
                                 pdf.text(nameLines, cellX, curY);
                                 curY += nameLines.length * 4 + 2;
-                                pdf.setFont('helvetica', 'normal');
-                                pdf.setFontSize(7.5);
-                                pdf.setTextColor(100, 100, 100);
-                                const descLines = pdf.splitTextToSize(item.description, cellW);
-                                pdf.text(descLines, cellX, curY);
+                                pdfDescription(pdf, item.description, cellX, curY, cellW, true);
                                 pdf.setFont('helvetica', 'normal');
                                 pdf.setFontSize(9);
                                 pdf.setTextColor(0);
